@@ -1,0 +1,236 @@
+snapshot: "reconstructed-2026-08-26"
+api_version: "2026-04"
+entities:
+  orders:
+    grain: one row per order
+    primary_key: id
+    source: orders_query
+    measures: [current_subtotal_price, current_total_tax, current_total_price]
+  customers:
+    grain: one row per customer
+    primary_key: id
+    source: customers_query
+    measures: [number_of_orders, amount_spent]
+  order_line_items:
+    grain: one row per order line
+    primary_key: id
+    source: {nested_in: orders}
+    measures: [quantity, current_quantity, discounted_total]
+  products:
+    grain: one row per product
+    primary_key: id
+    source: products_query
+    measures: []
+  product_variants:
+    grain: one row per product variant
+    primary_key: id
+    source: {nested_in: products}
+    measures: [price, inventory_quantity]
+  inventory_items:
+    grain: one row per inventory item
+    primary_key: id
+    source: inventory_items_query
+    measures: [unit_cost]
+  inventory_levels:
+    grain: one row per inventory item and location
+    primary_key: inventory_level_key
+    source: inventory_levels_query
+    measures: [available_quantity]
+  locations:
+    grain: one row per location
+    primary_key: id
+    source: locations_query
+    measures: []
+  collections:
+    grain: one row per collection
+    primary_key: id
+    source: collections_query
+    measures: []
+  collects:
+    grain: one row per product and collection membership
+    primary_key: collect_key
+    source: collections_query
+    measures: []
+  refunds:
+    grain: one row per refund
+    primary_key: id
+    source: {nested_in: orders}
+    measures: [total_refunded]
+  refund_line_items:
+    grain: one row per refunded order line
+    primary_key: id
+    source: {nested_in: refunds}
+    measures: [quantity, subtotal, total_tax]
+  refund_order_adjustments:
+    grain: one row per refund order adjustment
+    primary_key: id
+    source: {nested_in: refunds}
+    measures: [amount, tax_amount]
+  returns:
+    grain: one row per return
+    primary_key: id
+    source: returns_query
+    measures: []
+  return_line_items:
+    grain: one row per returned order line
+    primary_key: id
+    source: {nested_in: returns}
+    measures: [quantity, subtotal, total_tax]
+  order_transactions:
+    grain: one row per order payment transaction
+    primary_key: id
+    source: {nested_in: orders}
+    measures: [amount]
+  tender_transactions:
+    grain: one row per tender transaction
+    primary_key: id
+    source: tender_transactions_query
+    measures: [amount]
+  balance_transactions:
+    grain: one row per Shopify Payments balance transaction
+    primary_key: id
+    source: balance_transactions_query
+    measures: [amount, fee, net]
+  fulfillments:
+    grain: one row per fulfillment
+    primary_key: id
+    source: {nested_in: orders}
+    measures: []
+  fulfillment_line_items:
+    grain: one row per fulfillment and order line
+    primary_key: fulfillment_line_key
+    source: {nested_in: fulfillments}
+    measures: [quantity]
+  fulfillment_orders:
+    grain: one row per fulfillment order
+    primary_key: id
+    source: fulfillment_orders_query
+    measures: []
+  fulfillment_order_line_items:
+    grain: one row per fulfillment-order line
+    primary_key: id
+    source: {nested_in: fulfillment_orders}
+    measures: [remaining_quantity, total_quantity]
+  shipping_lines:
+    grain: one row per order shipping line
+    primary_key: id
+    source: {nested_in: orders}
+    measures: [discounted_price]
+  discount_applications:
+    grain: one row per order discount application
+    primary_key: discount_application_key
+    source: {nested_in: orders}
+    measures: [value]
+  discount_allocations:
+    grain: one row per order line and discount application
+    primary_key: discount_allocation_key
+    source: {nested_in: order_line_items}
+    measures: [allocated_amount]
+  tax_lines:
+    grain: one row per taxable owner and tax title
+    primary_key: tax_line_key
+    source: {nested_in: orders}
+    measures: [price, rate]
+  metafields:
+    grain: one row per owner, namespace, and key
+    primary_key: id
+    source: metafields_query
+    measures: []
+  gift_cards:
+    grain: one row per gift card
+    primary_key: id
+    source: gift_cards_query
+    measures: [initial_value, balance]
+  companies:
+    grain: one row per B2B company
+    primary_key: id
+    source: companies_query
+    measures: []
+  company_locations:
+    grain: one row per B2B company location
+    primary_key: id
+    source: {nested_in: companies}
+    measures: []
+  draft_orders:
+    grain: one row per draft order
+    primary_key: id
+    source: draft_orders_query
+    measures: [subtotal_price, total_price]
+  abandoned_checkouts:
+    grain: one row per abandoned checkout
+    primary_key: id
+    source: abandoned_checkouts_query
+    measures: [subtotal_price, total_price]
+  price_rules:
+    grain: one row per price rule
+    primary_key: id
+    source: price_rules_query
+    measures: [value]
+  discount_codes:
+    grain: one row per discount code
+    primary_key: id
+    source: discount_codes_query
+    measures: [usage_count]
+
+relationships:
+  - {name: order_customer, from: orders, to: customers, local_key: customer_id, remote_key: id, kind: many_to_one}
+  - {name: order_lines, from: orders, to: order_line_items, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: line_variant, from: order_line_items, to: product_variants, local_key: variant_id, remote_key: id, kind: many_to_one}
+  - {name: line_product, from: order_line_items, to: products, local_key: product_id, remote_key: id, kind: many_to_one}
+  - {name: variant_product, from: product_variants, to: products, local_key: product_id, remote_key: id, kind: many_to_one}
+  - {name: variant_inventory_item, from: product_variants, to: inventory_items, local_key: inventory_item_id, remote_key: id, kind: one_to_one}
+  - {name: item_inventory_levels, from: inventory_items, to: inventory_levels, local_key: id, remote_key: inventory_item_id, kind: one_to_many}
+  - {name: inventory_level_location, from: inventory_levels, to: locations, local_key: location_id, remote_key: id, kind: many_to_one}
+  - {name: product_collects, from: products, to: collects, local_key: id, remote_key: product_id, kind: one_to_many}
+  - {name: collection_collects, from: collections, to: collects, local_key: id, remote_key: collection_id, kind: one_to_many}
+  - {name: order_refunds, from: orders, to: refunds, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: refund_lines, from: refunds, to: refund_line_items, local_key: id, remote_key: refund_id, kind: one_to_many}
+  - {name: refund_adjustments, from: refunds, to: refund_order_adjustments, local_key: id, remote_key: refund_id, kind: one_to_many}
+  - {name: order_returns, from: orders, to: returns, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: return_lines, from: returns, to: return_line_items, local_key: id, remote_key: return_id, kind: one_to_many}
+  - {name: line_refund_lines, from: order_line_items, to: refund_line_items, local_key: id, remote_key: order_line_item_id, kind: one_to_many}
+  - {name: line_return_lines, from: order_line_items, to: return_line_items, local_key: id, remote_key: order_line_item_id, kind: one_to_many}
+  - {name: order_payment_transactions, from: orders, to: order_transactions, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: transaction_tenders, from: order_transactions, to: tender_transactions, local_key: id, remote_key: order_transaction_id, kind: one_to_many}
+  - {name: transaction_balance_entries, from: order_transactions, to: balance_transactions, local_key: id, remote_key: source_order_transaction_id, kind: one_to_many}
+  - {name: order_fulfillments, from: orders, to: fulfillments, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: fulfillment_lines, from: fulfillments, to: fulfillment_line_items, local_key: id, remote_key: fulfillment_id, kind: one_to_many}
+  - {name: order_line_fulfillment_lines, from: order_line_items, to: fulfillment_line_items, local_key: id, remote_key: order_line_item_id, kind: one_to_many}
+  - {name: order_fulfillment_orders, from: orders, to: fulfillment_orders, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: fulfillment_order_lines, from: fulfillment_orders, to: fulfillment_order_line_items, local_key: id, remote_key: fulfillment_order_id, kind: one_to_many}
+  - {name: order_line_fulfillment_order_lines, from: order_line_items, to: fulfillment_order_line_items, local_key: id, remote_key: order_line_item_id, kind: one_to_many}
+  - {name: order_shipping_lines, from: orders, to: shipping_lines, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: order_discount_applications, from: orders, to: discount_applications, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: line_discount_allocations, from: order_line_items, to: discount_allocations, local_key: id, remote_key: order_line_item_id, kind: one_to_many}
+  - {name: application_allocations, from: discount_applications, to: discount_allocations, local_key: discount_application_key, remote_key: discount_application_key, kind: one_to_many}
+  - {name: order_tax_lines, from: orders, to: tax_lines, local_key: id, remote_key: order_id, kind: one_to_many}
+  - {name: line_tax_lines, from: order_line_items, to: tax_lines, local_key: id, remote_key: order_line_item_id, kind: one_to_many}
+  - {name: customer_gift_cards, from: customers, to: gift_cards, local_key: id, remote_key: customer_id, kind: one_to_many}
+  - {name: company_locations, from: companies, to: company_locations, local_key: id, remote_key: company_id, kind: one_to_many}
+  - {name: customer_company, from: customers, to: companies, local_key: company_id, remote_key: id, kind: many_to_one}
+  - {name: customer_company_location, from: customers, to: company_locations, local_key: company_location_id, remote_key: id, kind: many_to_one}
+  - {name: customer_draft_orders, from: customers, to: draft_orders, local_key: id, remote_key: customer_id, kind: one_to_many}
+  - {name: draft_order_customer, from: draft_orders, to: customers, local_key: customer_id, remote_key: id, kind: many_to_one}
+  - {name: checkout_customer, from: abandoned_checkouts, to: customers, local_key: customer_id, remote_key: id, kind: many_to_one}
+  - {name: checkout_product_soft_link, from: abandoned_checkouts, to: products, local_key: product_ids, remote_key: id, kind: soft_many_to_many}
+  - {name: price_rule_codes, from: price_rules, to: discount_codes, local_key: id, remote_key: price_rule_id, kind: one_to_many}
+  - {name: application_code, from: discount_applications, to: discount_codes, local_key: code, remote_key: code, kind: soft_many_to_one}
+  - {name: product_metafields, from: products, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: customer_metafields, from: customers, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: order_metafields, from: orders, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: variant_metafields, from: product_variants, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: collection_metafields, from: collections, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: company_metafields, from: companies, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: company_location_metafields, from: company_locations, to: metafields, local_key: id, remote_key: owner_id, kind: one_to_many}
+  - {name: order_gift_card_soft_link, from: orders, to: gift_cards, local_key: gift_card_id, remote_key: id, kind: soft_many_to_one}
+  - {name: transaction_refund, from: order_transactions, to: refunds, local_key: refund_id, remote_key: id, kind: many_to_one}
+  - {name: balance_refund_soft_link, from: balance_transactions, to: refunds, local_key: source_order_transaction_id, remote_key: transaction_id, kind: soft_many_to_one}
+  - {name: tender_order, from: tender_transactions, to: orders, local_key: order_id, remote_key: id, kind: many_to_one}
+  - {name: fulfillment_order_location, from: fulfillment_orders, to: locations, local_key: assigned_location_id, remote_key: id, kind: many_to_one}
+  - {name: fulfillment_location, from: fulfillments, to: locations, local_key: location_id, remote_key: id, kind: many_to_one}
+  - {name: return_refund_soft_link, from: returns, to: refunds, local_key: refund_id, remote_key: id, kind: soft_many_to_one}
+  - {name: return_refund_line_match, from: return_line_items, to: refund_line_items, local_key: order_line_item_id, remote_key: order_line_item_id, kind: soft_many_to_many}
+  - {name: shipping_tax_lines, from: shipping_lines, to: tax_lines, local_key: id, remote_key: shipping_line_id, kind: one_to_many}
+  - {name: product_price_rules_soft_link, from: products, to: price_rules, local_key: id, remote_key: entitled_product_id, kind: soft_many_to_many}
+  - {name: collection_products_via_collects, from: collections, to: products, local_key: id, remote_key: collection_id, kind: bridge_via_collects}
+

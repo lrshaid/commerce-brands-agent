@@ -1,0 +1,18 @@
+# API VERSION: 2026-04 (pinned). Order.exchangeV2s was deprecated in favor of
+# Returns and REMOVED in 2026-07, but stays available on older versions until
+# 2027-04. Run this stream against the 2026-04 endpoint, not the default.
+query ExchangesBulk ($query: String) {
+  orders(query: $query) {
+    edges { node {
+      id
+      exchangeV2s(first: 50) {
+        edges { node {
+          id createdAt completedAt note
+          location { id }
+          totalAmountProcessedSet { presentmentMoney { amount currencyCode } shopMoney { amount currencyCode } }
+          totalPriceSet { presentmentMoney { amount currencyCode } shopMoney { amount currencyCode } }
+        } }
+      }
+    } }
+  }
+}

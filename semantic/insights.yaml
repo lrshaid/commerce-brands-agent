@@ -1,0 +1,63 @@
+snapshot: "reconstructed-2026-08-26"
+insights:
+  - id: revenue_change
+    question: Why did NMV change?
+    entities: [orders, order_line_items, refund_line_items, return_line_items]
+    join_path: [orders, order_line_items, refund_line_items]
+    formula: NMV = GMV + EMV + RMV
+    watch_for: RMV is stored negative; do not subtract it twice.
+  - id: gmv_driver_tree
+    question: Which commercial drivers moved GMV?
+    entities: [orders, order_line_items]
+    join_path: [orders, order_line_items]
+    formula: GMV = Traffic × CVR × AOV
+    watch_for: Traffic definitions differ by channel and provider.
+  - id: return_gap
+    question: Which returns have no refunds and which refunds have no returns?
+    entities: [order_line_items, return_line_items, refund_line_items]
+    join_path: [return_line_items, order_line_items, refund_line_items]
+    formula: FULL OUTER JOIN on original order line id
+    watch_for: Refund transactions and refund line items are independent.
+  - id: refund_method
+    question: How were refunds settled?
+    entities: [refunds, order_transactions, tender_transactions]
+    join_path: [refunds, order_transactions, tender_transactions]
+    formula: classify settlement from payment ledgers using explicit precedence
+    watch_for: Store credit and gift cards are not interchangeable.
+  - id: product_performance
+    question: Which products drove merchandise revenue?
+    entities: [orders, order_line_items, product_variants, products]
+    join_path: [orders, order_line_items, product_variants, products]
+    formula: sum GMV at variant or product grain
+    watch_for: Bundle parent and component SKU grains can diverge.
+  - id: customer_mix
+    question: Did customer mix change?
+    entities: [orders, customers]
+    join_path: [orders, customers]
+    formula: decompose new and returning customer rates and weights
+    watch_for: user_type and user_novelty_type are different concepts.
+  - id: inventory_position
+    question: Where is sellable inventory?
+    entities: [products, product_variants, inventory_items, inventory_levels, locations]
+    join_path: [products, product_variants, inventory_items, inventory_levels, locations]
+    formula: sum available quantity by item and location
+    watch_for: Shopify inventory is not landed cost or ERP availability.
+  - id: marketing_reconciliation
+    question: Why does ad-platform revenue differ from warehouse revenue?
+    entities: [orders, customers]
+    join_path: [orders, customers]
+    formula: compare provider-attributed conversions to owned order attribution
+    watch_for: In-platform actions use provider attribution and will not match NMV.
+  - id: fulfillment_status
+    question: What has shipped and what remains open?
+    entities: [orders, fulfillment_orders, fulfillment_order_line_items, locations]
+    join_path: [orders, fulfillment_orders, fulfillment_order_line_items]
+    formula: compare total and remaining fulfillment quantities
+    watch_for: OTIF needs third-party planned dates and cannot be fabricated.
+  - id: discount_effect
+    question: How much did discounts affect GMV?
+    entities: [orders, order_line_items, discount_allocations, discount_applications]
+    join_path: [orders, order_line_items, discount_allocations, discount_applications]
+    formula: allocated discounts divided by pre-discount merchandise value
+    watch_for: Order-level applications and line-level allocations have different grains.
+

@@ -1,0 +1,10 @@
+query MetafieldProductsBulk ($query: String) {
+  products(query: $query) {
+    edges { node {
+      id
+      metafields {
+        edges { node { id namespace key value type description createdAt updatedAt } }
+      }
+    } }
+  }
+}

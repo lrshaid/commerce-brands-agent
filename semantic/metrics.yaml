@@ -1,0 +1,30 @@
+snapshot: "reconstructed-2026-08-26"
+metrics:
+  gross_merchandise_revenue: {purity: shopify_native, definition: merchandise before discounts and returns, grain: day, implemented: false}
+  discount_value: {purity: shopify_native, definition: allocated merchandise discounts, grain: day, implemented: false}
+  gmv: {purity: shopify_native, definition: post-discount pre-return merchandise value excluding exchange legs, grain: day, implemented: true}
+  emv: {purity: shopify_native, definition: exchange merchandise value, grain: day, implemented: false}
+  rmv: {purity: shopify_native, definition: return merchandise value reconstructed from return and refund lines, grain: day, implemented: true}
+  nmv: {purity: shopify_native, definition: GMV plus EMV plus stored-negative RMV, grain: day, implemented: false}
+  order_count: {purity: shopify_native, definition: distinct completed orders in scope, grain: day, implemented: false}
+  gross_units: {purity: shopify_native, definition: gross merchandise units, grain: day, implemented: false}
+  net_units: {purity: shopify_native, definition: gross plus exchange minus returned units, grain: day, implemented: false}
+  aov: {purity: shopify_native, definition: GMV divided by orders, grain: day, implemented: false}
+  upt: {purity: shopify_native, definition: merchandise units divided by orders, grain: day, implemented: false}
+  app: {purity: shopify_native, definition: GMV divided by merchandise units, grain: day, implemented: false}
+  customer_count: {purity: shopify_native, definition: distinct identified Shopify customers, grain: day, implemented: false}
+  new_customer_count: {purity: shopify_native, definition: customers on their first completed order, grain: day, implemented: false}
+  returning_customer_count: {purity: shopify_native, definition: customers beyond their first completed order, grain: day, implemented: false}
+  refund_value: {purity: shopify_native, definition: monetary refund transactions, grain: day, implemented: false}
+  refund_rate: {purity: shopify_native, definition: refunded merchandise value divided by eligible GMV, grain: period, implemented: false}
+  tax_value: {purity: shopify_native, definition: order tax net of refunded tax, grain: day, implemented: false}
+  shipping_value: {purity: shopify_native, definition: shipping revenue net of shipping adjustments, grain: day, implemented: false}
+  average_discount_rate: {purity: shopify_native, definition: discount value divided by pre-discount merchandise value, grain: period, implemented: false}
+  product_revenue: {purity: shopify_native, definition: GMV by Shopify product and variant, grain: product_day, implemented: false}
+  inventory_on_hand: {purity: shopify_native, definition: available inventory by inventory item and location, grain: item_location, implemented: false}
+  gift_card_value: {purity: shopify_native, definition: Shopify gift-card face value or remaining balance with basis stated, grain: gift_card, implemented: false}
+  traffic: {purity: shopify_partial, definition: Shopify-visible online session proxy, grain: day, gap: primary event-tracker sessions and retail footfall are unavailable, implemented: false}
+  cvr: {purity: shopify_partial, definition: orders divided by a named Shopify traffic proxy, grain: day, gap: denominator differs from primary event-tracker sessions, implemented: false}
+  otif: {purity: third_party, definition: on-time dispatch and in-full fulfillment, grain: shipment, dependency: ERP or fulfillment platform planned dates and change history, implemented: false}
+  ssph: {purity: third_party, definition: NMV divided by selling hours, grain: store_day, dependency: workforce timekeeping system, implemented: false}
+  true_landed_margin: {purity: third_party, definition: revenue less landed product and fulfillment costs, grain: order_line, dependency: ERP landed cost and fulfillment invoices, implemented: false}

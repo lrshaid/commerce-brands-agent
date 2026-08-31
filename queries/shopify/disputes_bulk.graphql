@@ -1,0 +1,20 @@
+query Disputes($cursor: String, $query: String) {
+  shopifyPaymentsAccount {
+    disputes(first: 250, after: $cursor, query: $query) {
+      edges { node {
+        id
+        legacyResourceId
+        amount { amount currencyCode }
+        reasonDetails { reason networkReasonCode }
+        status
+        type
+        initiatedAt
+        evidenceDueBy
+        evidenceSentOn
+        finalizedOn
+        order { id }
+      } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

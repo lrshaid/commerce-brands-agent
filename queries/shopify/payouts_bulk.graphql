@@ -1,0 +1,30 @@
+query Payouts($cursor: String, $query: String) {
+  shopifyPaymentsAccount {
+    payouts(first: 250, after: $cursor, sortKey: ISSUED_AT, query: $query) {
+      edges { node {
+        id
+        legacyResourceId
+        status
+        issuedAt
+        transactionType
+        net { amount currencyCode }
+        summary {
+          adjustmentsFee { amount }
+          adjustmentsGross { amount }
+          advanceFees { amount }
+          advanceGross { amount }
+          chargesFee { amount }
+          chargesGross { amount }
+          refundsFee { amount }
+          refundsFeeGross { amount }
+          reservedFundsFee { amount }
+          reservedFundsGross { amount }
+          retriedPayoutsFee { amount }
+          retriedPayoutsGross { amount }
+          usdcRebateCreditAmount { amount }
+        }
+      } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

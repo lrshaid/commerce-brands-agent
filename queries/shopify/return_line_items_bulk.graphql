@@ -1,0 +1,20 @@
+query ReturnLineItemsBulk ($query: String) {
+  orders(query: $query) {
+    edges { node {
+      id
+      updatedAt
+      returns(first: 50) {
+        edges { node {
+          id
+          name
+          status
+          totalQuantity
+          closedAt
+          requestApprovedAt
+          returnLineItems(first: 50) { edges { node { id quantity } } }
+          refunds(first: 10) { edges { node { id } } }
+        } }
+      }
+    } }
+  }
+}

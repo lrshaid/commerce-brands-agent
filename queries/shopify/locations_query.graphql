@@ -1,0 +1,12 @@
+query LocationsSnapshot($first: Int!, $after: String) {
+  locations(first: $first, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id
+      name
+      isActive
+      fulfillsOnlineOrders
+    }
+  }
+}
+

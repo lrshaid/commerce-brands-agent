@@ -1,0 +1,27 @@
+query ProductsBulk ($query: String) {
+  products(query: $query) {
+    edges { node {
+      id
+      title
+      handle
+      descriptionHtml
+      productType
+      vendor
+      status
+      tags
+      createdAt
+      updatedAt
+      publishedAt
+      templateSuffix
+      totalInventory
+      tracksInventory
+      variantsCount { count }
+      mediaCount { count }
+      priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+      seo { title description }
+      options { id name values }
+      variants { edges { node { id } } }
+      media { edges { node { id } } }
+    } }
+  }
+}

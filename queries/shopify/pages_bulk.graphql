@@ -1,0 +1,6 @@
+query Pages($cursor: String) {
+  pages(first: 250, after: $cursor) {
+    edges { node { id title handle body templateSuffix isPublished publishedAt createdAt updatedAt } }
+    pageInfo { hasNextPage endCursor }
+  }
+}

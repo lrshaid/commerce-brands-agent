@@ -1,0 +1,10 @@
+query CustomCollections($cursor: String) {
+  collections(first: 250, after: $cursor, query: "collection_type:custom") {
+    edges { node {
+      id title handle descriptionHtml sortOrder templateSuffix updatedAt
+      image { url altText }
+      resourcePublicationsV2(first: 25) { edges { node { isPublished publishDate } } }
+    } }
+    pageInfo { hasNextPage endCursor }
+  }
+}

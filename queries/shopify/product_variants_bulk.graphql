@@ -1,0 +1,22 @@
+query ProductVariantsBulk ($query: String) {
+  productVariants(query: $query) {
+    edges { node {
+      id
+      title
+      sku
+      barcode
+      price
+      compareAtPrice
+      position
+      taxable
+      inventoryQuantity
+      availableForSale
+      displayName
+      createdAt
+      updatedAt
+      product { id }
+      selectedOptions { name value }
+      inventoryItem { id requiresShipping tracked measurement { weight { value unit } } }
+    } }
+  }
+}

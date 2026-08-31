@@ -1,0 +1,18 @@
+query InventoryLevelsBulk {
+  locations(includeInactive: true) {
+    edges { node {
+      id
+      inventoryLevels(first: 250) {
+        edges { node {
+          id
+          item { id }
+          location { id }
+          quantities(names: ["available"]) { name quantity }
+          canDeactivate
+          deactivationAlert
+          updatedAt
+        } }
+      }
+    } }
+  }
+}

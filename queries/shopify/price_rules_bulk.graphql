@@ -1,0 +1,13 @@
+query PriceRules($cursor: String, $query: String) {
+  discountNodes(first: 100, after: $cursor, query: $query) {
+    edges { node {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBasic { title status startsAt endsAt usageLimit appliesOncePerCustomer }
+        ... on DiscountAutomaticBasic { title status startsAt endsAt }
+      }
+    } }
+    pageInfo { hasNextPage endCursor }
+  }
+}

@@ -1,0 +1,30 @@
+query CustomerAddressBulk ($query: String) {
+  customers(query: $query) {
+    edges {
+      node {
+        id
+        updatedAt
+        defaultAddress { id }
+        addressesV2(first: 100) {
+          edges {
+            node {
+              id
+              address1
+              address2
+              city
+              province
+              provinceCode
+              country
+              countryCodeV2
+              zip
+              phone
+              company
+              firstName
+              lastName
+            }
+          }
+        }
+      }
+    }
+  }
+}

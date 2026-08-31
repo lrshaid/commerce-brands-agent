@@ -1,0 +1,6 @@
+query Articles($cursor: String) {
+  articles(first: 250, after: $cursor) {
+    edges { node { id title handle author { name } body summary blog { id } isPublished publishedAt createdAt updatedAt tags templateSuffix } }
+    pageInfo { hasNextPage endCursor }
+  }
+}

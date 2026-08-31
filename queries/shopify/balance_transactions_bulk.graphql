@@ -1,0 +1,17 @@
+query BalanceTransactionsBulk {
+  shopifyPaymentsAccount {
+    balanceTransactions(first: 250) {
+      edges { node {
+        id
+        type
+        test
+        amount { amount currencyCode }
+        fee { amount currencyCode }
+        net { amount currencyCode }
+        transactionDate
+        associatedOrder { id }
+        associatedPayout { id status }
+      } }
+    }
+  }
+}

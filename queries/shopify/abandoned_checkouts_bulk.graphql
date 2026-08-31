@@ -1,0 +1,23 @@
+query AbandonedCheckoutsBulk ($query: String) {
+  abandonedCheckouts(query: $query) {
+    edges { node {
+      id
+      name
+      note
+      taxesIncluded
+      abandonedCheckoutUrl
+      createdAt
+      updatedAt
+      completedAt
+      customer { id }
+      billingAddress { city province countryCodeV2 zip }
+      shippingAddress { city province countryCodeV2 zip }
+      subtotalPriceSet { shopMoney { amount currencyCode } }
+      totalTaxSet { shopMoney { amount currencyCode } }
+      totalPriceSet { shopMoney { amount currencyCode } }
+      totalLineItemsPriceSet { shopMoney { amount currencyCode } }
+      taxLines { title rate priceSet { shopMoney { amount } } }
+      lineItems { edges { node { id quantity title } } }
+    } }
+  }
+}

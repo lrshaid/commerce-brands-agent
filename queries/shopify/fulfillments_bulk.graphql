@@ -1,0 +1,18 @@
+query FulfillmentsBulk ($query: String) {
+  orders(query: $query) {
+    edges { node {
+      id
+      fulfillments(first: 50) {
+        id
+        name
+        status
+        displayStatus
+        createdAt
+        updatedAt
+        service { handle }
+        trackingInfo { number url company }
+        originAddress { address1 city zip countryCode }
+      }
+    } }
+  }
+}

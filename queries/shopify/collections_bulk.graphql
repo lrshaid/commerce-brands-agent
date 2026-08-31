@@ -1,0 +1,17 @@
+query Collections($cursor: String, $query: String) {
+  collections(first: 250, after: $cursor, query: $query) {
+    edges { node {
+      id
+      handle
+      title
+      descriptionHtml
+      updatedAt
+      sortOrder
+      templateSuffix
+      productsCount { count }
+      image { url altText }
+      resourcePublicationsV2(first: 25) { edges { node { isPublished publishDate } } }
+    } }
+    pageInfo { hasNextPage endCursor }
+  }
+}

@@ -1,0 +1,24 @@
+query ShopBulk {
+  shop {
+    id
+    name
+    contactEmail
+    email
+    myshopifyDomain
+    primaryDomain { host }
+    shopAddress { address1 address2 city province provinceCode country countryCodeV2 zip phone }
+    currencyCode
+    enabledPresentmentCurrencies
+    ianaTimezone
+    timezoneAbbreviation
+    weightUnit
+    taxesIncluded
+    taxShipping
+    checkoutApiSupported
+    setupRequired
+    currencyFormats { moneyFormat moneyInEmailsFormat moneyWithCurrencyFormat moneyWithCurrencyInEmailsFormat }
+    plan { publicDisplayName }
+    createdAt
+    updatedAt
+  }
+}

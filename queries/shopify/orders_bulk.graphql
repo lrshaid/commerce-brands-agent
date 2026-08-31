@@ -1,0 +1,47 @@
+query OrdersBulk ($query: String) {
+  orders(query: $query) {
+    edges {
+      node {
+        id
+        name
+        createdAt
+        updatedAt
+        processedAt
+        cancelledAt
+        currencyCode
+        displayFinancialStatus
+        displayFulfillmentStatus
+        email
+        note
+        tags
+        totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        subtotalPriceSet { shopMoney { amount currencyCode } }
+        totalTaxSet { shopMoney { amount currencyCode } }
+        totalDiscountsSet { shopMoney { amount currencyCode } }
+        totalShippingPriceSet { shopMoney { amount currencyCode } }
+        customer { id }
+        shippingAddress { city province provinceCode country countryCodeV2 zip }
+        billingAddress { city province provinceCode country countryCodeV2 zip }
+        lineItems {
+          edges { node {
+            id
+            quantity
+            sku
+            title
+            variantTitle
+            product { id }
+            variant { id }
+            originalTotalSet { shopMoney { amount currencyCode } }
+            discountedTotalSet { shopMoney { amount currencyCode } }
+          } }
+        }
+        shippingLines {
+          edges { node { id title code originalPriceSet { shopMoney { amount currencyCode } } } }
+        }
+        discountApplications {
+          edges { node { allocationMethod targetSelection targetType } }
+        }
+      }
+    }
+  }
+}

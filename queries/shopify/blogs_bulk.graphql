@@ -1,0 +1,6 @@
+query Blogs($cursor: String) {
+  blogs(first: 250, after: $cursor) {
+    edges { node { id title handle templateSuffix commentPolicy createdAt updatedAt tags } }
+    pageInfo { hasNextPage endCursor }
+  }
+}

@@ -1,0 +1,14 @@
+query CashTrackingSessionsBulk {
+  cashTrackingSessions(first: 250) {
+    edges { node {
+      id
+      registerName
+      cashTrackingEnabled
+      openingTime
+      closingTime
+      location { id name }
+      adjustments(first: 250) { edges { node { id cash { amount currencyCode } note time } } }
+      cashTransactions(first: 250) { edges { node { id } } }
+    } }
+  }
+}

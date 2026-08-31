@@ -1,0 +1,14 @@
+query CustomersSnapshot($first: Int!, $after: String, $query: String) {
+  customers(first: $first, after: $after, query: $query, sortKey: UPDATED_AT) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id
+      createdAt
+      updatedAt
+      numberOfOrders
+      amountSpent { amount currencyCode }
+      defaultEmailAddress { emailAddress }
+    }
+  }
+}
+

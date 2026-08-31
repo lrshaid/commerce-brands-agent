@@ -1,0 +1,31 @@
+query DraftOrdersBulk ($query: String) {
+  draftOrders(query: $query) {
+    edges { node {
+      id
+      name
+      note2
+      email
+      taxExempt
+      taxesIncluded
+      currencyCode
+      status
+      createdAt
+      updatedAt
+      completedAt
+      invoiceUrl
+      invoiceSentAt
+      poNumber
+      totalPriceSet { shopMoney { amount currencyCode } }
+      subtotalPriceSet { shopMoney { amount currencyCode } }
+      totalTaxSet { shopMoney { amount currencyCode } }
+      taxLines { title rate priceSet { shopMoney { amount } } }
+      customer { id }
+      order { id }
+      billingAddress { city province countryCodeV2 zip }
+      shippingAddress { city province countryCodeV2 zip }
+      appliedDiscount { title value valueType amountSet { shopMoney { amount currencyCode } } }
+      shippingLine { title code originalPriceSet { shopMoney { amount } } }
+      lineItems { edges { node { id quantity sku title } } }
+    } }
+  }
+}

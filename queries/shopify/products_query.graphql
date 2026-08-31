@@ -1,0 +1,23 @@
+query ProductsSnapshot($first: Int!, $after: String, $query: String) {
+  products(first: $first, after: $after, query: $query, sortKey: UPDATED_AT) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id
+      title
+      productType
+      vendor
+      createdAt
+      updatedAt
+      variants(first: 100) {
+        nodes {
+          id
+          sku
+          price
+          inventoryQuantity
+          inventoryItem { id }
+        }
+      }
+    }
+  }
+}
+

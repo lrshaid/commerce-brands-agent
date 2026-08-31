@@ -1,0 +1,13 @@
+query TenderTransactionsBulk ($query: String) {
+  tenderTransactions(query: $query) {
+    edges { node {
+      id
+      amount { amount currencyCode }
+      test
+      paymentMethod
+      processedAt
+      remoteReference
+      order { id }
+    } }
+  }
+}

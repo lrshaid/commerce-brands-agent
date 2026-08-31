@@ -1,0 +1,19 @@
+query OrderRefundsBulk ($query: String) {
+  orders(query: $query) {
+    edges { node {
+      id
+      name
+      updatedAt
+      refunds {
+        id
+        note
+        createdAt
+        updatedAt
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        refundLineItems(first: 50) { edges { node { quantity restockType subtotalSet { shopMoney { amount } } } } }
+        transactions(first: 10) { edges { node { id kind status amountSet { shopMoney { amount } } } } }
+        orderAdjustments(first: 10) { edges { node { id amountSet { shopMoney { amount } } } } }
+      }
+    } }
+  }
+}

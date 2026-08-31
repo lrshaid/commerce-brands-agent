@@ -1,0 +1,10 @@
+query ProductImagesBulk ($query: String) {
+  products(query: $query) {
+    edges { node {
+      id
+      media {
+        edges { node { ... on MediaImage { id alt createdAt image { url width height } } } }
+      }
+    } }
+  }
+}

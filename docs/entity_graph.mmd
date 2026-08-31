@@ -1,0 +1,163 @@
+erDiagram
+    abandoned_checkouts {
+        string id PK
+    }
+    balance_transactions {
+        string id PK
+    }
+    collections {
+        string id PK
+    }
+    collects {
+        string collect_key PK
+    }
+    companies {
+        string id PK
+    }
+    company_locations {
+        string id PK
+    }
+    customers {
+        string id PK
+    }
+    discount_allocations {
+        string discount_allocation_key PK
+    }
+    discount_applications {
+        string discount_application_key PK
+    }
+    discount_codes {
+        string id PK
+    }
+    draft_orders {
+        string id PK
+    }
+    fulfillment_line_items {
+        string fulfillment_line_key PK
+    }
+    fulfillment_order_line_items {
+        string id PK
+    }
+    fulfillment_orders {
+        string id PK
+    }
+    fulfillments {
+        string id PK
+    }
+    gift_cards {
+        string id PK
+    }
+    inventory_items {
+        string id PK
+    }
+    inventory_levels {
+        string inventory_level_key PK
+    }
+    locations {
+        string id PK
+    }
+    metafields {
+        string id PK
+    }
+    order_line_items {
+        string id PK
+    }
+    order_transactions {
+        string id PK
+    }
+    orders {
+        string id PK
+    }
+    price_rules {
+        string id PK
+    }
+    product_variants {
+        string id PK
+    }
+    products {
+        string id PK
+    }
+    refund_line_items {
+        string id PK
+    }
+    refund_order_adjustments {
+        string id PK
+    }
+    refunds {
+        string id PK
+    }
+    return_line_items {
+        string id PK
+    }
+    returns {
+        string id PK
+    }
+    shipping_lines {
+        string id PK
+    }
+    tax_lines {
+        string tax_line_key PK
+    }
+    tender_transactions {
+        string id PK
+    }
+    orders ||--o{ customers : "order_customer"
+    orders ||--o{ order_line_items : "order_lines"
+    order_line_items ||--o{ product_variants : "line_variant"
+    order_line_items ||--o{ products : "line_product"
+    product_variants ||--o{ products : "variant_product"
+    product_variants ||--o{ inventory_items : "variant_inventory_item"
+    inventory_items ||--o{ inventory_levels : "item_inventory_levels"
+    inventory_levels ||--o{ locations : "inventory_level_location"
+    products ||--o{ collects : "product_collects"
+    collections ||--o{ collects : "collection_collects"
+    orders ||--o{ refunds : "order_refunds"
+    refunds ||--o{ refund_line_items : "refund_lines"
+    refunds ||--o{ refund_order_adjustments : "refund_adjustments"
+    orders ||--o{ returns : "order_returns"
+    returns ||--o{ return_line_items : "return_lines"
+    order_line_items ||--o{ refund_line_items : "line_refund_lines"
+    order_line_items ||--o{ return_line_items : "line_return_lines"
+    orders ||--o{ order_transactions : "order_payment_transactions"
+    order_transactions ||--o{ tender_transactions : "transaction_tenders"
+    order_transactions ||--o{ balance_transactions : "transaction_balance_entries"
+    orders ||--o{ fulfillments : "order_fulfillments"
+    fulfillments ||--o{ fulfillment_line_items : "fulfillment_lines"
+    order_line_items ||--o{ fulfillment_line_items : "order_line_fulfillment_lines"
+    orders ||--o{ fulfillment_orders : "order_fulfillment_orders"
+    fulfillment_orders ||--o{ fulfillment_order_line_items : "fulfillment_order_lines"
+    order_line_items ||--o{ fulfillment_order_line_items : "order_line_fulfillment_order_lines"
+    orders ||--o{ shipping_lines : "order_shipping_lines"
+    orders ||--o{ discount_applications : "order_discount_applications"
+    order_line_items ||--o{ discount_allocations : "line_discount_allocations"
+    discount_applications ||--o{ discount_allocations : "application_allocations"
+    orders ||--o{ tax_lines : "order_tax_lines"
+    order_line_items ||--o{ tax_lines : "line_tax_lines"
+    customers ||--o{ gift_cards : "customer_gift_cards"
+    companies ||--o{ company_locations : "company_locations"
+    customers ||--o{ companies : "customer_company"
+    customers ||--o{ company_locations : "customer_company_location"
+    customers ||--o{ draft_orders : "customer_draft_orders"
+    draft_orders ||--o{ customers : "draft_order_customer"
+    abandoned_checkouts ||--o{ customers : "checkout_customer"
+    abandoned_checkouts ||--o{ products : "checkout_product_soft_link"
+    price_rules ||--o{ discount_codes : "price_rule_codes"
+    discount_applications ||--o{ discount_codes : "application_code"
+    products ||--o{ metafields : "product_metafields"
+    customers ||--o{ metafields : "customer_metafields"
+    orders ||--o{ metafields : "order_metafields"
+    product_variants ||--o{ metafields : "variant_metafields"
+    collections ||--o{ metafields : "collection_metafields"
+    companies ||--o{ metafields : "company_metafields"
+    company_locations ||--o{ metafields : "company_location_metafields"
+    orders ||--o{ gift_cards : "order_gift_card_soft_link"
+    order_transactions ||--o{ refunds : "transaction_refund"
+    balance_transactions ||--o{ refunds : "balance_refund_soft_link"
+    tender_transactions ||--o{ orders : "tender_order"
+    fulfillment_orders ||--o{ locations : "fulfillment_order_location"
+    fulfillments ||--o{ locations : "fulfillment_location"
+    returns ||--o{ refunds : "return_refund_soft_link"
+    return_line_items ||--o{ refund_line_items : "return_refund_line_match"
+    shipping_lines ||--o{ tax_lines : "shipping_tax_lines"
+    products ||--o{ price_rules : "product_price_rules_soft_link"
+    collections ||--o{ products : "collection_products_via_collects"

@@ -1,0 +1,24 @@
+query Locations($cursor: String) {
+  locations(first: 250, after: $cursor, includeInactive: true) {
+    edges {
+      node {
+        id
+        name
+        isActive
+        address {
+          address1
+          address2
+          city
+          province
+          country
+          countryCode
+          zip
+          phone
+        }
+        createdAt
+        updatedAt
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
