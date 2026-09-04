@@ -109,7 +109,8 @@ and fixes page size at 50. No recurring schedule or BigQuery/dbt refund path is
 enabled. The operator launcher accepts `--job shopify_refunds_capture` and the
 same explicit extraction/window inputs as orders. Repeated extraction IDs are
 looked up before launch. Independent read-only GCS verification is available in
-`infra/scripts/verify_refund_capture.py`. Local suite: 130 passing tests.
+`infra/scripts/verify_refund_capture.py`. Historical local suite at this milestone:
+130 passing tests; the current verified repository suite is 187 passing tests.
 Live rollout and acceptance evidence below supersede the local-only status above
 only when recorded in `DEPLOYMENT_STATUS.md`.
 
