@@ -57,7 +57,9 @@ resource "google_billing_budget" "monthly" {
     }
   }
   dynamic "threshold_rules" {
-    for_each = [0.5, 0.8, 1.0]
+    # 0.1 (USD 10) is a delivery test threshold requested 2026-09-04;
+    # remove it once alert email delivery is confirmed end-to-end.
+    for_each = [0.1, 0.5, 0.8, 1.0]
     content {
       threshold_percent = threshold_rules.value
       spend_basis       = "CURRENT_SPEND"
