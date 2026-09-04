@@ -1,0 +1,121 @@
+version: 1
+# Schema only. No target rows or sample business values are supplied.
+tables:
+  cfg_shops:
+    grain: "shop"
+    primary_key: ["shop_key"]
+    nonempty: true
+    columns:
+      shop_key: STRING
+      shop_domain: STRING
+      market: STRING
+      currency: STRING
+      is_active: BOOL
+  cfg_fiscal_calendar:
+    grain: "date"
+    primary_key: ["date"]
+    nonempty: true
+    columns:
+      date: DATE
+      fiscal_year: INT64
+      fiscal_quarter: INT64
+      fiscal_period: INT64
+      fiscal_week: INT64
+      fiscal_week_start: DATE
+      is_fiscal_year_start: BOOL
+  cfg_fx_rates:
+    grain: "month and currency"
+    primary_key: ["month_dt","currency"]
+    nonempty: true
+    columns:
+      month_dt: DATE
+      currency: STRING
+      rate_to_rc: NUMERIC
+  cfg_sales_channel_map:
+    grain: "rule"
+    primary_key: ["rule_type","rule_value"]
+    nonempty: true
+    columns:
+      rule_type: STRING
+      rule_value: STRING
+      sales_channel: STRING
+      sales_channel_group: STRING
+      store_key: STRING
+    enums:
+      rule_type: ["source_name","location_id","app_id"]
+  cfg_locations:
+    grain: "location"
+    primary_key: ["location_id"]
+    nonempty: true
+    columns:
+      location_id: INT64
+      store_key: STRING
+      store_name: STRING
+      store_type: STRING
+      country: STRING
+      region: STRING
+      district: STRING
+      open_date: DATE
+      close_date: DATE
+      is_comp_eligible: BOOL
+    enums:
+      store_type: ["Web","Retail","App","Warehouse"]
+  cfg_return_reason_map:
+    grain: "reason"
+    primary_key: ["raw_reason"]
+    nonempty: true
+    columns:
+      raw_reason: STRING
+      reason_parent: STRING
+      reason_sub_parent: STRING
+      defect_flag: STRING
+    enums:
+      defect_flag: ["Defect","Non-Defect"]
+  cfg_metric_targets:
+    grain: "date, analytics key, plan version and metric"
+    primary_key: ["date","analytics_key","plan_version","metric"]
+    nonempty: true
+    columns:
+      date: DATE
+      analytics_key: STRING
+      plan_version: STRING
+      metric: STRING
+      target_value: NUMERIC
+    enums:
+      plan_version: ["AOP","ROP","RSP"]
+  cfg_price_bands:
+    grain: "band"
+    primary_key: ["band_name"]
+    nonempty: true
+    columns:
+      band_name: STRING
+      min_price_rc: NUMERIC
+      max_price_rc: NUMERIC
+  cfg_product_taxonomy:
+    grain: "rule"
+    primary_key: ["rule_type","rule_value"]
+    nonempty: true
+    columns:
+      rule_type: STRING
+      rule_value: STRING
+      category_1: STRING
+      category_2: STRING
+      pillar: STRING
+    enums:
+      rule_type: ["product_type_regex","tag","metafield"]
+  cfg_test_order_rules:
+    grain: "rule"
+    primary_key: ["rule_type","rule_value"]
+    nonempty: false
+    columns:
+      rule_type: STRING
+      rule_value: STRING
+    enums:
+      rule_type: ["email_regex","tag","source_name"]
+undefined_tables:
+  cfg_payment_method_map: "Payment method grouping columns and priority are absent."
+  cfg_return_reason_priority: "Add-on reason priority and tie semantics are absent."
+  cfg_channel_taxonomy: "Last-touch classification rule schema is absent."
+  cfg_staff_map: "Shop, staff and employee mapping schema is absent."
+  cfg_rfm_groups: "RFM group mapping schema is absent."
+  cfg_acquisition_segments: "Acquisition mapping schema is absent."

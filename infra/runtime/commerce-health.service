@@ -1,0 +1,8 @@
+[Unit]
+Description=Commerce platform health probe
+After=docker.service
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/commerce/runtime.env
+ExecStart=/usr/bin/python3 /opt/commerce/health.py
+TimeoutStartSec=120

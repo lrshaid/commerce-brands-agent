@@ -1,0 +1,57 @@
+version: '2.4'
+x-runtime: &runtime
+  image: ${RUNTIME_IMAGE}
+  restart: unless-stopped
+  env_file: /opt/commerce/runtime.env
+  environment:
+    DAGSTER_POSTGRES_HOST: postgres
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '3'}
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 0.5
+    env_file: /opt/commerce/runtime.env
+    environment:
+      POSTGRES_USER: dagster
+      POSTGRES_DB: dagster
+    ports: ['10.42.0.10:5432:5432']
+    volumes: ['/var/lib/commerce/postgres:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dagster -d dagster']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+  code-location:
+    <<: *runtime
+    mem_limit: 900m
+    cpus: 0.5
+    command: [dagster, code-server, start, -h, '0.0.0.0', -p, '4000', -m, orchestration.definitions]
+    healthcheck:
+      test: [CMD, dagster, api, grpc-health-check, -p, '4000']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  webserver:
+    <<: *runtime
+    mem_limit: 800m
+    cpus: 0.5
+    ports: ['127.0.0.1:3000:3000']
+    command: [dagster-webserver, -h, '0.0.0.0', -p, '3000', -w, /opt/dagster/home/workspace.yaml]
+    depends_on:
+      postgres: {condition: service_healthy}
+      code-location: {condition: service_healthy}
+  daemon:
+    <<: *runtime
+    mem_limit: 750m
+    cpus: 0.5
+    command: [dagster-daemon, run, -w, /opt/dagster/home/workspace.yaml]
+    depends_on:
+      postgres: {condition: service_healthy}
+      code-location: {condition: service_healthy}

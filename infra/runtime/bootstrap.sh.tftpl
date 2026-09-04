@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y docker.io docker-compose
+systemctl enable --now docker
+mkdir -p /var/lib/commerce /opt/commerce
+disk=/dev/disk/by-id/google-dagster-data
+if ! blkid "$disk" >/dev/null 2>&1; then
+  mkfs.ext4 -F "$disk"
+fi
+if ! mountpoint -q /var/lib/commerce; then
+  mount "$disk" /var/lib/commerce
+fi
+grep -q 'google-dagster-data' /etc/fstab || printf '%s\n' '/dev/disk/by-id/google-dagster-data /var/lib/commerce ext4 defaults,nofail 0 2' >> /etc/fstab
+printf '%s' '${compose_base64}' | base64 -d > /opt/commerce/compose.yaml
+password=$(gcloud secrets versions access latest --secret=dagster-postgres-password --project=${project})
+printf '%s\n' \
+  "DAGSTER_POSTGRES_PASSWORD=$password" \
+  "POSTGRES_PASSWORD=$password" \
+  'GOOGLE_CLOUD_PROJECT=${project}' \
+  'GOOGLE_CLOUD_REGION=${region}' \
+  'ARTIFACT_BUCKET=${artifact_bucket}' \
+  'RUNTIME_IMAGE=${image}' > /opt/commerce/runtime.env
+unset password
+gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://${region}-docker.pkg.dev
+export RUNTIME_IMAGE='${image}'
+cd /opt/commerce
+docker-compose -f compose.yaml pull
+# Schema upgrades must finish before the daemon/webserver access the new version.
+docker-compose -f compose.yaml up -d postgres
+for i in $(seq 1 30); do
+  docker-compose -f compose.yaml exec -T postgres pg_isready -U dagster && break
+  sleep 2
+done
+docker-compose -f compose.yaml run --rm --no-deps code-location dagster instance migrate
+docker-compose -f compose.yaml up -d
+printf '%s' '${backup_base64}' | base64 -d > /opt/commerce/backup.sh
+chmod 700 /opt/commerce/backup.sh
+printf '%s' '${backup_service_base64}' | base64 -d > /etc/systemd/system/commerce-backup.service
+printf '%s' '${backup_timer_base64}' | base64 -d > /etc/systemd/system/commerce-backup.timer
+systemctl daemon-reload
+systemctl enable --now commerce-backup.timer
+printf '%s' '${health_base64}' | base64 -d > /opt/commerce/health.py
+printf '%s' '${health_service_base64}' | base64 -d > /etc/systemd/system/commerce-health.service
+printf '%s' '${health_timer_base64}' | base64 -d > /etc/systemd/system/commerce-health.timer
+systemctl daemon-reload
+systemctl enable --now commerce-health.timer

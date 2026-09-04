@@ -1,0 +1,15 @@
+.git
+.tools
+.venv
+.venv-platform
+__pycache__
+.env
+infra/local
+infra/terraform/.terraform
+infra/terraform/terraform.tfstate*
+infra/terraform/*.tfplan
+dbt/target
+dbt/logs
+config/warehouse.yaml
+config/tables.yaml
+config/raw_contracts.yaml

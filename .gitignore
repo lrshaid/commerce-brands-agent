@@ -4,4 +4,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
-
+# Target config may contain private identifiers. Templates/schemas remain tracked.
+config/warehouse.yaml
+config/tables.yaml
+config/raw_contracts.yaml
+.tools/
+.venv-platform/
+**/.terraform/
+**/terraform.tfstate*
+**/*.tfplan
+**/crash.log
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+infra/local/

@@ -1,0 +1,8 @@
+[Unit]
+Description=Commerce Dagster metadata backup
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/commerce/backup.sh
+TimeoutStartSec=600

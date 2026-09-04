@@ -2,9 +2,9 @@ snapshot: "reconstructed-2026-08-26"
 metrics:
   gross_merchandise_revenue: {purity: shopify_native, definition: merchandise before discounts and returns, grain: day, implemented: false}
   discount_value: {purity: shopify_native, definition: allocated merchandise discounts, grain: day, implemented: false}
-  gmv: {purity: shopify_native, definition: post-discount pre-return merchandise value excluding exchange legs, grain: day, implemented: true}
+  gmv: {purity: shopify_native, definition: post-discount pre-return merchandise value excluding exchange legs, grain: day, implemented: false}
   emv: {purity: shopify_native, definition: exchange merchandise value, grain: day, implemented: false}
-  rmv: {purity: shopify_native, definition: return merchandise value reconstructed from return and refund lines, grain: day, implemented: true}
+  rmv: {purity: shopify_native, definition: return merchandise value reconstructed from return and refund lines, grain: day, implemented: false}
   nmv: {purity: shopify_native, definition: GMV plus EMV plus stored-negative RMV, grain: day, implemented: false}
   order_count: {purity: shopify_native, definition: distinct completed orders in scope, grain: day, implemented: false}
   gross_units: {purity: shopify_native, definition: gross merchandise units, grain: day, implemented: false}

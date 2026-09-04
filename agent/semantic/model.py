@@ -85,6 +85,10 @@ class SemanticModel:
 
     def _adjacent(self, entity: str) -> Iterable[tuple[str, Dict[str, Any]]]:
         for relationship in self.relationships:
+            # Logical hints are not executable equality joins. A bridge is
+            # traversed through its actual entity (for example, collects).
+            if relationship["kind"].startswith(("soft_", "bridge_")):
+                continue
             if relationship["from"] == entity:
                 yield relationship["to"], relationship
             elif relationship["to"] == entity:
@@ -122,6 +126,8 @@ class SemanticModel:
     def join_condition(
         left: str, right: str, relationship: Dict[str, Any]
     ) -> str:
+        if relationship["kind"].startswith(("soft_", "bridge_")):
+            raise ValueError("soft/bridge relationships require an explicit join contract")
         if relationship["from"] == left and relationship["to"] == right:
             return (
                 f"{left}.{relationship['local_key']} = "
@@ -164,4 +170,3 @@ class SemanticModel:
             if insight["id"] == insight_id:
                 return insight
         raise KeyError(f"unknown insight: {insight_id}")
-

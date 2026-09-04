@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Warehouse metric definition contract (not an implementation certificate)",
+  "type": "object",
+  "required": ["name", "family", "purity", "label", "grain", "entities", "formula", "sign_convention", "exclusions", "date_basis", "currency_basis"],
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "family": {"type": "string", "minLength": 1},
+    "purity": {"enum": ["shopify_native", "shopify_partial", "third_party"]},
+    "label": {"type": "string", "minLength": 1},
+    "grain": {"type": "string", "minLength": 1},
+    "entities": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "formula": {"type": "string", "minLength": 1},
+    "sign_convention": {"type": "string", "minLength": 1},
+    "exclusions": {"type": "array", "items": {"type": "string"}},
+    "date_basis": {"type": "string", "minLength": 1},
+    "currency_basis": {"type": "string", "minLength": 1},
+    "gap": {"type": "string", "minLength": 1},
+    "depends_on": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "shopify_proxy": {"type": ["string", "null"]},
+    "implementation_status": {"enum": ["definition_only", "blocked", "sql_template", "synthetic_validated", "target_validated"]}
+  },
+  "allOf": [{
+    "if": {"properties": {"purity": {"enum": ["shopify_partial", "third_party"]}}},
+    "then": {"required": ["gap", "depends_on", "shopify_proxy"]}
+  }]
+}

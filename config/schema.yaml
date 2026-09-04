@@ -1,0 +1,39 @@
+version: 1
+# Only values explicitly labelled DEFAULT in the build request appear as defaults.
+fields:
+  run.as_of_dt: {type: date, optional: true}
+  warehouse.timezone: {type: timezone}
+  warehouse.reporting_currency: {type: currency}
+  warehouse.allow_defaults: {type: bool}
+  fiscal.source: {type: string, enum: [cfg_fiscal_calendar]}
+  fiscal.comp_ly_days: {type: int, min: 1, default: 364}
+  fx.source: {type: string, enum: [cfg_fx_rates]}
+  fx.rule: {type: string, enum: [prior_month_end, same_month_end, daily]}
+  revenue.exclude_cancelled: {type: bool}
+  revenue.reporting_exclusion_tags: {type: string_list}
+  revenue.zero_dollar_orders: {type: string, enum: [include, exclude, exclude_unless_allowlisted]}
+  revenue.zero_dollar_allowlist_sku_regex:
+    type: string
+    when: {key: revenue.zero_dollar_orders, equals: exclude_unless_allowlisted}
+  revenue.merchandise_only: {type: bool, enum: [true]}
+  revenue.legacy_discount_note_key: {type: string, optional: true}
+  returns.rmv_recognition_ts: {type: string, enum: [return_closed_at, refund_processed_at, return_created_at]}
+  returns.window_days_web: {type: int, min: 0}
+  returns.window_days_retail: {type: int, min: 0}
+  returns.restatement_days: {type: int, min: 1, default: 90}
+  returns.store_credit_tags: {type: string_list}
+  returns.holiday_extension.start_month: {type: int, min: 1, max: 12, optional_group: returns.holiday_extension}
+  returns.holiday_extension.end_month: {type: int, min: 1, max: 12, optional_group: returns.holiday_extension}
+  returns.holiday_extension.returnable_through: {type: month_day, optional_group: returns.holiday_extension}
+  exchanges.warranty_tags: {type: string_list}
+  exchanges.warranty_reasons: {type: string_list}
+  exchanges.original_order_note_regex: {type: string}
+  exchanges.process_error_method: {type: string}
+  sessions.provider: {type: string, enum: [none, cdp_addon]}
+  sessions.gap_minutes: {type: int, min: 1, default: 30, when: {key: sessions.provider, equals: cdp_addon}}
+  sessions.recovery_hours: {type: int, min: 1, default: 24, when: {key: sessions.provider, equals: cdp_addon}}
+  incremental.lookback_days: {type: int, min: 1, default: 3}
+  freshness.max_lag_hours: {type: number, min: 0}
+  product.bundle_attribution: {type: string, enum: [component, parent]}
+  product.style_rule: {type: string, optional: true}
+  margin.min_cost_coverage: {type: number, min: 0, max: 1, optional: true}

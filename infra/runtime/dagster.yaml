@@ -1,0 +1,42 @@
+storage:
+  postgres:
+    postgres_db:
+      username: dagster
+      password: {env: DAGSTER_POSTGRES_PASSWORD}
+      hostname: {env: DAGSTER_POSTGRES_HOST}
+      db_name: dagster
+      port: 5432
+run_coordinator:
+  module: dagster._core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 1
+run_launcher:
+  module: dagster_contrib_gcp.cloud_run.run_launcher
+  class: CloudRunRunLauncher
+  config:
+    project: {env: GOOGLE_CLOUD_PROJECT}
+    region: {env: GOOGLE_CLOUD_REGION}
+    job_name_by_code_location:
+      commerce: dagster-worker
+    run_timeout: 1800
+run_monitoring:
+  enabled: true
+  start_timeout_seconds: 300
+  cancel_timeout_seconds: 180
+  poll_interval_seconds: 30
+  max_resume_run_attempts: 0
+compute_logs:
+  module: dagster_gcp.gcs.compute_log_manager
+  class: GCSComputeLogManager
+  config:
+    bucket: {env: ARTIFACT_BUCKET}
+    prefix: compute-logs
+    upload_interval: 30
+telemetry:
+  enabled: false
+retention:
+  schedule:
+    purge_after_days: 30
+  sensor:
+    purge_after_days: 30

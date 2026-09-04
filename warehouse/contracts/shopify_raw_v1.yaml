@@ -1,0 +1,218 @@
+version: 1
+status: orders_live_verified_others_pending
+scope: orders_refunds_returns_exchanges
+query_files_modified: false
+warehouse_has_data: true
+dataset_role: raw_shopify
+dbt_source_name: shopify
+physical_project: commerce-agents-dev
+api_version: '2026-04'
+
+# Our ingestion design, not a claim about an existing provider payload.
+# Every stream table uses this envelope. Business fields remain in the JSON.
+record_envelope:
+  grain: one_original_result_record_per_extraction_file
+  primary_key: [shop_key, extraction_id, file_id, record_index]
+  partition_by: ingested_at
+  cluster_by: [shop_key, extraction_id]
+  columns:
+    shop_key: {type: STRING, required: true, origin: authenticated_shop_registry}
+    extraction_id: {type: STRING, required: true, origin: orchestrator_stable_for_retries_of_same_result}
+    file_id: {type: STRING, required: true, origin: immutable_object_generation}
+    record_index: {type: INT64, required: true, origin: one_based_index_in_original_file}
+    query_sha256: {type: STRING, required: true, origin: query_template_bytes}
+    request_sha256: {type: STRING, required: true, origin: executed_query_and_parameters}
+    api_version: {type: STRING, required: true, origin: actual_response_api_version}
+    ingested_at: {type: TIMESTAMP, required: true, origin: loader_utc_timestamp}
+    record_sha256: {type: STRING, required: true, origin: original_record_utf8_excluding_line_delimiter}
+    record_text: {type: STRING, required: true, origin: original_record_utf8_excluding_line_delimiter}
+    payload: {type: JSON, required: true, origin: parsed_record_no_reassembly}
+    object_gid: {type: STRING, required: false, origin: optional_top_level_payload_id}
+    parent_gid: {type: STRING, required: false, origin: optional_top_level_payload___parentId}
+  not_business_keys: [extraction_id, file_id, record_index, record_sha256]
+
+run_manifest:
+  table_role: ingestion_runs
+  grain: one_extraction_per_shop_and_stream
+  primary_key: [shop_key, stream, extraction_id]
+  columns:
+    shop_key: STRING
+    stream: STRING
+    extraction_id: STRING
+    contract_version: INT64
+    query_sha256: STRING
+    request_sha256: STRING
+    requested_api_version: STRING
+    actual_api_version: STRING
+    transport: STRING
+    bulk_operation_gid: STRING
+    window_start: TIMESTAMP
+    window_end: TIMESTAMP
+    started_at: TIMESTAMP
+    completed_at: TIMESTAMP
+    published_at: TIMESTAMP
+    status: STRING
+    raw_record_count: INT64
+    provider_object_count: INT64
+    root_object_count: INT64
+    files: JSON
+    error_code: STRING
+    dagster_job_name: STRING
+    dagster_run_id: STRING
+    dagster_step_key: STRING
+    dagster_retry_number: INT64
+    dagster_partition_key: STRING
+    cloud_run_execution_name: STRING
+    code_revision: STRING
+  status_values: [requested, running, downloaded, loaded, validated, published, failed, quarantined]
+  consumer_status: published
+  warning: raw_record_count_is_not_order_count_and_counters_need_transport_specific_reconciliation
+
+publication:
+  mode: append_only_observations
+  source_mutations: forbidden
+  retry_same_result: same_record_keys_same_content_noop_conflicting_content_quarantined
+  new_api_operation: new_extraction_id_even_for_same_window
+  partial_results: retained_for_diagnostics_never_published
+  malformed_json: quarantine_file_and_fail_publication
+  watermark: advance_only_after_validated_publication
+  current_state: select_complete_root_snapshot_then_its_children_from_same_extraction
+  ordering: source_root_updated_at_then_extraction_started_at_then_extraction_id
+  ordering_caveat: requires_validated_root_cursor_coverage_and_serialized_stream_runs
+  deleted_children: replace_only_from_complete_authoritative_parent_collection
+  absent_roots_in_incremental_result: never_infer_deletion
+  same_object_across_streams: keep_projections_separate_do_not_coalesce_into_authoritative_order
+  pii: restrict_raw_access_and_retention_no_payloads_in_logs_or_committed_fixtures
+
+validation_evidence:
+  date: '2026-09-03'
+  method: shopify_admin_skill_local_graphql_validator
+  schema_asset: admin_2026-04.json.gz
+  schema_asset_sha256: 860cd22ab667513c70d136371c2cdfe996c08af4c89df44bda9a0fea7fa2ec47
+  meaning: offline_graphql_schema_validation_only_not_bulk_acceptance_or_live_execution
+
+streams:
+  orders:
+    query_file: queries/shopify/orders_bulk.graphql
+    query_sha256: dfd59bd1b49b53d706e101635061eda239a2e59db06746e92c67f2e2face9d36
+    raw_table: orders
+    graphql_schema_validation: passed
+    transport: bulk_query_live_verified_for_available_fixture
+    live_evidence:
+      date: '2026-09-04'
+      dagster_run_id: 35cfc82f-5bfc-4a54-a2d2-d21e0fdf2e6c
+      cloud_run_execution: dagster-worker-4c7ss
+      bulk_operation_gid: gid://shopify/BulkOperation/8002564980949
+      verification_job_id: eb9bec55-fc20-4891-987d-28b59f186679
+      published_records: 309
+      root_orders: 101
+      line_items: 208
+      shipping_lines: 0
+      anonymous_discount_applications: 0
+      dbt_models_succeeded: 5
+      dbt_tests_passed: 17
+    root_path: orders.edges.node
+    root_key: id
+    root_cursor: updatedAt
+    selected_root_fields:
+      - id
+      - name
+      - createdAt
+      - updatedAt
+      - processedAt
+      - cancelledAt
+      - currencyCode
+      - displayFinancialStatus
+      - displayFulfillmentStatus
+      - email
+      - note
+      - tags
+      - totalPriceSet
+      - subtotalPriceSet
+      - totalTaxSet
+      - totalDiscountsSet
+      - totalShippingPriceSet
+      - customer
+      - shippingAddress
+      - billingAddress
+    child_selections:
+      - {path: lineItems.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__order_line_items}
+      - {path: shippingLines.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__order_shipping_lines}
+      - {path: discountApplications.edges.node, kind: connection, key_selected: null, proposed_stg: stg_shopify__order_discount_applications}
+    proposed_root_stg: stg_shopify__orders
+    blockers:
+      - The unchanged query was accepted live, but no shipping lines or discount applications were returned; nonempty child fixtures remain unverified.
+      - No application index/value or per-line discount allocations selected; do not reconstruct allocation from totals.
+      - Source/channel/location, order transactions, tax details and sale-time history are not supplied by this projection.
+      - Child-only update cursor coverage, quarantine retention and recovery after signed URL expiry remain unverified or incomplete.
+
+  order_refunds:
+    query_file: queries/shopify/order_refunds_bulk.graphql
+    query_sha256: 0a8c3e1e76b37e1039b14bcd6b688fa8d3ad61fab45dc4b6e9e903c1d1421185
+    raw_table: order_refunds
+    graphql_schema_validation: passed
+    transport: bulk_candidate_blocked_pending_connection_review
+    root_path: orders.edges.node
+    root_key: id
+    root_cursor: updatedAt
+    selected_root_fields: [id, name, updatedAt]
+    child_selections:
+      - {path: refunds, kind: list_not_connection, key_selected: id, proposed_stg: stg_shopify__refunds}
+      - {path: refunds.refundLineItems.edges.node, kind: connection_below_list, key_selected: null, proposed_stg: stg_shopify__refund_line_items}
+      - {path: refunds.transactions.edges.node, kind: connection_below_list, key_selected: id, proposed_stg: stg_shopify__refund_transactions}
+      - {path: refunds.orderAdjustments.edges.node, kind: connection_below_list, key_selected: id, proposed_stg: stg_shopify__refund_order_adjustments}
+    selected_refund_fields: [id, note, createdAt, updatedAt, totalRefundedSet]
+    blockers:
+      - RefundLineItem is not Node in the inspected schema; bulk schema validation does not prove this transport is supported.
+      - Refund lines omit id and lineItem.id; original-line linkage is unavailable.
+      - Refund lines omit tax and currencyCode in their money selection; do not assume the order currency silently.
+      - Refund.processedAt is not selected; createdAt and updatedAt must not be relabeled as processedAt.
+      - Transaction timestamps/currency and adjustment tax/reason details need an explicit selection.
+      - Nested connection serialization below the refunds list requires a verified adapter or separately paginated queries; never infer parents from adjacent lines.
+
+  returns:
+    query_file: queries/shopify/return_line_items_bulk.graphql
+    query_sha256: 764194ed90b4ac1d36ffd63800898caaddcc2e8611fc19e7eedf22d828b4042d
+    raw_table: returns
+    graphql_schema_validation: passed
+    transport: bulk_candidate_not_runtime_verified
+    root_path: orders.edges.node
+    root_key: id
+    root_cursor: updatedAt
+    selected_root_fields: [id, updatedAt]
+    child_selections:
+      - {path: returns.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__returns}
+      - {path: returns.edges.node.returnLineItems.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__return_line_items}
+      - {path: returns.edges.node.refunds.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__return_refunds}
+    selected_return_fields: [id, name, status, totalQuantity, closedAt, requestApprovedAt]
+    selected_return_line_fields: [id, quantity]
+    blockers:
+      - No return line linkage to fulfillment/original order line or return-line monetary fields is selected.
+      - Return reasons and createdAt are absent; use concrete-type fragments when the schema requires them.
+      - Return-to-refund ids define an object-level relationship, not a line allocation policy.
+      - Order.updatedAt coverage for child-only changes must be tested before using it as a complete incremental cursor.
+
+  exchanges:
+    query_file: queries/shopify/exchanges_bulk.graphql
+    query_sha256: e25f9205e6f4632a19b2ce68f3fa672b9c6d899647a89f012ddd720d6ebbbadb
+    raw_table: exchanges
+    graphql_schema_validation: failed
+    transport: blocked
+    root_path: orders.edges.node
+    root_key: id
+    root_cursor: null
+    selected_root_fields: [id]
+    child_selections:
+      - {path: exchangeV2s.edges.node, kind: invalid_in_checked_schema, key_selected: id, proposed_stg: stg_shopify__exchange_line_items}
+    blockers:
+      - 'Validator error: Cannot query field "exchangeV2s" on type "Order".'
+      - The version comment is not proof of API support; the bundled asset named 2026-04 also rejects this field.
+      - Redesign around Return.exchangeLineItems and assess sales agreements for processed history; validate the replacement before defining its field contract.
+      - Existing selection has no exchange-line identity, original line linkage or root update cursor.
+
+not_in_scope_yet:
+  other_query_files: 31
+  canonical_stream_count: unapproved
+  dbt_project_and_staging_sql: not_implemented
+  financial_policies: require_separate_approval
+  live_transport_tests: require_a_future_test_shop

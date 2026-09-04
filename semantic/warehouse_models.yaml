@@ -1,0 +1,1421 @@
+{
+  "version": 1,
+  "status": "prerequisite_inventory_not_build_completion",
+  "scopes": {
+    "staging": {
+      "config_keys": [],
+      "tables": [
+        "cfg_shops"
+      ],
+      "decisions": []
+    },
+    "typed": {
+      "config_keys": [],
+      "tables": [],
+      "decisions": []
+    },
+    "shops": {
+      "config_keys": [],
+      "tables": [
+        "cfg_shops"
+      ],
+      "decisions": []
+    },
+    "calendar": {
+      "config_keys": [
+        "fiscal.source",
+        "fiscal.comp_ly_days",
+        "run.as_of_dt"
+      ],
+      "tables": [
+        "cfg_fiscal_calendar"
+      ],
+      "decisions": []
+    },
+    "fx": {
+      "config_keys": [
+        "fx.source",
+        "fx.rule",
+        "warehouse.timezone",
+        "warehouse.reporting_currency"
+      ],
+      "tables": [
+        "cfg_fx_rates"
+      ],
+      "decisions": []
+    },
+    "commercial": {
+      "config_keys": [
+        "warehouse.timezone",
+        "warehouse.reporting_currency",
+        "revenue.exclude_cancelled",
+        "revenue.reporting_exclusion_tags",
+        "revenue.zero_dollar_orders",
+        "revenue.merchandise_only",
+        "incremental.lookback_days",
+        "exchanges.warranty_tags",
+        "exchanges.warranty_reasons",
+        "exchanges.original_order_note_regex",
+        "exchanges.process_error_method"
+      ],
+      "tables": [
+        "cfg_test_order_rules",
+        "cfg_product_taxonomy",
+        "cfg_sales_channel_map"
+      ],
+      "decisions": [
+        "exclusions",
+        "merchandise_taxonomy",
+        "exchanges"
+      ]
+    },
+    "returns": {
+      "config_keys": [
+        "returns.rmv_recognition_ts",
+        "returns.window_days_web",
+        "returns.window_days_retail",
+        "returns.restatement_days",
+        "returns.store_credit_tags",
+        "warehouse.timezone"
+      ],
+      "tables": [
+        "cfg_return_reason_map"
+      ],
+      "decisions": [
+        "return_event_matching",
+        "return_value_contract",
+        "return_recognition",
+        "adjustments"
+      ]
+    },
+    "payment": {
+      "config_keys": [
+        "warehouse.timezone"
+      ],
+      "tables": [
+        "cfg_payment_method_map"
+      ],
+      "decisions": []
+    },
+    "retail": {
+      "config_keys": [
+        "warehouse.timezone",
+        "run.as_of_dt"
+      ],
+      "tables": [
+        "cfg_locations",
+        "cfg_sales_channel_map"
+      ],
+      "decisions": [
+        "mapping_scope"
+      ]
+    },
+    "inventory": {
+      "config_keys": [
+        "run.as_of_dt"
+      ],
+      "tables": [],
+      "decisions": [
+        "inventory_rerun"
+      ]
+    },
+    "customer": {
+      "config_keys": [
+        "warehouse.timezone",
+        "run.as_of_dt"
+      ],
+      "tables": [
+        "cfg_test_order_rules"
+      ],
+      "decisions": [
+        "customer_identity"
+      ]
+    },
+    "rfm": {
+      "config_keys": [
+        "run.as_of_dt"
+      ],
+      "tables": [
+        "cfg_rfm_groups",
+        "cfg_acquisition_segments"
+      ],
+      "decisions": [
+        "customer_identity"
+      ]
+    },
+    "product": {
+      "config_keys": [
+        "product.bundle_attribution"
+      ],
+      "tables": [
+        "cfg_product_taxonomy",
+        "cfg_price_bands"
+      ],
+      "decisions": [
+        "mapping_scope",
+        "merchandise_taxonomy",
+        "point_in_time"
+      ]
+    },
+    "metrics": {
+      "config_keys": [
+        "run.as_of_dt",
+        "fiscal.comp_ly_days"
+      ],
+      "tables": [
+        "cfg_fiscal_calendar"
+      ],
+      "decisions": []
+    },
+    "plans": {
+      "config_keys": [
+        "run.as_of_dt"
+      ],
+      "tables": [
+        "cfg_metric_targets"
+      ],
+      "decisions": [
+        "metrics_section_8"
+      ]
+    },
+    "last_touch": {
+      "config_keys": [],
+      "tables": ["cfg_channel_taxonomy"],
+      "decisions": []
+    },
+    "sessions": {
+      "config_keys": [
+        "sessions.provider",
+        "sessions.gap_minutes",
+        "sessions.recovery_hours"
+      ],
+      "tables": [
+        "cfg_channel_taxonomy"
+      ],
+      "decisions": [
+        "cdp_contract"
+      ]
+    },
+    "addons": {
+      "config_keys": [],
+      "tables": [],
+      "decisions": [
+        "addon_grains",
+        "erp_timing"
+      ]
+    }
+  },
+  "models": {
+    "stg_shopify.stg_orders": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_line_items": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_transactions": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_discount_applications": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_discount_allocations": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_shipping_lines": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_tax_lines": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "orders"
+    },
+    "stg_shopify.stg_order_refunds": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "order_refunds"
+    },
+    "stg_shopify.stg_refund_line_items": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "order_refunds"
+    },
+    "stg_shopify.stg_refund_order_adjustments": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "order_refunds"
+    },
+    "stg_shopify.stg_refund_transactions": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "order_refunds"
+    },
+    "stg_shopify.stg_returns": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "return_line_items"
+    },
+    "stg_shopify.stg_return_line_items": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "return_line_items"
+    },
+    "stg_shopify.stg_exchanges": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "exchanges"
+    },
+    "stg_shopify.stg_exchange_line_items": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "exchanges"
+    },
+    "stg_shopify.stg_tender_transactions": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "tender_transactions"
+    },
+    "stg_shopify.stg_balance_transactions": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "balance_transactions"
+    },
+    "stg_shopify.stg_disputes": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "disputes"
+    },
+    "stg_shopify.stg_payouts": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "payouts"
+    },
+    "stg_shopify.stg_cash_tracking_sessions": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "cash_tracking_sessions"
+    },
+    "stg_shopify.stg_cash_tracking_adjustments": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "cash_tracking_sessions"
+    },
+    "stg_shopify.stg_cash_tracking_transactions": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "cash_tracking_sessions"
+    },
+    "stg_shopify.stg_customers": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "customers"
+    },
+    "stg_shopify.stg_customer_address": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "customer_address"
+    },
+    "stg_shopify.stg_draft_orders": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "draft_orders"
+    },
+    "stg_shopify.stg_abandoned_checkouts": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "abandoned_checkouts"
+    },
+    "stg_shopify.stg_products": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "products"
+    },
+    "stg_shopify.stg_product_variants": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "product_variants"
+    },
+    "stg_shopify.stg_product_images": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "product_images"
+    },
+    "stg_shopify.stg_collections": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "collections"
+    },
+    "stg_shopify.stg_custom_collections": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "custom_collections"
+    },
+    "stg_shopify.stg_smart_collections": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "smart_collections"
+    },
+    "stg_shopify.stg_collects": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "collects"
+    },
+    "stg_shopify.stg_price_rules": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "price_rules"
+    },
+    "stg_shopify.stg_inventory_items": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "inventory_items"
+    },
+    "stg_shopify.stg_inventory_levels": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "inventory_levels"
+    },
+    "stg_shopify.stg_locations": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "locations"
+    },
+    "stg_shopify.stg_fulfillments": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "fulfillments"
+    },
+    "stg_shopify.stg_fulfillment_line_items": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "fulfillments"
+    },
+    "stg_shopify.stg_metafields_orders": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "metafield_orders"
+    },
+    "stg_shopify.stg_metafields_products": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "metafield_products"
+    },
+    "stg_shopify.stg_metafields_product_variants": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "metafield_product_variants"
+    },
+    "stg_shopify.stg_shop": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "shop"
+    },
+    "stg_shopify.stg_articles": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "articles"
+    },
+    "stg_shopify.stg_blogs": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "blogs"
+    },
+    "stg_shopify.stg_pages": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "pages"
+    },
+    "stg_shopify.stg_countries": {
+      "scope": "staging",
+      "purity": "shopify_native",
+      "implementation": "renderer_available_requires_contract",
+      "depends_on": [],
+      "raw_source": "countries"
+    },
+    "core.dim_shop": {
+      "scope": "shops",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_shop"
+      ]
+    },
+    "core.dim_date": {
+      "scope": "calendar",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": []
+    },
+    "core.dim_location": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_locations",
+        "core.dim_date"
+      ]
+    },
+    "core.dim_customer": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_customers"
+      ]
+    },
+    "core.dim_product": {
+      "scope": "product",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_products",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.dim_variant": {
+      "scope": "product",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_product_variants",
+        "core.dim_product"
+      ]
+    },
+    "core.dim_collection": {
+      "scope": "typed",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_collections"
+      ]
+    },
+    "core.brg_product_collection": {
+      "scope": "typed",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_collects"
+      ]
+    },
+    "core.dim_discount": {
+      "scope": "typed",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_price_rules"
+      ]
+    },
+    "core.dim_return_reason": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_return_line_items"
+      ]
+    },
+    "core.xf_fx_rates": {
+      "scope": "fx",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": []
+    },
+    "core.xf_line_classification": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_orders",
+        "stg_shopify.stg_order_line_items",
+        "core.xf_order_exchange"
+      ]
+    },
+    "core.fct_order": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_orders",
+        "core.dim_shop",
+        "core.dim_location"
+      ]
+    },
+    "core.fct_order_sale_line": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order",
+        "stg_shopify.stg_order_line_items",
+        "stg_shopify.stg_order_discount_allocations",
+        "core.xf_line_classification",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.xf_order_sale": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order_sale_line"
+      ]
+    },
+    "core.brg_order_split": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_orders"
+      ]
+    },
+    "core.xf_order_exchange": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_orders",
+        "stg_shopify.stg_exchanges",
+        "stg_shopify.stg_exchange_line_items"
+      ]
+    },
+    "core.fct_exchange_line": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_exchange_line_items",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_order_transaction": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_order_transactions",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_tender": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_tender_transactions",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_balance_transaction": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_balance_transactions",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_payout": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_payouts",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_dispute": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_disputes",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.xf_order_payment": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order_transaction"
+      ]
+    },
+    "core.fct_refund": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_order_refunds"
+      ]
+    },
+    "core.fct_refund_line": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_refund_line_items",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_refund_order_adjustment": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_refund_order_adjustments",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_return": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_returns"
+      ]
+    },
+    "core.fct_return_line": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_return_line_items",
+        "core.xf_fx_rates"
+      ]
+    },
+    "core.fct_returns_joined": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_refund_line",
+        "core.fct_return_line",
+        "core.fct_refund_order_adjustment"
+      ]
+    },
+    "core.xf_order_full_return": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_returns_joined",
+        "core.xf_order_sale"
+      ]
+    },
+    "core.fct_fulfillment_line": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_fulfillment_line_items",
+        "core.fct_order"
+      ]
+    },
+    "core.fct_inventory_level_snapshot": {
+      "scope": "inventory",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_inventory_levels"
+      ]
+    },
+    "core.fct_cash_session": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_cash_tracking_sessions"
+      ]
+    },
+    "core.xf_store_day": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.dim_location",
+        "core.dim_date"
+      ]
+    },
+    "core.xf_customer_first_purchase": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order",
+        "core.xf_order_sale"
+      ]
+    },
+    "core.xf_customer_sale_lite": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.xf_customer_first_purchase"
+      ]
+    },
+    "core.xf_customer_rfm_weekly": {
+      "scope": "rfm",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order_sale_line",
+        "core.xf_customer_first_purchase"
+      ]
+    },
+    "analytics.xa_order_sale_line": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order_sale_line",
+        "core.xf_customer_sale_lite"
+      ]
+    },
+    "analytics.xa_return_line": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_returns_joined",
+        "core.fct_order"
+      ]
+    },
+    "analytics.xa_order": {
+      "scope": "commercial",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order",
+        "core.xf_order_sale",
+        "core.xf_customer_sale_lite"
+      ]
+    },
+    "analytics.xa_transaction_line": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_order_sale_line",
+        "analytics.xa_return_line"
+      ]
+    },
+    "analytics.xa_customer": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.dim_customer",
+        "core.xf_customer_first_purchase"
+      ]
+    },
+    "analytics.xa_inventory_snapshot": {
+      "scope": "inventory",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_inventory_level_snapshot"
+      ]
+    },
+    "analytics.xa_analytics_spine": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.dim_date",
+        "analytics.xa_order"
+      ]
+    },
+    "analytics.xa_order_payment": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.xf_order_payment"
+      ]
+    },
+    "analytics.xa_payments_recon": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_order_transaction",
+        "core.fct_tender",
+        "core.fct_balance_transaction",
+        "core.fct_payout"
+      ]
+    },
+    "analytics.xa_store_day": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.xf_store_day",
+        "analytics.xa_order"
+      ]
+    },
+    "analytics.xa_fulfillment": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_fulfillment_line"
+      ]
+    },
+    "metrics.xm_sales_revenue": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_sales_revenue": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_sales_revenue"
+      ]
+    },
+    "metrics.xmr_sales_revenue": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_sales_revenue"
+      ]
+    },
+    "metrics.xmp_sales_revenue": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_sales_revenue"
+      ]
+    },
+    "metrics.xm_gmv": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_gmv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_gmv"
+      ]
+    },
+    "metrics.xmr_gmv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_gmv"
+      ]
+    },
+    "metrics.xmp_gmv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_gmv"
+      ]
+    },
+    "metrics.xm_emv": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_emv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_emv"
+      ]
+    },
+    "metrics.xmr_emv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_emv"
+      ]
+    },
+    "metrics.xmp_emv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_emv"
+      ]
+    },
+    "metrics.xm_rmv": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_rmv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_rmv"
+      ]
+    },
+    "metrics.xmr_rmv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_rmv"
+      ]
+    },
+    "metrics.xmp_rmv": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_rmv"
+      ]
+    },
+    "metrics.xm_orders": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_order",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_orders": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_orders"
+      ]
+    },
+    "metrics.xmr_orders": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_orders"
+      ]
+    },
+    "metrics.xmp_orders": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_orders"
+      ]
+    },
+    "metrics.xm_units": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_units": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_units"
+      ]
+    },
+    "metrics.xmr_units": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_units"
+      ]
+    },
+    "metrics.xmp_units": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_units"
+      ]
+    },
+    "metrics.xm_aov": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_aov": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_aov"
+      ]
+    },
+    "metrics.xmr_aov": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_aov"
+      ]
+    },
+    "metrics.xmp_aov": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_aov"
+      ]
+    },
+    "metrics.xm_upt": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_upt": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_upt"
+      ]
+    },
+    "metrics.xmr_upt": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_upt"
+      ]
+    },
+    "metrics.xmp_upt": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_upt"
+      ]
+    },
+    "metrics.xm_aup": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line",
+        "analytics.xa_analytics_spine"
+      ]
+    },
+    "metrics.xmt_aup": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_aup"
+      ]
+    },
+    "metrics.xmr_aup": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_aup"
+      ]
+    },
+    "metrics.xmp_aup": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_aup"
+      ]
+    },
+    "insights.xi_revenue_daily": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line"
+      ]
+    },
+    "insights.xi_commercial_health": {
+      "scope": "plans",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "metrics.xm_sales_revenue"
+      ]
+    },
+    "insights.xi_nmv_drivers": {
+      "scope": "metrics",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_order"
+      ]
+    },
+    "insights.xi_returns_explorer": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_return_line"
+      ]
+    },
+    "insights.xi_merch_explorer": {
+      "scope": "product",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_order_sale_line"
+      ]
+    },
+    "insights.xi_customer_cohorts": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_customer"
+      ]
+    },
+    "insights.xi_ltv": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_transaction_line"
+      ]
+    },
+    "insights.xi_retention": {
+      "scope": "customer",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_customer"
+      ]
+    },
+    "insights.xi_rfm_segments": {
+      "scope": "rfm",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.xf_customer_rfm_weekly"
+      ]
+    },
+    "insights.xi_inventory_position": {
+      "scope": "inventory",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_inventory_snapshot"
+      ]
+    },
+    "insights.xi_fulfillment_speed": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_fulfillment"
+      ]
+    },
+    "insights.xi_payments_recon": {
+      "scope": "payment",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_payments_recon"
+      ]
+    },
+    "insights.xi_refund_rate": {
+      "scope": "returns",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_return_line"
+      ]
+    },
+    "insights.xi_collection_performance": {
+      "scope": "product",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.brg_product_collection"
+      ]
+    },
+    "insights.xi_store_performance": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_store_day"
+      ]
+    },
+    "insights.xi_sell_through": {
+      "scope": "inventory",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "analytics.xa_inventory_snapshot"
+      ]
+    },
+    "insights.xi_cash_recon": {
+      "scope": "retail",
+      "purity": "shopify_native",
+      "implementation": "not_started",
+      "depends_on": [
+        "core.fct_cash_session"
+      ]
+    },
+    "core.xf_order_last_touch": {
+      "scope": "last_touch",
+      "purity": "shopify_partial",
+      "implementation": "not_started",
+      "depends_on": [
+        "stg_shopify.stg_orders"
+      ]
+    },
+    "analytics.xa_session": {
+      "scope": "sessions",
+      "purity": "third_party",
+      "implementation": "not_started",
+      "depends_on": []
+    },
+    "core.xf_return_line__erp": {
+      "scope": "typed",
+      "purity": "third_party",
+      "implementation": "unmounted_stub",
+      "depends_on": [],
+      "sql": "warehouse/addons/xf_return_line__erp.sql"
+    }
+  }
+}

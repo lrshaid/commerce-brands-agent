@@ -1,0 +1,43 @@
+# Template only. The loader NEVER reads this file as target configuration.
+# Populate config/warehouse.yaml yourself; null means MISSING_CONFIG, not a default.
+warehouse:
+  timezone: null
+  reporting_currency: null
+  allow_defaults: null
+fiscal:
+  source: null
+  comp_ly_days: null
+fx:
+  source: null
+  rule: null
+revenue:
+  exclude_cancelled: null
+  reporting_exclusion_tags: null
+  zero_dollar_orders: null
+  zero_dollar_allowlist_sku_regex: null
+  merchandise_only: null
+  legacy_discount_note_key: null
+returns:
+  rmv_recognition_ts: null
+  window_days_web: null
+  window_days_retail: null
+  restatement_days: null
+  store_credit_tags: null
+exchanges:
+  warranty_tags: null
+  warranty_reasons: null
+  original_order_note_regex: null
+  process_error_method: null
+sessions:
+  provider: null
+  gap_minutes: null
+  recovery_hours: null
+incremental:
+  lookback_days: null
+freshness:
+  max_lag_hours: null
+product:
+  bundle_attribution: null
+  style_rule: null
+margin:
+  min_cost_coverage: null

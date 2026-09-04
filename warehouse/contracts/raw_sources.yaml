@@ -1,0 +1,49 @@
+version: 1
+status: awaiting_owner_contract
+landing_is_consumed_not_built: true
+# Historical names specified by the build request, NOT existing tables or dbt sources.
+# Initial query-derived design: shopify_raw_v1.yaml (different flat/versioned envelope;
+# the returns stream uses raw table role 'returns', not 'return_line_items').
+sources:
+  - orders
+  - order_refunds
+  - return_line_items
+  - exchanges
+  - tender_transactions
+  - balance_transactions
+  - disputes
+  - payouts
+  - cash_tracking_sessions
+  - customers
+  - customer_address
+  - draft_orders
+  - abandoned_checkouts
+  - products
+  - product_variants
+  - product_images
+  - collections
+  - custom_collections
+  - smart_collections
+  - collects
+  - price_rules
+  - inventory_items
+  - inventory_levels
+  - locations
+  - fulfillments
+  - metafield_orders
+  - metafield_products
+  - metafield_product_variants
+  - shop
+  - articles
+  - blogs
+  - pages
+  - countries
+required_evidence:
+  - physical column schema and payload layout
+  - shop_key provenance
+  - parent/child paths including nodes versus edges.node
+  - current-state versus append-only version semantics
+  - cursor and stable deterministic tie-breaker
+  - source object and event primary keys
+  - money basis and local/presentment currency mapping
+  - synthetic literal-CTE example only

@@ -42,7 +42,20 @@ class SemanticModelTests(unittest.TestCase):
             "products.id = order_line_items.product_id",
         )
 
+    def test_collections_use_actual_bridge(self):
+        path = self.model.join_path("collections", "products")
+        self.assertEqual([p["to"] for p in path], ["collects", "products"])
+        self.assertNotIn("products.collection_id", str(path))
+
+    def test_soft_links_are_not_rendered_as_equality(self):
+        rel = next(r for r in self.model.relationships if r["name"] == "checkout_product_soft_link")
+        with self.assertRaises(ValueError):
+            self.model.join_condition("abandoned_checkouts", "products", rel)
+
+    def test_unvalidated_revenue_is_not_marked_implemented(self):
+        self.assertFalse(self.model.metrics["gmv"]["implemented"])
+        self.assertFalse(self.model.metrics["rmv"]["implemented"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

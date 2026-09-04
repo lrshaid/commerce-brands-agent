@@ -1,0 +1,54 @@
+version: 1
+# No decision is implicitly accepted by the preflight.
+decisions:
+  raw_landing:
+    affects: [staging]
+    question: Supply the read-only raw envelope, JSON paths, shop key, version cursor and uniqueness guarantee for each source. Are rows current-state parents or versioned snapshots?
+  exclusions:
+    affects: [commercial]
+    question: Keep staging business-logic-free and apply reporting exclusions as core flags, or drop rows in staging? Also reconcile exclude_cancelled=false with the unconditional exclusion in section 5.5.
+  merchandise_taxonomy:
+    affects: [commercial, product]
+    question: Supply unit_style_type mapping, rule priority and tie policy; these columns are absent from the supplied taxonomy schema.
+  return_event_matching:
+    affects: [returns]
+    question: Supply an event-level refund-to-return linkage or quantity allocation policy for repeated/partial events; original order line alone is not a unique event key.
+  return_value_contract:
+    affects: [returns]
+    question: Map verified and unverified return line identifiers, discounted merchandise value and tax from actual landed fields; subtotalSet/totalTaxSet are not established Return fields.
+  return_recognition:
+    affects: [returns]
+    question: Specify recognition fallbacks for refund-only, open-return and return-only rows where the selected timestamp does not exist; define refund_processed_at.
+  adjustments:
+    affects: [returns]
+    question: Decide how discrepancy adjustments affect merchandise RMV; shipping and tax must remain separate under the merchandise-only invariant. Preserve refund/event keys for adjustment legs.
+  exchanges:
+    affects: [commercial, returns]
+    question: Supply added-item exchange linkage and original-order resolution scoped by shop; do not detect arbitrary display names containing -E as exchanges.
+  daily_fx:
+    affects: [fx]
+    question: Provide the daily rate table contract when fx.rule=daily; cfg_fx_rates currently has month_dt grain only.
+  mapping_scope:
+    affects: [retail, product]
+    question: Specify shop scoping, rule priority and ties for location/channel/taxonomy mappings; the prescribed schemas omit these columns.
+  inventory_rerun:
+    affects: [inventory]
+    question: For an already-published snapshot date, reject reruns or skip identical input? Specify atomic publication and handling of changed inputs; blind INSERT duplicates keys.
+  customer_identity:
+    affects: [customer]
+    question: Define cross-shop customer equivalence, guest matching, timestamp tie-breaks and first-purchase restatement; shop-local numeric IDs cannot establish cross-shop identity.
+  point_in_time:
+    affects: [product]
+    question: Supply historical attributes or first-load snapshot semantics for sale-time product attributes; current-state dimensions cannot reconstruct historical values.
+  metrics_section_8:
+    affects: [metrics]
+    question: Supply missing section 8 for target selection, recaps, projections and explicitly-live models; S1-S4 are also absent but do not block fully specified infrastructure.
+  addon_grains:
+    affects: [addons]
+    question: Confirm event-scoped enrichment keys and schemas per mounted role; joins must be unique and cannot change native row counts or values.
+  erp_timing:
+    affects: [addons]
+    question: Physical-receipt timing must be a separately named third-party metric/date, not a replacement of the native ledger date; confirm the intended output.
+  cdp_contract:
+    affects: [sessions]
+    question: Supply page/event/identity/order linkage fields and stable tie-break keys; recovered partial event-tracker SQL is not a ready-made provider contract.

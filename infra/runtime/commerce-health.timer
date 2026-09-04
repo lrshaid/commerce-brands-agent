@@ -1,0 +1,7 @@
+[Unit]
+Description=Check Dagster containers and VM resources
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2min
+[Install]
+WantedBy=timers.target

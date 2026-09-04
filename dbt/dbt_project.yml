@@ -1,0 +1,22 @@
+name: commerce
+version: '1.0.0'
+config-version: 2
+profile: commerce
+model-paths: [models]
+test-paths: [tests]
+macro-paths: [macros]
+clean-targets: [target, dbt_packages]
+models:
+  commerce:
+    +persist_docs: {relation: true, columns: true}
+    +materialized: view
+    staging:
+      shopify:
+        +schema: analytics
+        +tags: [shopify_staging]
+      platform:
+        +tags: [platform_smoke]
+    reports:
+      platform:
+        +tags: [platform_smoke]
+        +materialized: table

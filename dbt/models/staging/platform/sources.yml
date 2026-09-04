@@ -1,0 +1,28 @@
+version: 2
+sources:
+  - name: platform_smoke
+    description: Synthetic infrastructure acceptance data only. Never commercial data.
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: platform_smoke
+    tables:
+      - name: probe_input
+      - name: acceptance
+      - name: ingestion_runs
+models:
+  - name: stg_platform__published_records
+    description: Synthetic published observations; record key is technical, not a business entity ID.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: published_at
+        data_tests: [not_null]
+  - name: stg_platform__probe
+    description: Synthetic source normalization for infrastructure acceptance.
+    columns:
+      - name: probe_id
+        data_tests: [not_null, unique]
+  - name: rpt_platform__probe
+    description: Synthetic downstream model for dependency and failure visibility checks.
+    columns:
+      - name: probe_id
+        data_tests: [not_null, unique]

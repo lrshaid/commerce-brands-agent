@@ -2,6 +2,64 @@
 
 Audit date: 2026-08-31
 
+> Orders implementation follow-up (2026-09-04): Shopify credential injection and
+> read-only store authentication are verified on the worker. A manual-only real
+> orders Bulk → GCS → raw publication → five dbt staging-model job is now implemented
+> locally (113 tests pass; dbt compile and Dagster graph validation pass). Runtime
+> build/rollout and live data acceptance are tracked in `docs/DEPLOYMENT_STATUS.md`.
+> This does not resolve refunds/returns/exchanges, current-state/business models,
+> child-change cursor coverage, quarantine/recovery, billing export or email delivery.
+
+> Live orders acceptance: run `35cfc82f-5bfc-4a54-a2d2-d21e0fdf2e6c` now SUCCESS.
+> 101 orders + 208 line items = 309 raw/staged records, reconciled to provider counts.
+> Five dbt models and 17 tests passed; artifacts retained. Shipping/discount collections
+> are empty in the fixture, not validated for nonempty data. Orders raw/staging now exist;
+> historical statements below saying no warehouse deployment are superseded for this stream.
+> The correction exposing both singular tests as native Dagster checks is deployed;
+> the same-extraction replay passed all 17 checks with 309 unchanged records and
+> one manifest. Refund pagination queries and immutable response capture are
+> implemented locally; capture is covered by eight simulated-response tests.
+> The full local suite passes 128 tests. Refund capture is not deployed or wired
+> to Dagster, BigQuery raw publication or dbt; live refund acceptance is pending.
+
+> Deployment follow-up (2026-09-03): Terraform foundation and runtime resources now exist
+> in `commerce-agents-dev`, `us-central1`, with an `e2-medium` VM, Cloud Run worker,
+> private data connectivity and USD 100 pre-promotion budget alerts to lauti@clicar.studio.
+> An executable synthetic dbt project and Dagster definitions are implemented; real-data
+> ingestion/models are not yet migrated. Runtime startup and acceptance are in progress.
+> See `docs/DEPLOYMENT_STATUS.md` for verified evidence and remaining gates. Earlier
+> statements below about region/sizing or no deployment are historical, superseded here.
+
+> Build follow-up: implementation boundaries are tracked in `warehouse/BUILD_STATUS.md`;
+> run `python3 -m agent.warehouse check --format markdown` for current missing inputs
+> (`MISSING_CONFIG.md` has not been created). New work follows `docs/ARCHITECTURE.md`:
+> Dagster OSS on a GCP VM + Cloud Run Jobs + dbt Core + BigQuery, with
+> source/stg/intermediate/marts/reports and model-level observability. Dagster supersedes
+> the earlier Airflow decision. Migration and application deployment remain pending.
+> The historical audit below is preserved;
+> its test counts and GMV/RMV implementation flags predate the foundation work.
+>
+> Query-derived landing update (2026-09-03): no raw exists yet. See
+> `docs/SHOPIFY_RAW_CONTRACT.md` and `warehouse/contracts/shopify_raw_v1.yaml` for the initial
+> four-stream design. Offline schema checks passed for orders/refunds/returns; exchanges
+> failed on `exchangeV2s`. Passing schema checks does not prove bulk compatibility or complete
+> event keys. The old nested/current-unique assumptions do not describe the new raw design.
+> MetricFlow remains optional after the user's layer/naming clarification.
+
+### Dagster architecture follow-up (2026-09-03)
+
+- Adopted: self-managed Dagster on a Docker-based GCP VM; extractors/dbt execute in Cloud
+  Run Jobs. The project and billing linkage exist, not the application deployment.
+- Blocking integration proof: two synthetic dbt models and an intentionally failing test
+  must report model/test results to Dagster, with remote failure, timeout, cancellation,
+  retry and restart recovery verified. The community Cloud Run launcher is only a candidate.
+- Infrastructure inputs still open: region (`us-central1` proposed only), VM sizing/cost,
+  secure worker-to-control-plane connectivity, runtime versions and retention.
+- Ingestion run metadata now uses Dagster job/run/step/attempt plus remote execution identity;
+  the raw contract is not deployed, so this change requires no database migration today.
+- Full execution sequence and acceptance gates are in `docs/ARCHITECTURE.md`. This decision
+  does not resolve raw payload, financial matching or reporting-policy gaps.
+
 This report separates three different questions that the previous version mixed together:
 
 1. **Does the local implementation behave correctly?**
@@ -118,13 +176,36 @@ No sandbox dataset, raw fixtures, credentials, or emulator-backed run is documen
 
 **Needed:** run synthetic fixtures through landing, staging, returns, and daily revenue; assert row-level outputs and independent amount reconciliations.
 
-### 10. Extractor orchestration is absent
+### 10. Extractor orchestration and the GA4 session data plane are absent
 
-There is no bulk-operation runner, poller, JSONL downloader, loader, checkpoint, retry policy, idempotency handling, freshness monitor, or dead-letter path.
+There is no Shopify bulk-operation runner, poller, JSONL downloader, loader, checkpoint, retry policy, idempotency handling, freshness monitor, or dead-letter path. The GA4 connector calls the aggregated Data API through `runReport`; it does not link or consume the raw GA4 BigQuery export, and there are no page-event, identity, session, channel-attribution, or order-session models.
 
-**Impact:** data cannot be refreshed reliably without manual external work.
+**Impact:** data cannot be refreshed reliably without manual external work, and the agent cannot answer session, funnel, or owned-attribution questions from raw events.
 
-**Needed:** implement a single-tenant scheduled extractor first, with observable state and replay-safe loading, before generalizing it to multiple tenants.
+#### Recovered implementation knowledge for sessions
+
+The persistent context contains 34 SQL excerpts across `project_mejuri_session_attribution.md` and `project_mejuri_digital_pipeline.md`. They document a BigQuery/dbt implementation built from page events rather than the Shopify `Page` content object.
+
+| Session logic | SQL coverage recovered |
+|---|---|
+| Normalize page events | partial: source branches, fields, filters, and lineage; the complete select is absent |
+| Resolve `anonymous_id` to `identity_id` | high: source priorities, deterministic and probabilistic anchors, cross-shop consolidation, deduplication, and final selection |
+| Cut sessions after 30 minutes of inactivity | near-complete: the `lag()` partition is documented and the final session-boundary predicate is preserved exactly |
+| Use the landing page as `session_key` and session attributes | partial: `page_key as session_key` and the behavior are documented; the full model is absent |
+| Classify channel and campaign | partial: the exact start of the precedence `CASE` and all five precedence layers are documented; many rules from the roughly 350-line macro are absent |
+| Inherit the last non-direct/non-internal channel | high: the core `last_value(... ignore nulls)`, first-click, and first-30-day windows are preserved |
+| Link an order to a session | high: event match, cart anonymous-id fallback, 24-hour recovery window, deterministic fallback selection, and attribution-source output are documented |
+
+This is enough to reconstruct a functional GA4 BigQuery implementation, but not to claim a byte-for-byte copy of the unavailable source models.
+
+The recovered design also contains defects that must not be copied:
+
+- session and attribution windows were evaluated over only two incremental days, creating artificial boundary sessions and making first/last attribution non-idempotent versus a full refresh;
+- linear multi-touch used a running count instead of the total session count and had no lookback window;
+- click-ID parsing retained only presence flags and discarded the values;
+- the primary order-session deduplication used `row_number()` without a deterministic `ORDER BY`.
+
+**Needed:** first implement a single-tenant, replay-safe extractor. For GA4, keep `ga4_native_session` (`user_pseudo_id` + `ga_session_id`) separate from a `canonical_session` built with identity resolution and the 30-minute rule. Vendor the reusable session knowledge into this repository, define the raw GA4 event contract, implement the seven transformations above, and test day boundaries plus incremental/full-refresh equivalence before adding advanced attribution.
 
 ## P2 — serving plane and product behavior
 
@@ -191,6 +272,7 @@ These gaps matter only if the objective is to reproduce the unavailable original
 5. Implement exchange staging, EMV, and NMV; add line-level and amount-level reconciliation cases.
 6. Add the model-driven answer loop and evidence-based answer evals.
 7. Build single-tenant extractor orchestration and freshness monitoring.
-8. Create the reviewed vendor-neutral publication layer.
-9. Add remote MCP and OAuth.
-10. Add tenant isolation and production controls.
+8. Add the GA4 BigQuery event contract, native sessions, and the tested canonical-session pipeline.
+9. Create the reviewed vendor-neutral publication layer.
+10. Add remote MCP and OAuth.
+11. Add tenant isolation and production controls.

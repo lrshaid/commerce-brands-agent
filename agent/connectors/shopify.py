@@ -53,7 +53,8 @@ def shopify_query_library(name: Optional[str] = None) -> Dict[str, Any]:
             "available_count": len(available),
             "expected_production_count": 28,
             "queries": available,
-            "complete": len(available) == 28,
+            "complete": False,
+            "inventory_status": "canonical_stream_contract_unapproved",
         }
     candidate = (QUERY_DIR / f"{name}.graphql").resolve()
     if candidate.parent != QUERY_DIR.resolve() or not candidate.is_file():
@@ -64,4 +65,3 @@ def shopify_query_library(name: Optional[str] = None) -> Dict[str, Any]:
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "name": name, "query": document}
-

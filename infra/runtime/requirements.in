@@ -1,0 +1,8 @@
+dagster==1.13.21
+dagster-dbt==0.29.21
+dagster-postgres==0.29.21
+dagster-gcp==0.29.21
+dagster-webserver==1.13.21
+dagster-contrib-gcp==0.0.10
+dbt-core>=1.11,<1.12
+dbt-bigquery>=1.11,<1.12

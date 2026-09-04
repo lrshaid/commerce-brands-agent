@@ -1,0 +1,44 @@
+version: 2
+sources:
+  - name: shopify
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: orders
+        description: Original orders Bulk JSONL observations, including child records.
+      - name: ingestion_runs
+        description: Publication gate; consumers must join the exact published extraction.
+models:
+  - name: stg_shopify__order_records
+    description: Published original records, not latest-state orders. No business exclusions.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: published_at
+        data_tests: [not_null]
+  - name: stg_shopify__orders
+    description: One root order observation per complete export containing that order.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: updated_at
+        data_tests: [not_null]
+  - name: stg_shopify__order_line_items
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: line_item_gid
+        data_tests: [not_null]
+  - name: stg_shopify__order_shipping_lines
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+  - name: stg_shopify__order_discount_applications
+    description: Anonymous application observations; physical keys are not business IDs.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]

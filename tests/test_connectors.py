@@ -28,7 +28,8 @@ class ConnectorTests(unittest.TestCase):
     def test_query_library_is_honest_about_missing_snapshots(self):
         result = shopify_query_library()
         self.assertEqual(result["expected_production_count"], 28)
-        self.assertEqual(result["available_count"], 4)
+        query_dir = Path(__file__).resolve().parents[1] / "queries" / "shopify"
+        self.assertEqual(result["available_count"], len(list(query_dir.glob("*.graphql"))))
         self.assertFalse(result["complete"])
 
     def test_query_manifest_matches_vendored_files(self):
