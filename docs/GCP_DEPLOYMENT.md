@@ -16,13 +16,13 @@ cd "$REPO"
 
 ## Current evidence
 
-As of 2026-09-04, the last deployed runtime is `refunds-20260904-04` with
-digest `sha256:e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644`.
+As of 2026-09-04, the last deployed runtime is `returns-efaf3c3-20260904204351`
+with digest `sha256:4f8a449572b1dcff4f5e14a80cae6703f69198117b50cacd23202faaad33a9cf`.
 Refund capture/raw/staging passed the available empty-refund acceptance and an
-idempotent replay. Returns is local-only: its compiler, capture, raw gate, four
-`analytics` staging models, 28-asset Definitions graph, and local tests are
-complete, but returns has no cloud build, deployment, Cloud Run execution, or
-BigQuery run yet. See [deployment status](DEPLOYMENT_STATUS.md) and the
+idempotent replay. Returns pipeline is now deployed and accepted: one initial run
+and one idempotent replay both succeeded, with 104 raw pages, 101 root orders,
+0 returns/line_items/refunds in the dummy store, and all 23 native checks passed.
+See [deployment status](DEPLOYMENT_STATUS.md) and the
 [Shopify connection record](SHOPIFY_CONNECTION.md).
 
 ## Prerequisites and authentication
