@@ -8,16 +8,19 @@ desde extracción Shopify hasta modelos analíticos, con observabilidad y contro
 
 Este archivo consolida decisiones, pasos ejecutados, arquitectura del código y pendientes.
 
-> **Estado actual resumido (verificado en vivo antes de este deploy):**
+> **Estado actual resumido (deploy de returns completado el 2026-09-04):**
 > - Auth GCP OK; VM `dagster-control` RUNNING; Cloud Run Job `dagster-worker` desplegado con digest
->   `sha256:e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644`.
+>   `sha256:4f8a449572b1dcff4f5e14a80cae6703f69198117b50cacd23202faaad33a9cf`.
 > - Orders publicado y replay idempotente verificado (309 registros raw).
 > - **Refunds YA publicado antes de este deploy**: extracción `refunds-initial-20260904-01`,
->   3 páginas raw, 5 vistas de staging en `analytics` (corrección respecto a cortes anteriores).
-> - Returns implementado localmente: 187 tests PASS, `dbt compile` OK, 4 modelos staging
->   (`stg_shopify__return_pages`, `stg_shopify__returns`, `stg_shopify__return_line_items`,
->   `stg_shopify__return_refunds`), job `shopify_returns_ingestion`, 28 assets.
-> - **En curso**: build + terraform apply + rollout + aceptación end-to-end de returns.
+>   3 páginas raw, 5 vistas de staging en `analytics`.
+> - **Returns desplegado y aceptado**: build `3d90d5ae-fe17-450b-ba0a-cf8292903dcc`,
+>   digest `sha256:4f8a449572b1dcff4f5e14a80cae6703f69198117b50cacd23202faaad33a9cf`,
+>   Dagster runs `ad357fe4-be3c-4754-ab53-27898c9fd77a` (initial) y
+>   `7bf69400-0614-4d19-8210-6077e4da0601` (replay), Cloud Run executions
+>   `dagster-worker-jn897` y `dagster-worker-5965l`. 104 páginas raw,
+>   101 órdenes raíz, 0 returns/líneas/refunds (dummy data), 104 staging pages,
+>   23 checks pasados, replay idempotente verificado.
 
 ## 1. Resumen del estado
 
@@ -29,7 +32,7 @@ Este archivo consolida decisiones, pasos ejecutados, arquitectura del código y 
 | Refunds → captura GCS | Verificado para órdenes sin refunds | 3 páginas: 50/50/1; 0 refunds |
 | Refunds → raw BigQuery | **Publicado** | Extracción `refunds-initial-20260904-01`; 3 raw pages |
 | Refunds → dbt staging | **5 vistas en analytics** | Desplegado y verificado |
-| Returns / exchanges | **En deploy end-to-end** | Código local listo: 187 tests, 28 assets, 4 staging models |
+| Returns / exchanges | **Desplegado y aceptado** | 104 raw pages, 0 returns (dummy), 23 checks, replay OK |
 | Intermediate / marts / reports comerciales | Pendientes | No confundir inventario SQL con modelos implementados |
 | GA4 / sesiones | Pendientes | Sin export GA4 configurado según el último contexto documentado |
 | Alertas de presupuesto | Configuradas | No equivalen a un tope de gasto; entrega de emails no probada |

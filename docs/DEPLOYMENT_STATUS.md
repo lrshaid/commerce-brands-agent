@@ -429,22 +429,60 @@ live raw publication/replay acceptance remain pending.
   sender identity there, store its sending credential in Secret Manager, and wire
   the future reporter to that secret before delivery testing. No email was sent.
 
-## Returns pipeline — local, not deployed
+## Refunds raw + dbt staging — correction and final acceptance
 
-The local returns implementation includes four independently paginated GraphQL
-operations (`orders`, `returns`, `returnLineItems`, `refunds`), exact-response
-GCS capture with pinned generations/checksums and completion seal, a read-only
-raw publication gate, four returns staging models, and the manual Dagster job
-`shopify_returns_ingestion`. Local definitions validation and tests pass.
+> Corrección respecto a cortes anteriores: el deploy documentado arriba como
+> `f0daaed9-...` falló por timeout de PostgreSQL, pero **un deploy posterior
+> logró publicar refunds**. Al inicio de este trabajo el `runtime_image`
+> ya apuntaba a digest `sha256:e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644`
+> y el estado verificado en vivo era: refunds publicado para extracción
+> `refunds-initial-20260904-01`, 3 páginas raw, 5 vistas de staging en
+> `analytics`, y última ejecución del worker `SUCCESS`. Esa corrección se
+> incorpora aquí para no atribuir aceptación de refunds al deploy de returns.
 
-No returns image has been built or deployed, no returns Cloud Run execution has
-run, and no returns BigQuery SQL job has run. The latest deployed image remains
-`refunds-20260904-04`; returns must not be attributed to that image. Returns
-gate-review is closed locally: compiled manifest has 4/4 returns models in
-`analytics`, Definitions loads 28 assets, and ownership mapping fails closed
-cross-order with regression coverage. SQL/BigQuery and cloud acceptance remain
-pending; the returns full cloud acceptance gate is not passed.
+## Returns pipeline deployment — 2026-09-04
 
-Next sequence is synthetic BigQuery fixture → dbt build → image digest → reviewed
-Terraform plan → backup/rollout → one run → verifier → same-extraction replay and
-verifier comparison. No schedule or financial model is enabled.
+- Working tree reconciliado antes del build: `progress.md` commiteado a main,
+  `infra/scripts/probe_worker_network.py` y `dbt/dbt_internal_packages/`
+  agregados a `.gitignore` como probes/artefactos temporales excluidos del
+  build. No se hizo push.
+- Build `3d90d5ae-fe17-450b-ba0a-cf8292903dcc` succeeded con imagen
+  `returns-efaf3c3-20260904204351` y digest
+  `sha256:4f8a449572b1dcff4f5e14a80cae6703f69198117b50cacd23202faaad33a9cf`.
+- Terraform plan revisado: 0 additions, 2 in-place updates, 0 destrucciones
+  (Cloud Run worker + metadata VM). Apply exitoso. Fresh plan reporta
+  `No changes`.
+- Backup PostgreSQL y rollout de VM ejecutados; startup-script exit 0;
+  contenedores `webserver`, `daemon`, `code-location` y `postgres` healthy.
+  Backup reciente bajo `gs://commerce-agents-dev-backups/postgres/2026/09/04/204906.dump`.
+- Ejecución inicial `shopify_returns_ingestion`: Dagster run
+  `ad357fe4-be3c-4754-ab53-27898c9fd77a`, Cloud Run execution
+  `dagster-worker-jn897`, extracción `returns-initial-20260904-01`,
+  ventana `[1970-01-01T00:00:00Z, 2026-09-04T21:00:00Z)`. Resultado
+  `SUCCESS`: 7 materializaciones y 23 checks nativos pasaron.
+- Verificación de almacén (job `6efd96b8-a824-4e56-a714-f51a2fa3690f`):
+  1 manifest `published`, 104 páginas raw, 101 órdenes raíz, 0 returns/líneas/refunds
+  (dummy data), 104 filas de staging `stg_shopify__return_pages`, 0 huérfanos,
+  0 duplicados, 0 hash mismatches.
+- Replay idempotente: Dagster run
+  `7bf69400-0614-4d19-8210-6077e4da0601`, Cloud Run execution
+  `dagster-worker-5965l`, misma extracción y ventana, resultado `SUCCESS`.
+  Verificación posterior (job `754863ad-dec6-4299-a43c-23e33255e117`) confirma
+  mismo manifest, mismas 104 páginas, mismos conteos, sin duplicados.
+- Consultas directas a BigQuery confirman:
+  `raw_shopify.ingestion_runs` 1 fila published,
+  `raw_shopify.returns` 104 filas / 104 archivos distintos,
+  `analytics.stg_shopify__return_pages` 104,
+  `analytics.stg_shopify__returns` 0,
+  `analytics.stg_shopify__return_line_items` 0,
+  `analytics.stg_shopify__return_refunds` 0.
+- Cloud Run executions:
+  - `dagster-worker-jn897`: completed successfully in 3m28.66s, started in 1m4.54s.
+  - `dagster-worker-5965l`: completed successfully in 5m2.94s, started in 2m51.17s
+    (cold start Direct VPC más lento, dentro de márgenes).
+- No se habilitaron schedules ni se hizo push a origin.
+
+Próximos pasos: exchanges, actualización incremental, modelos de negocio,
+GA4/sesiones, operación (concurrencia, alertas, cancellation tests), gastos
+(export + remitente + delivery) y schedules solo tras acuerdo de frecuencia.
+
