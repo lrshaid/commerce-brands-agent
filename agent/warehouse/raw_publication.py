@@ -4,6 +4,7 @@ The caller must validate provider completion and collection coverage separately.
 This module guarantees warehouse atomicity/replay checks, not API completeness.
 """
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -12,6 +13,185 @@ import uuid
 
 from google.cloud import bigquery
 import yaml
+
+
+_REFUND_OPERATIONS = {'orders', 'refundLineItems', 'transactions', 'orderAdjustments'}
+_RETURN_OPERATIONS = {'orders', 'returns', 'returnLineItems', 'refunds'}
+_SHA256 = re.compile(r'[0-9a-f]{64}')
+
+
+def _aware_timestamp(value):
+    if not isinstance(value, str):
+        return False
+    try:
+        return datetime.fromisoformat(value.replace('Z', '+00:00')).utcoffset() is not None
+    except (TypeError, ValueError):
+        return False
+
+
+def _validate_refund_page_publication(rows, files):
+    """Validate the page-specific physical grain before any BigQuery write."""
+    response_pages = {}
+    completion_seals = []
+    generations = set()
+    for source in files:
+        if not isinstance(source, dict):
+            raise ValueError('Refund manifest file must be an object')
+        generation = source.get('generation')
+        sha256 = source.get('sha256')
+        if (not isinstance(generation, str) or not isinstance(sha256, str)
+                or not str(source.get('uri', '')).startswith('gs://')
+                or not generation.isdigit() or not _SHA256.fullmatch(sha256)):
+            raise ValueError('Refund manifest file must include GCS URI, generation and SHA256')
+        if generation in generations:
+            raise ValueError('Refund manifest generations must be unique')
+        generations.add(generation)
+        role = source.get('role')
+        if role == 'completion_seal':
+            completion_seals.append(source)
+            continue
+        if role != 'response_page':
+            raise ValueError('Refund manifest has an unsupported file role')
+        operation = source.get('operation')
+        request_sha256 = source.get('request_sha256')
+        variables = source.get('variables')
+        if (operation not in _REFUND_OPERATIONS or not isinstance(request_sha256, str)
+                or not _SHA256.fullmatch(request_sha256) or not isinstance(variables, dict)
+                or not _aware_timestamp(source.get('captured_at'))):
+            raise ValueError('Refund response page metadata is incomplete or invalid')
+        if generation in response_pages:
+            raise ValueError('Refund response page generations must be unique')
+        response_pages[generation] = source
+    if len(completion_seals) != 1 or not response_pages:
+        raise ValueError('Refund manifest requires one completion seal and response pages')
+
+    rows_by_generation = {}
+    for row in rows:
+        if not isinstance(row.get('file_id'), str) or row.get('record_index') != 1:
+            raise ValueError('Refund response pages require record_index=1')
+        generation = str(row.get('file_id', ''))
+        if generation not in response_pages or generation in rows_by_generation:
+            raise ValueError('Refund raw rows must map one-to-one to response pages')
+        text = row.get('record_text')
+        if not isinstance(text, str) or row.get('payload') != text:
+            raise ValueError('Refund raw row must preserve its original JSON text')
+        try:
+            body = text.encode('utf-8')
+        except UnicodeEncodeError:
+            raise ValueError('Refund raw row must be valid UTF-8 text') from None
+        digest = hashlib.sha256(body).hexdigest()
+        if (not isinstance(row.get('record_sha256'), str) or row.get('record_sha256') != digest
+                or response_pages[generation].get('sha256') != digest):
+            raise ValueError('Refund raw row or response page checksum mismatch')
+        try:
+            payload = json.loads(text)
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError('Refund response page is not valid JSON') from None
+        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), dict):
+            raise ValueError('Refund response page is incomplete or has GraphQL errors')
+        source = response_pages[generation]
+        operation = source['operation']
+        if operation == 'orders':
+            if not isinstance(payload['data'].get('orders'), dict):
+                raise ValueError('Refund orders page is missing its connection')
+        else:
+            owner = source['variables'].get('id')
+            node = payload['data'].get('node')
+            if not isinstance(owner, str) or not isinstance(node, dict) or node.get('id') != owner:
+                raise ValueError('Refund response page owner does not match its request')
+            if not isinstance(node.get(operation), dict):
+                raise ValueError('Refund response page is missing its requested connection')
+        rows_by_generation[generation] = row
+    if set(rows_by_generation) != set(response_pages):
+        raise ValueError('Refund raw rows omit a response page')
+
+
+def _validate_returns_page_publication(rows, files):
+    """Validate exact returns response-page grain before any BigQuery write."""
+    response_pages = {}
+    completion_seals = []
+    generations = set()
+    for source in files:
+        if not isinstance(source, dict):
+            raise ValueError('Returns manifest file must be an object')
+        generation = source.get('generation')
+        sha256 = source.get('sha256')
+        if (not isinstance(generation, str) or not isinstance(sha256, str)
+                or not str(source.get('uri', '')).startswith('gs://')
+                or not generation.isdigit() or not _SHA256.fullmatch(sha256)):
+            raise ValueError('Returns manifest file must include GCS URI, generation and SHA256')
+        if generation in generations:
+            raise ValueError('Returns manifest generations must be unique')
+        generations.add(generation)
+        role = source.get('role')
+        if role == 'completion_seal':
+            completion_seals.append(source)
+            continue
+        if role != 'response_page':
+            raise ValueError('Returns manifest has an unsupported file role')
+        operation = source.get('operation')
+        request_sha256 = source.get('request_sha256')
+        variables = source.get('variables')
+        expected_variables = {'first', 'after', 'query'} if operation == 'orders' else {'first', 'after', 'id'}
+        owner = variables.get('id') if isinstance(variables, dict) else None
+        owner_pattern = (r'gid://shopify/Order/[0-9]+' if operation == 'returns'
+                         else r'gid://shopify/Return/[0-9]+')
+        if (operation not in _RETURN_OPERATIONS or not isinstance(request_sha256, str)
+                or not _SHA256.fullmatch(request_sha256) or not isinstance(variables, dict)
+                or set(variables) != expected_variables
+                or not isinstance(variables.get('first'), int) or isinstance(variables.get('first'), bool)
+                or not 1 <= variables.get('first', 0) <= 100
+                or variables.get('after') is not None and not isinstance(variables.get('after'), str)
+                or operation == 'orders' and not isinstance(variables.get('query'), str)
+                or not _aware_timestamp(source.get('captured_at'))):
+            raise ValueError('Returns response page metadata is incomplete or invalid')
+        if operation != 'orders' and (not isinstance(owner, str) or not re.fullmatch(owner_pattern, owner)):
+            raise ValueError('Returns response page owner metadata is invalid')
+        if generation in response_pages:
+            raise ValueError('Returns response page generations must be unique')
+        response_pages[generation] = source
+    if len(completion_seals) != 1 or not response_pages:
+        raise ValueError('Returns manifest requires one completion seal and response pages')
+
+    rows_by_generation = {}
+    for row in rows:
+        if not isinstance(row.get('file_id'), str) or row.get('record_index') != 1:
+            raise ValueError('Returns response pages require record_index=1')
+        generation = str(row.get('file_id', ''))
+        if generation not in response_pages or generation in rows_by_generation:
+            raise ValueError('Returns raw rows must map one-to-one to response pages')
+        text = row.get('record_text')
+        if not isinstance(text, str) or row.get('payload') != text:
+            raise ValueError('Returns raw row must preserve its original JSON text')
+        try:
+            body = text.encode('utf-8')
+        except UnicodeEncodeError:
+            raise ValueError('Returns raw row must be valid UTF-8 text') from None
+        digest_value = hashlib.sha256(body).hexdigest()
+        if (not isinstance(row.get('record_sha256'), str) or row.get('record_sha256') != digest_value
+                or response_pages[generation].get('sha256') != digest_value):
+            raise ValueError('Returns raw row or response page checksum mismatch')
+        try:
+            payload = json.loads(text)
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError('Returns response page is not valid JSON') from None
+        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), dict):
+            raise ValueError('Returns response page is incomplete or has GraphQL errors')
+        source = response_pages[generation]
+        operation = source['operation']
+        if operation == 'orders':
+            if not isinstance(payload['data'].get('orders'), dict):
+                raise ValueError('Returns orders page is missing its connection')
+        else:
+            owner = source['variables'].get('id')
+            node = payload['data'].get('node')
+            if not isinstance(owner, str) or not isinstance(node, dict) or node.get('id') != owner:
+                raise ValueError('Returns response page owner does not match its request')
+            if not isinstance(node.get(operation), dict):
+                raise ValueError('Returns response page is missing its requested connection')
+        rows_by_generation[generation] = row
+    if set(rows_by_generation) != set(response_pages):
+        raise ValueError('Returns raw rows omit a response page')
 
 CONTRACT = Path(__file__).resolve().parents[2] / 'warehouse/contracts/shopify_raw_v1.yaml'
 
@@ -128,6 +308,30 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
                 or not re.fullmatch('[0-9a-f]{64}', str(source.get('sha256', '')))):
             raise ValueError('Source file must include GCS URI, generation and SHA256')
         file_ids.add(str(source['generation']))
+    if stream == 'order_refunds' and manifest['transport'] == 'shopify_graphql_pages':
+        # Materialize and validate this small page-grain stream before creating a
+        # staging table. Orders/Bulk keeps its existing streaming behavior.
+        refund_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            refund_rows.append(row)
+        _validate_refund_page_publication(refund_rows, files)
+        records = refund_rows
+    if stream == 'returns':
+        if manifest['transport'] != 'shopify_graphql_pages':
+            raise ValueError('Returns publication requires shopify_graphql_pages transport')
+        return_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            return_rows.append(row)
+        _validate_returns_page_publication(return_rows, files)
+        records = return_rows
     stage = '_load_' + uuid.uuid4().hex
     sql = publication_sql(dataset, stream, stage)
     with tempfile.SpooledTemporaryFile(max_size=4*1024*1024, mode='r+b') as data:

@@ -64,10 +64,11 @@ class Page:
 class RefundCapture:
     def __init__(self, *, bucket, domain, token, api_version, shop_gid, extraction_id,
                  query_source, search_filter, page_size=50, timeout_seconds=900,
-                 max_pages=2000, max_bytes=256 * 1024 * 1024):
+                 max_pages=2000, max_bytes=256 * 1024 * 1024, read_only=False):
+        self.read_only = read_only
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]*\.myshopify\.com", domain):
             raise CaptureError("Invalid Shopify domain")
-        if not re.fullmatch(r"20[0-9]{2}-(01|04|07|10)", api_version) or not token.strip():
+        if not re.fullmatch(r"20[0-9]{2}-(01|04|07|10)", api_version) or (not read_only and not token.strip()):
             raise CaptureError("Missing credential or API version")
         if not extraction_id or not search_filter.strip():
             raise CaptureError("Explicit extraction identity and search scope are required")
@@ -98,6 +99,11 @@ class RefundCapture:
 
     def _bind(self):
         blob = self.bucket.blob(f"{self.prefix}/intent.json")
+        if self.read_only:
+            existing = self.bucket.get_blob(blob.name)
+            if existing is None or decode(existing.download_as_bytes(if_generation_match=int(existing.generation))) != self.binding:
+                raise CaptureError("Missing or conflicting read-only capture binding")
+            return
         try:
             blob.upload_from_string(encoded(self.binding), content_type="application/json", if_generation_match=0)
         except PreconditionFailed:
@@ -107,6 +113,8 @@ class RefundCapture:
                 raise CaptureError("Extraction identity is already bound to another plan/scope") from None
 
     def _http(self, document, variables):
+        if self.read_only:
+            raise CaptureError("Read-only capture cannot call Shopify")
         try:
             with requests.Session() as session:
                 session.trust_env = False
@@ -143,6 +151,8 @@ class RefundCapture:
         name = f"{self.prefix}/{request_hash}.json"
         existing = self.bucket.get_blob(name)
         if existing is None:
+            if self.read_only:
+                raise CaptureError("Missing page in read-only capture")
             body = self._http(document, variables)
             # Store even a JSON/GraphQL error response for restricted diagnostics;
             # validation below prevents using it to advance a cursor or seal.
@@ -243,6 +253,12 @@ class RefundCapture:
                 "consistency": "multi_request_observations_not_transactional_snapshot"}
         blob = self.bucket.blob(f"{self.prefix}/complete.json")
         content = encoded(seal)
+        if self.read_only:
+            existing = self.bucket.get_blob(blob.name)
+            if existing is None or existing.download_as_bytes(if_generation_match=int(existing.generation)) != content:
+                raise CaptureError("Missing or conflicting completion seal")
+            self._finished = True
+            return seal
         try:
             blob.upload_from_string(content, content_type="application/json", if_generation_match=0)
         except PreconditionFailed:

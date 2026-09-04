@@ -1,0 +1,66 @@
+version: 2
+sources:
+  - name: shopify_refunds
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: order_refunds
+        description: Exact HTTP response pages; not flattened refund objects.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, order_refunds]
+      - name: ingestion_runs
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify_refunds, ingestion_runs]
+models:
+  - name: stg_shopify__refund_pages
+    columns:
+      - name: page_key
+        data_tests: [not_null, unique]
+      - name: operation
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [orders, refundLineItems, transactions, orderAdjustments]
+      - name: captured_at
+        data_tests: [not_null]
+  - name: stg_shopify__refunds
+    description: Versioned observations, not financial recognition or current-state records.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: refund_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+  - name: stg_shopify__refund_line_items
+    description: Versioned observations, not financial recognition or current-state records.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: refund_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+  - name: stg_shopify__refund_transactions
+    description: Versioned observations, not financial recognition or current-state records.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: refund_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+  - name: stg_shopify__refund_adjustments
+    description: Versioned observations, not financial recognition or current-state records.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: refund_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]

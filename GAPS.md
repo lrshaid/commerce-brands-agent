@@ -1,5 +1,62 @@
 # Product and reconstruction gaps
 
+## Returns page pipeline — local implementation only
+
+Returns now has a local four-operation paginated compiler and exact-response
+capture: `orders`, `returns`, `returnLineItems`, and `refunds`, each with its own
+cursor/pageInfo chain. The capture is GCS-generation/checksum pinned, owner- and
+cursor-fail-closed, supports empty results and read-only replay, and emits a
+completion seal. Raw publication is guarded by the returns page contract and
+the planned four dbt staging models are `stg_shopify__return_pages`,
+`stg_shopify__returns`, `stg_shopify__return_line_items`, and
+`stg_shopify__return_refunds`. A manual Dagster job
+`shopify_returns_ingestion` and launcher mapping are implemented locally.
+
+Local tests cover compiler/capture/launcher behavior; the full suite has passed
+locally. This is not live evidence: returns has not been deployed, no returns
+Cloud Run execution or BigQuery SQL job has been run, and the latest deployed
+image remains the refunds rollout (`refunds-20260904-04`). Returns gate-review is
+closed locally: compiled manifest has 4/4 returns models in analytics, Definitions
+loads 28 assets, and ownership mapping fails closed cross-order with regression
+coverage. SQL/BigQuery and cloud acceptance remain pending. No financial allocation or
+business-policy model is included.
+
+Next acceptance sequence: synthetic BigQuery fixture and dbt build → immutable
+image build/digest → reviewed Terraform plan → PostgreSQL backup and rollout →
+one explicit returns run → read-only warehouse verifier → same-extraction replay
+and verifier comparison. Do not attribute any returns result to the deployed
+refunds image until those gates are completed.
+
+> Refund raw + staging acceptance (2026-09-04): image `refunds-20260904-04`, digest
+> `sha256:e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644`, completed
+> run `490ab529-14a2-45a6-b4a0-0be038d9adca` on `dagster-worker-r9n96`. Read-only
+> verifier job `7e588f8c-6ffe-4874-8bc2-0f98ecad709f` returned verified: one manifest,
+> 3 raw records, 3 staged pages, 101 orders, zero refunds/children, 8 materializations, and 23 checks.
+> This supersedes pending raw/staging acceptance for the empty-refund fixture only.
+> Nonempty child pagination and recurring scheduling remain open; replay acceptance is
+> recorded below.
+
+> Refund replay acceptance (2026-09-04): replay `08ab9848-e91e-4eab-830c-e2d7bd01e634`
+> completed SUCCESS on `dagster-worker-fn6c2`; verifier job
+> `d83f566d-028b-460d-bc7d-0b54b7862454` returned verified. One manifest, 3 raw rows,
+> the same 3 response-page generations plus completion seal, 8 materializations,
+> 23 checks and 0 errors were preserved; original run
+> `490ab529-14a2-45a6-b4a0-0be038d9adca` / `dagster-worker-r9n96` remains linked.
+> This verifies replay/idempotency over the existing capture and retained dbt artifacts;
+> it does not claim new HTTP requests or new files. The available fixture still has
+> zero refunds/children, so nonempty child pagination remains unverified.
+
+### Next returns-architecture subtask
+
+Executable now: prepare a read-only synthetic contract/fixture matrix for the existing
+`return_line_items_bulk.graphql` shape (empty and nonempty returns, repeated/partial
+lines, return-linked refunds, missing parent links, and removal between observations),
+then document stable event keys and allocation grain without changing the query.
+Before live transport or financial modeling, the owner must approve return/refund event
+linkage or quantity allocation, recognition fallback dates, and treatment of shipping/tax
+adjustments. A test-shop run is also required to prove transport and fields; no current
+evidence authorizes claiming that proof.
+
 Audit date: 2026-08-31
 
 > Orders implementation follow-up (2026-09-04): Shopify credential injection and
@@ -19,8 +76,36 @@ Audit date: 2026-08-31
 > the same-extraction replay passed all 17 checks with 309 unchanged records and
 > one manifest. Refund pagination queries and immutable response capture are
 > implemented locally; capture is covered by eight simulated-response tests.
-> The full local suite passes 128 tests. Refund capture is not deployed or wired
-> to Dagster, BigQuery raw publication or dbt; live refund acceptance is pending.
+> Refund capture is now deployed as the manual Dagster/Cloud Run job
+> `shopify_refunds_capture` (GCS only); the full local suite passes 133 tests.
+> First live attempt failed with Dagster START_TIMEOUT after 300 seconds; worker
+> logs show a private PostgreSQL connection timeout. No capture objects were found.
+> Cloud Run subsequently exited 0, which is not proof of pipeline success.
+> Successful live acceptance, BigQuery raw publication and dbt remain pending.
+
+> Refund capture follow-up (2026-09-04): startup readiness/retry hardening is now
+> deployed. Retry `47a88b5a-f6a0-485f-b59d-e4dcffc2fa41` succeeded; independent
+> GCS verification confirms 101 orders in pages of 50/50/1, zero refunds, 12,605
+> response bytes and a completion seal. Root pagination is live-proven for this
+> fixture; nonempty refund child pagination remains simulated-only. No BigQuery
+> raw/dbt refund publication or schedule is enabled. Local suite: 136 tests pass.
+
+> Refund raw preparation: `refund_raw.py` now revalidates saved pages in read-only
+> mode before exposing one exact HTTP-response raw row per file. The real 3-page
+> capture passed this check (101 orders, 12,605 bytes); no BigQuery write occurred.
+> A local Dagster publication asset and ingestion job are implemented but not
+> deployed; dbt refund staging remains pending. Transport-specific grain and
+> request/cursor lineage are recorded in `warehouse/contracts/refund_pages_v1.yaml`.
+
+> Raw + dbt deployment attempt (2026-09-04): runtime build
+> `e1061b8a-da1b-4d52-9a72-985adf852a46` and authorized VM rollout succeeded;
+> backup was written to `gs://commerce-agents-dev-backups/postgres/2026/09/04/140605.dump`.
+> Synthetic nonempty staging SQL passed in BigQuery with a 10 MiB cap. One live
+> `shopify_refunds_ingestion` run (`f0daaed9-20ed-43d0-b93c-15ac11ef2df8`, worker
+> `dagster-worker-hh8ng`) was launched with the existing extraction/window, but
+> the worker exited before Dagster execution because PostgreSQL readiness exceeded
+> 180 seconds. No raw publication, manifest, staging models or checks occurred;
+> no replay was attempted. Dagster was still `STARTING` at last inspection.
 
 > Deployment follow-up (2026-09-03): Terraform foundation and runtime resources now exist
 > in `commerce-agents-dev`, `us-central1`, with an `e2-medium` VM, Cloud Run worker,
@@ -124,6 +209,12 @@ The daily mart uses Shopify `processed_at` for GMV and refund/return creation ti
 
 ### 4. Provider errors can leak secrets
 
+Status update: the connector hardening is now implemented locally. Sensitive
+Meta URL/query details are redacted, Klaviyo reporting uses an exact endpoint
+allowlist, and the security regression suite is green (187 tests total). The
+original findings below are retained as audit history and no longer describe
+the current local implementation.
+
 The Meta connector sends `META_ACCESS_TOKEN` as a query parameter. `read_only_request()` returns the raw `httpx` exception string, which includes the request URL on HTTP errors and therefore can include the token. This behavior was reproduced locally with a synthetic token.
 
 The Klaviyo reporting guard also accepts any POST path containing the substring `report` or `metric-aggregate`; it is not an exact endpoint allowlist.
@@ -133,6 +224,11 @@ The Klaviyo reporting guard also accepts any POST path containing the substring 
 **Needed:** redact sensitive query parameters and URLs from all returned errors, use headers when the provider supports them, replace substring checks with an explicit endpoint allowlist, and add negative security tests.
 
 ### 5. The suite overstates warehouse coverage and is currently red
+
+Status update: this historical audit entry is superseded for the current local
+task state; the refreshed full suite is green at 187 tests. Remaining warehouse
+execution gaps below still require SQL/BigQuery acceptance and are not claimed
+closed by local tests.
 
 The warehouse tests assert that SQL files and selected strings exist; they do not parse, compile, execute, or reconcile the models. The connector suite also hardcodes `available_count == 4`, while the directory now contains 35 GraphQL files.
 

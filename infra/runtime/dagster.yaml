@@ -6,6 +6,8 @@ storage:
       hostname: {env: DAGSTER_POSTGRES_HOST}
       db_name: dagster
       port: 5432
+      params:
+        connect_timeout: 10
 run_coordinator:
   module: dagster._core.run_coordinator
   class: QueuedRunCoordinator
@@ -22,7 +24,7 @@ run_launcher:
     run_timeout: 1800
 run_monitoring:
   enabled: true
-  start_timeout_seconds: 300
+  start_timeout_seconds: 600
   cancel_timeout_seconds: 180
   poll_interval_seconds: 30
   max_resume_run_attempts: 0

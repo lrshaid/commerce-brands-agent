@@ -10,10 +10,14 @@ def meta_graph_get(
 ) -> Dict[str, Any]:
     try:
         env = required_env("META_ACCESS_TOKEN", "META_GRAPH_API_VERSION")
-        query = dict(params or {})
-        query["access_token"] = env["META_ACCESS_TOKEN"]
+        query = {key: value for key, value in dict(params or {}).items()
+                 if str(key).lower() != "access_token"}
         base = f"https://graph.facebook.com/{env['META_GRAPH_API_VERSION']}"
-        return read_only_request("GET", f"{base}/{path.strip('/')}", params=query)
+        return read_only_request(
+            "GET", f"{base}/{path.strip('/')}",
+            headers={"Authorization": f"Bearer {env['META_ACCESS_TOKEN']}"},
+            params=query,
+        )
     except Exception as exc:
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 

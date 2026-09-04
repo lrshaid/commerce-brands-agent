@@ -6,6 +6,16 @@ from .base import read_only_request, required_env
 
 
 BASE_URL = "https://a.klaviyo.com/api"
+REPORT_ENDPOINTS = frozenset({
+    "campaign-values-reports",
+    "flow-values-reports",
+    "flow-series-reports",
+    "form-values-reports",
+    "form-series-reports",
+    "segment-values-reports",
+    "segment-series-reports",
+    "metric-aggregates",
+})
 
 
 def _headers() -> Dict[str, str]:
@@ -34,7 +44,7 @@ def klaviyo_report(
 ) -> Dict[str, Any]:
     try:
         clean = endpoint.strip("/")
-        if "report" not in clean and "metric-aggregate" not in clean:
+        if clean not in REPORT_ENDPOINTS:
             return {"ok": False, "error": "only Klaviyo reporting endpoints are allowed"}
         return read_only_request(
             "POST", f"{BASE_URL}/{clean}", headers=_headers(), json_body=payload

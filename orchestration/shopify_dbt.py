@@ -11,6 +11,20 @@ MANIFEST = Path(__file__).resolve().parents[1] / "dbt/target/manifest.json"
 
 @dbt_assets(manifest=MANIFEST, select="tag:shopify_staging")
 def shopify_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "shopify")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:refund_staging")
+def refund_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "refunds")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:returns_staging")
+def returns_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "returns")
+
+
+def run_dbt(context, dbt, artifact_group):
     invocation = None
     failed = False
     try:
@@ -24,7 +38,7 @@ def shopify_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
             bucket_name = os.environ.get("ARTIFACT_BUCKET")
             if bucket_name:
                 bucket = storage.Client(project=os.environ["GOOGLE_CLOUD_PROJECT"]).bucket(bucket_name)
-                prefix = f"dbt/{context.run_id}/shopify/{context.retry_number}"
+                prefix = f"dbt/{context.run_id}/{artifact_group}/{context.retry_number}"
                 files = list(invocation.target_path.glob("*.json")) if invocation else [MANIFEST]
                 if invocation:
                     files += list(invocation.target_path.glob("*.log"))

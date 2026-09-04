@@ -1,5 +1,19 @@
 # Deployment evidence
 
+## Refund raw + staging acceptance — 2026-09-04
+
+Image `refunds-20260904-04` (digest `sha256:e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644`) completed run `490ab529-14a2-45a6-b4a0-0be038d9adca` on `dagster-worker-r9n96`. Read-only verifier job `7e588f8c-6ffe-4874-8bc2-0f98ecad709f` reported `verified=true`: one manifest, 3 raw records, 3 staged pages, 101 root orders, zero refunds/children, 8 materializations and 23 checks. This is acceptance of the available empty-refund fixture; nonempty child pagination and recurring scheduling remain unverified. Replay acceptance is recorded below.
+
+Replay `08ab9848-e91e-4eab-830c-e2d7bd01e634` completed SUCCESS on
+`dagster-worker-fn6c2`; verifier job `d83f566d-028b-460d-bc7d-0b54b7862454`
+returned `verified=true`. The replay preserved one manifest, 3 raw rows, the
+same 3 response-page generations and completion seal, 8 materializations, 23
+checks and 0 errors; it remains linked to original run
+`490ab529-14a2-45a6-b4a0-0be038d9adca` / `dagster-worker-r9n96`. This verifies
+replay/idempotency over the existing capture and retained dbt artifacts, without
+claiming new HTTP requests or new files. The fixture still contains zero
+refunds/children, so nonempty child pagination remains unverified.
+
 Working deployment: `commerce-agents-dev` / project number `448325654721`.
 This is an in-progress record, not a successful end-to-end deployment claim.
 
@@ -266,3 +280,171 @@ No commit or push performed. Existing user worktree edits are preserved.
   not a data-publication failure or a reason to hide startup logs.
   120 local tests pass. Refund query compilation and optional build cache are local
   preparations only; no new refund data path or recurring schedule is enabled.
+
+## Refund capture rollout — 2026-09-04
+
+- Build `531ed827-1294-458e-9659-105c8546e54a` succeeded; image
+  `refunds-20260904-01`, digest
+  `sha256:5fa50046d842e25a012a4c721d9dd81a2c4ec6a954354176e1973c3e02f5901c`.
+- Terraform applied 0 additions, 2 in-place updates, 0 deletions. Fresh plan
+  reports no differences. No active Dagster runs preceded the rollout.
+- Job `shopify_refunds_capture` captures HTTP responses in GCS only, with
+  page size 50 and explicit history window. It does not publish raw BigQuery or
+  build refund dbt models. Local suite: 130 tests pass; Dagster definitions and
+  launch config validated. Generated queries pass the bundled Shopify 2026-04
+  schema validator with telemetry disabled.
+- PostgreSQL backup/control-container rollout dispatched; live capture not yet
+  launched. Inspect rollout/execution evidence before retrying or claiming success.
+- Rollout subsequently completed with startup exit 0, healthy PostgreSQL/code
+  location and running webserver/daemon; backup service Result=success.
+  Manual run `91df7779-48a7-4f24-98ca-507f23a599ce` was launched for extraction
+  `refunds-initial-20260904-01`, worker `dagster-worker-frns2`, verified expected
+  shop `gid://shopify/Shop/75959533781`, window
+  `[1970-01-01T00:00:00Z, 2026-09-04T13:05:00Z)`. Last observation STARTING;
+  inspect this exact execution rather than launching a replacement.
+- Final result of `91df7779-48a7-4f24-98ca-507f23a599ce`: Dagster FAILURE,
+  failure reason START_TIMEOUT, exceeded 300 seconds before registering RUN_START;
+  no materializations or asset checks. Worker logs at `13:08:52Z` show a retried
+  private PostgreSQL connection timeout to `10.42.0.10:5432`. Cloud Run reported
+  successful container exit at `13:09:17Z`, but that is NOT pipeline success.
+  This discrepancy must remain visible, not be treated as successful capture.
+  Read-only GCS listing found no objects under
+  `pages/v1/order_refunds/d4e3a81c5ad0ea0363c6e66d0128d7e5b2c1ba4a7c80872f60ddd0ee7870eb7b/`.
+  No replacement run was launched; worker is terminal. Investigate worker-to-PG
+  startup/connectivity and timeout coordination before the next live acceptance.
+  Local suite now passes 133 tests, including read-only capture verifier tests.
+
+### Startup hardening after the failed refund attempt
+
+The observed worker log is a PostgreSQL TCP connection timeout, not a Shopify
+pagination error. The deployed firewall still allows only the worker tag to the
+control VM on TCP 5432. Google documents possible minute-plus Direct VPC startup
+delays: https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc.
+This is consistent with the observation, not proof that all networking causes
+have been excluded.
+
+New runtime preparation: Cloud Run entrypoint performs PostgreSQL readiness
+before starting Dagster, with five-second connection attempts and a 180-second
+retry deadline; logs emit attempt/elapsed time only. Persistent Dagster DB
+connections also use a ten-second connection timeout. Dagster startup allowance
+is 600 seconds; total worker limit remains 1800 seconds. No firewall broadening,
+extra infrastructure or automatic job retries were added. The manual launcher
+supports an explicitly identified failed-run retry; operator must first verify
+that the prior Cloud Run worker is terminal.
+
+- Hardening build `dd511a3a-35fc-4ccd-91e2-a9c9d9c263cc` succeeded, image
+  `refunds-20260904-02`, digest
+  `sha256:9e679356288fae92f0475d5d288388fc90087006de137792d769b13d38f67366`.
+  Reviewed Terraform plan and apply: 0 added, 2 in-place updates, 0 destroyed.
+  Dagster had no active runs before rollout. Local suite passes 136 tests and
+  instance configuration validates. Backup/control-container rollout dispatched;
+  retry not launched until rollout completes.
+- Hardening rollout completed, startup exit 0; fresh Terraform plan has no
+  differences. Explicit retry run `47a88b5a-f6a0-485f-b59d-e4dcffc2fa41`, worker
+  `dagster-worker-sqw5w`, retains extraction `refunds-initial-20260904-01` and
+  the exact original window/page size. Last observed STARTING; do not duplicate.
+- Retry `47a88b5a-f6a0-485f-b59d-e4dcffc2fa41` subsequently reached SUCCESS,
+  with one materialization `shopify_capture/refund_pages`, no step failures.
+  Readiness log `postgres_ready` at `13:26:29Z`: 14 attempts over 130.1 seconds.
+  The worker-to-PG connection eventually succeeded within the readiness deadline;
+  this proves tolerance of this observed delay, not elimination of startup latency.
+  Independent read-only GCS verification: 101 orders, 3 pages of 50/50/1,
+  0 refunds/lines/transactions/adjustments, 12,605 exact response bytes, checksums
+  and terminal cursor chains reconciled to the seal generation `1788528413896780`.
+  Root pagination is live-proven for available fixture; no nonempty refund child
+  traversal was exercised. GCS capture is complete, not BigQuery/raw/dbt publication.
+  Cloud Run worker `dagster-worker-sqw5w` also completed successfully at
+  `2026-09-04T13:27:01.136942Z` with one succeeded task; no capture worker remains
+  active. No automatic replay, schedule, commit or push was performed.
+
+## Refund raw preparation — local only
+
+`agent/warehouse/refund_raw.py` replays the saved capture without Shopify calls or
+GCS writes, verifies the exact completion seal, and exposes original HTTP bodies
+as raw records. Record count is page count; provider global count remains null,
+not fabricated. Manifest files retain each operation, parameters, request digest,
+timestamp and cursor. The current physical key rejects colliding page generations.
+
+Read-only verification against the existing real capture succeeded: 3 pages,
+101 orders, zero refunds, 12,605 bytes. No BigQuery writes were performed.
+`shopify_refunds_ingestion` and its raw publication asset are now registered
+locally; definitions validate. These changes are NOT in the deployed image.
+The existing deployed job remains capture-only. Refund dbt staging/deployment and
+live raw publication/replay acceptance remain pending.
+
+## Refund raw + dbt staging deployment attempt — 2026-09-04
+
+- Build `e1061b8a-da1b-4d52-9a72-985adf852a46` succeeded with runtime digest
+  `sha256:9ddbfbc0c7060b6f421df659c252b52eaf1424194d7e61cd15aea2107c8dc4a5`.
+  Terraform applied 0 additions, 2 in-place updates and 0 destructions.
+- Explicitly authorized VM rollout completed with startup exit 0. PostgreSQL and
+  Dagster containers were healthy afterward; all three Dagster containers use the
+  new digest. Backup confirmation:
+  `gs://commerce-agents-dev-backups/postgres/2026/09/04/140605.dump`.
+- Synthetic BigQuery SQL verification succeeded (`11b800cb-392c-4352-9c96-4e028114c2b6`):
+  5 pages, 1 refund, 2 lines, quantity 3, subtotal and transaction 12.34,
+  adjustment -0.50, and 0 invalid parent links. No tables were written.
+- A single live `shopify_refunds_ingestion` run was launched with extraction
+  `refunds-initial-20260904-01`, shop `gid://shopify/Shop/75959533781`, and window
+  `[1970-01-01T00:00:00Z, 2026-09-04T13:05:00Z)`. Dagster run:
+  `f0daaed9-20ed-43d0-b93c-15ac11ef2df8`; worker execution:
+  `dagster-worker-hh8ng`.
+- The Cloud Run worker terminated with `NonZeroExitCode` at `2026-09-04T14:15:05Z`
+  because PostgreSQL readiness exceeded the 180-second deadline. No raw files,
+  manifest, staging models or checks were materialized. Dagster last reported
+  `STARTING` while propagating the worker failure; do not launch a replacement
+  under the same extraction until this run is terminal and the connectivity issue
+  is investigated. No replay was attempted.
+
+### Isolated network probe
+
+- A single temporary job `dagster-network-probe` used the deployed digest,
+  `commerce-platform` network/subnet, `dagster-worker` tag and service account,
+  with only the PostgreSQL secret. It bypassed the image entrypoint and emitted
+  only phase, attempt, elapsed time, exception class and SQLSTATE.
+- Execution `dagster-network-probe-tf584` reached TCP and passed `SELECT 1` on
+  attempt 29 at elapsed 280.2 seconds. Attempts 1–28 were `tcp_error` with
+  `TimeoutError`; no PostgreSQL/authentication attempt occurred during those
+  failures. Cloud Run completed the probe successfully at `15:06:23.369Z`.
+- This isolates the issue to delayed/intermittent TCP reachability from Direct
+  VPC Cloud Run to `10.42.0.10:5432`, rather than PostgreSQL credentials or a
+  failed `SELECT 1`. The temporary job was deleted after terminal completion;
+  no VM, image, logs, secret, database or firewall rule was deleted or changed.
+
+## Billing export and weekly report inventory — 2026-09-04
+
+- Read-only BigQuery metadata check: dataset `commerce-agents-dev.billing_export`
+  exists in `us-central1`, but `bq ls` returned no tables. No billing rows or PII
+  were read.
+- Read-only Cloud Scheduler check: no jobs exist in `us-central1`. Cloud Run has
+  `dagster-worker` only; no weekly cost-report job is deployed.
+- The live budget is USD 100/month for project `448325654721`, with CURRENT_SPEND
+  thresholds 50/80/100%. Its specified credit types include free tier and ordinary
+  discounts and exclude `PROMOTION`, matching Terraform.
+- The agreed weekly report sender and recipient are both `lauti@clicar.studio`.
+  Sender authorization is still a deployment gate: no mail-provider/API/SMTP
+  configuration or sender credential names are present in this repository. A
+  Gmail interactive connection would not authorize unattended Cloud Run delivery.
+  The exact next step is to select a transactional mail provider, verify this
+  sender identity there, store its sending credential in Secret Manager, and wire
+  the future reporter to that secret before delivery testing. No email was sent.
+
+## Returns pipeline — local, not deployed
+
+The local returns implementation includes four independently paginated GraphQL
+operations (`orders`, `returns`, `returnLineItems`, `refunds`), exact-response
+GCS capture with pinned generations/checksums and completion seal, a read-only
+raw publication gate, four returns staging models, and the manual Dagster job
+`shopify_returns_ingestion`. Local definitions validation and tests pass.
+
+No returns image has been built or deployed, no returns Cloud Run execution has
+run, and no returns BigQuery SQL job has run. The latest deployed image remains
+`refunds-20260904-04`; returns must not be attributed to that image. Returns
+gate-review is closed locally: compiled manifest has 4/4 returns models in
+`analytics`, Definitions loads 28 assets, and ownership mapping fails closed
+cross-order with regression coverage. SQL/BigQuery and cloud acceptance remain
+pending; the returns full cloud acceptance gate is not passed.
+
+Next sequence is synthetic BigQuery fixture → dbt build → image digest → reviewed
+Terraform plan → backup/rollout → one run → verifier → same-extraction replay and
+verifier comparison. No schedule or financial model is enabled.

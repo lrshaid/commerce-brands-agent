@@ -99,3 +99,72 @@ raw publication or dbt, and has not been validated against live refunds.
 Multi-request observations are not a transactional Shopify snapshot. The
 current projection still lacks refund-line IDs/original-line links, selected money
 currency/tax fields and business timestamps; the compiler does not invent them.
+
+### Manual capture integration (2026-09-04)
+
+`shopify_refunds_capture` now connects the capture to Dagster's Cloud Run worker.
+Its asset is `shopify_capture/refund_pages`, explicitly separate from warehouse
+publication. It verifies the expected shop, uses an explicit updated-at window
+and fixes page size at 50. No recurring schedule or BigQuery/dbt refund path is
+enabled. The operator launcher accepts `--job shopify_refunds_capture` and the
+same explicit extraction/window inputs as orders. Repeated extraction IDs are
+looked up before launch. Independent read-only GCS verification is available in
+`infra/scripts/verify_refund_capture.py`. Local suite: 130 passing tests.
+Live rollout and acceptance evidence below supersede the local-only status above
+only when recorded in `DEPLOYMENT_STATUS.md`.
+
+The rollout is now complete. First live attempt failed before extraction because
+Dagster's 300-second start timeout elapsed; worker logs report a private
+PostgreSQL connection timeout. GCS contains no files for that capture. Cloud Run
+exit 0 did not mean Dagster success. Live refund acceptance therefore remains
+pending. No raw/dbt refund publication was enabled. Full local suite: 133 tests.
+
+The startup-hardening retry subsequently succeeded. Run
+`47a88b5a-f6a0-485f-b59d-e4dcffc2fa41` captured 101 orders in pages of 50/50/1;
+all returned `refunds: []`. Independent GCS verification passed for exact bytes,
+checksums, counts and terminal page chains. This validates root pagination but
+not nonempty refund child collections. Raw/dbt remains pending; 136 local tests pass.
+
+### Live refund raw + staging acceptance (2026-09-04)
+
+Image `refunds-20260904-04` (digest `sha256:e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644`) completed run `490ab529-14a2-45a6-b4a0-0be038d9adca` on worker `dagster-worker-r9n96`. Read-only BigQuery verifier job `7e588f8c-6ffe-4874-8bc2-0f98ecad709f` returned `verified=true`: one manifest, three raw records, three staged pages, 101 root orders, zero refunds and zero child records; eight materializations and 23 checks passed. This proves the empty-refund fixture's capture, publication, staging and count/hash reconciliation only. It does not prove nonempty child pagination, replay/idempotency, or scheduling; `provider_object_count` is intentionally not used.
+
+Replay `08ab9848-e91e-4eab-830c-e2d7bd01e634` completed SUCCESS on
+`dagster-worker-fn6c2`; verifier `d83f566d-028b-460d-bc7d-0b54b7862454`
+returned `verified=true`. It preserved the single manifest, 3 raw rows, the
+same 3 response-page generations and completion seal, 8 materializations, 23
+checks and 0 errors from original run
+`490ab529-14a2-45a6-b4a0-0be038d9adca` / `dagster-worker-r9n96`. This verifies
+replay/idempotency over the existing capture and retained dbt artifacts; it does
+not claim new HTTP requests or new files. The fixture still has zero refunds and
+children, so nonempty child pagination remains unverified.
+
+The subsequent raw + staging launch was attempted once after the authorized
+runtime rollout. Run `f0daaed9-20ed-43d0-b93c-15ac11ef2df8` retained the same
+extraction and window, but worker `dagster-worker-hh8ng` exited before execution
+because PostgreSQL readiness exceeded 180 seconds. No raw files, manifest, dbt
+models or checks were published; no replay was attempted. Dagster last reported
+`STARTING` while propagating that worker failure.
+
+## Returns transport — local only
+
+The local returns path now compiles and captures four independently paginated
+Admin GraphQL connections: orders, returns, return line items, and return refund
+links. It preserves the original semantic projection, pins GCS generations and
+checksums, binds shop/extraction scope, and supports fail-closed read-only replay.
+The local Dagster integration exposes `shopify_returns_ingestion`, with raw
+publication and four returns staging models planned behind the page contract.
+
+Local compiler/capture tests, fullsuite, Dagster definitions validation, and
+Shopify schema validation pass. The ownership/deduplication review correction is
+resolved locally; the dbt schema/tag association correction is also resolved
+locally. Returns gate-review is closed locally: compiled manifest has 4/4 returns
+models in `analytics`, Definitions loads 28 assets, and cross-order duplicate
+return-GID ownership fails closed with regression coverage. SQL/BigQuery and
+cloud acceptance remain pending.
+
+No returns credentials were used for extraction, no returns BigQuery job or
+Cloud Run execution has run, and no returns image has been deployed. The latest
+deployed image remains `refunds-20260904-04`; returns must not be attributed to
+that image. Next acceptance is synthetic BigQuery/dbt fixture, digest build,
+Terraform review, backup/rollout, one run, verifier, and same-extraction replay.

@@ -1,0 +1,56 @@
+version: 1
+status: pending_returns_page_capture_schema
+stream: returns
+transport: shopify_graphql_pages
+raw_table: returns
+source_name: shopify_returns
+envelope: shopify_raw_v1.record_envelope
+grain_override: one_complete_original_http_response_per_gcs_file
+record_index: 1
+record_text: exact_decoded_utf8_http_body_including_whitespace
+payload: parsed_response_body_without_reassembly
+object_gid: null
+parent_gid: null
+
+# Confirmed by returns_queries.py/returns_capture.py; this is transport
+# metadata, not a claim that a live capture exists.
+operations: [orders, returns, returnLineItems, refunds]
+capture_binding: [format_version, stream, domain, shop_gid, api_version, extraction_id, query_sha256, plan_sha256, scope_sha256]
+page_owner: {orders: null, returns: Order, returnLineItems: Return, refunds: Return}
+
+# This contract remains provisional until a sealed capture establishes the
+# response shape. No business or financial fields are asserted here.
+manifest_files:
+  response_page: [uri, generation, sha256, request_sha256, operation, variables, captured_at]
+  completion_seal: [uri, generation, sha256]
+lineage: join_raw_file_id_to_response_page_generation_in_manifest_files
+
+assets:
+  capture: [shopify_capture, return_pages]
+  raw: [shopify, returns]
+  ingestion_manifest: [shopify_returns, ingestion_runs]
+
+planned_staging_models:
+  - stg_shopify__returns
+  - stg_shopify__return_line_items
+  - stg_shopify__return_refunds
+
+publication_gate:
+  - read_only_replay_of_every_saved_request_and_cursor_chain
+  - exact_completion_seal_match
+  - generation_pinned_reads_and_checksum_match
+  - reject_generation_collisions_under_current_raw_key
+  - one_raw_row_per_response_page_with_record_index_one
+  - atomic_existing_raw_publication_transaction
+
+counts:
+  raw_record_count: response_pages_not_return_objects
+  keys: [orders, returns, returnLineItems, refunds]
+  provider_object_count: null_no_provider_global_counter
+  root_object_count: orders_from_validated_traversal
+
+not_yet:
+  - sealed_nonempty_returns_capture
+  - runtime_transport_verification
+  - returns_staging_implementation
+  - recurring_schedule

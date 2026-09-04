@@ -42,7 +42,11 @@ explicitly says `mail_sent: false`; this is not the scheduled email worker.
    project isolation, month/week boundaries, exports after the cutoff and negative
    adjustments. Python tests cover missing data, currency and identifiers. Real
    export schema, coverage, freshness and reconciliation remain unverified.
-3. Authorize an email sender; test delivery to lauti@clicar.studio.
+3. The agreed sender and recipient are both `lauti@clicar.studio` (2026-09-04).
+   Authorize that sender with a selected unattended mail provider and test delivery
+   to the same address. No provider, sender credential, SMTP configuration or mail
+   API is present in this repository yet; interactive Gmail access would not grant
+   the Cloud Run reporter permission to send.
 4. Deploy separate Cloud Run reporter and Cloud Scheduler, Mondays 09:00
    America/Argentina/Buenos_Aires, with execution/delivery failure alerts. Add
    durable delivery deduplication so retries do not resend a successful report.

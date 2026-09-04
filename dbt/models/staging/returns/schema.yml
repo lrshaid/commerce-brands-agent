@@ -1,0 +1,57 @@
+version: 2
+sources:
+  - name: shopify_returns
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: returns
+        description: Exact HTTP response pages for independently paginated return operations.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, returns]
+      - name: ingestion_runs
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify_returns, ingestion_runs]
+models:
+  - name: stg_shopify__return_pages
+    columns:
+      - name: page_key
+        data_tests: [not_null, unique]
+      - name: operation
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: [orders, returns, returnLineItems, refunds]}
+      - name: captured_at
+        data_tests: [not_null]
+  - name: stg_shopify__returns
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: return_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+  - name: stg_shopify__return_line_items
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: return_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: return_line_item_gid
+        data_tests: [not_null]
+  - name: stg_shopify__return_refunds
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: return_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: refund_gid
+        data_tests: [not_null]

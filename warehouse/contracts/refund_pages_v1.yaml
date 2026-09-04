@@ -1,0 +1,59 @@
+version: 1
+status: live_zero_refund_fixture_verified
+stream: order_refunds
+transport: shopify_graphql_pages
+raw_table: order_refunds
+envelope: shopify_raw_v1.record_envelope
+grain_override: one_complete_original_http_response_per_gcs_file
+record_index: 1
+record_text: exact_decoded_utf8_http_body_including_whitespace
+payload: parsed_response_body_without_reassembly
+object_gid: null
+parent_gid: null
+request_sha256: sha256_of_canonical_capture_binding_including_query_plan_and_scope_hashes
+manifest_files:
+  response_page: [uri, generation, sha256, request_sha256, operation, variables, captured_at]
+  completion_seal: [uri, generation, sha256]
+lineage: join_raw_file_id_to_response_page_generation_in_manifest_files
+publication_gate:
+  - read_only_replay_of_every_saved_request_and_cursor_chain
+  - exact_completion_seal_match
+  - generation_pinned_reads_and_checksum_match
+  - reject_generation_collisions_under_current_raw_key
+  - atomic_existing_raw_publication_transaction
+counts:
+  raw_record_count: response_pages_not_refunds
+  provider_object_count: null_no_provider_global_counter
+  root_object_count: root_orders_from_validated_traversal
+consistency: multi_request_observations_not_transactional_snapshot
+empty_refunds: preserve_order_pages_and_publish_zero_refund_count_not_zero_raw_pages
+verified_evidence:
+  date: '2026-09-04'
+  capture_image: refunds-20260904-04
+  capture_image_sha256: e178bcd6f34a4d3b5f0a60c99c4d81284154e95f60555231d6bdeae7f1265644
+  dagster_run_id: 490ab529-14a2-45a6-b4a0-0be038d9adca
+  worker_execution: dagster-worker-r9n96
+  warehouse_verification_job_id: 7e588f8c-6ffe-4874-8bc2-0f98ecad709f
+  raw_records: 3
+  staged_pages: 3
+  root_orders: 101
+  refunds: 0
+  child_records: 0
+  materializations: 8
+  checks: 23
+  verified: true
+  scope: one_zero_refund_fixture_only
+  replay:
+    dagster_run_id: 08ab9848-e91e-4eab-830c-e2d7bd01e634
+    worker_execution: dagster-worker-fn6c2
+    warehouse_verification_job_id: d83f566d-028b-460d-bc7d-0b54b7862454
+    status: verified
+    preserved_manifest_count: 1
+    preserved_raw_records: 3
+    preserved_response_page_generations: 3
+    preserved_completion_seal: true
+    materializations: 8
+    checks: 23
+    errors: 0
+    mode: reused_existing_capture_no_new_files_claimed
+not_yet: [nonempty_refund_child_fixture, recurring_schedule]

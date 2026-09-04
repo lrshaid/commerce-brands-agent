@@ -8,10 +8,14 @@ COPY orchestration /app/orchestration
 COPY agent/__init__.py /app/agent/__init__.py
 COPY agent/warehouse /app/agent/warehouse
 COPY queries/shopify/orders_bulk.graphql /app/queries/shopify/orders_bulk.graphql
+COPY queries/shopify/order_refunds_bulk.graphql /app/queries/shopify/order_refunds_bulk.graphql
+COPY queries/shopify/return_line_items_bulk.graphql /app/queries/shopify/return_line_items_bulk.graphql
 COPY warehouse/contracts/shopify_raw_v1.yaml /app/warehouse/contracts/shopify_raw_v1.yaml
+COPY warehouse/contracts/returns_pages_v1.yaml /app/warehouse/contracts/returns_pages_v1.yaml
 COPY infra/runtime/dagster.yaml /opt/dagster/home/dagster.yaml
 COPY infra/runtime/workspace.yaml /opt/dagster/home/workspace.yaml
 COPY infra/runtime/entrypoint.sh /app/entrypoint.sh
+COPY infra/runtime/wait_for_postgres.py /app/wait_for_postgres.py
 RUN chmod +x /app/entrypoint.sh && dbt parse --project-dir /app/dbt --profiles-dir /app/dbt
 ARG CODE_VERSION=unknown
 ENV CODE_VERSION=$CODE_VERSION

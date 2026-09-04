@@ -35,6 +35,23 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn("replay_completed_run", config)
         self.assertEqual(config["extraction_id"], "test")
 
+    def test_failed_retry_requires_terminal_failure(self):
+        for status in ("SUCCESS", "STARTING", "STARTED", "CANCELED"):
+            with self.assertRaises(RuntimeError):
+                self.invoke([{"runId": "old", "status": status}], ["--retry-failed-run", "old"])
+        calls = self.invoke([{"runId": "old", "status": "FAILURE"}],
+                            ["--retry-failed-run", "old", "--job", "shopify_refunds_capture"])
+        params = calls[1].kwargs["json"]["variables"]["params"]
+        self.assertEqual(params["selector"]["pipelineName"], "shopify_refunds_capture")
+        self.assertIn("shopify_capture__refund_pages", params["runConfigData"]["ops"])
+
+    def test_returns_job_maps_capture_and_raw_assets(self):
+        calls = self.invoke([], ["--job", "shopify_returns_ingestion"])
+        params = calls[1].kwargs["json"]["variables"]["params"]
+        self.assertEqual(params["selector"]["pipelineName"], "shopify_returns_ingestion")
+        self.assertEqual(set(params["runConfigData"]["ops"]),
+                         {"shopify_capture__return_pages", "shopify_returns_raw"})
+
 
 if __name__ == "__main__":
     unittest.main()

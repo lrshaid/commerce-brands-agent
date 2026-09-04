@@ -11,6 +11,12 @@ models:
     +persist_docs: {relation: true, columns: true}
     +materialized: view
     staging:
+      refunds:
+        +schema: analytics
+        +tags: [refund_staging]
+      returns:
+        +schema: analytics
+        +tags: [returns_staging]
       shopify:
         +schema: analytics
         +tags: [shopify_staging]
