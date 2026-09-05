@@ -8,7 +8,7 @@ from dagster_dbt import DbtCliResource, dbt_assets
 from google.cloud import bigquery, storage
 from orchestration.ingestion_acceptance import ingestion_probe
 from orchestration.shopify_orders import shopify_orders
-from orchestration.shopify_dbt import shopify_dbt, refund_dbt, returns_dbt
+from orchestration.shopify_dbt import shopify_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
@@ -114,13 +114,19 @@ returns_job = dg.define_asset_job(
     tags={"dagster/max_retries": "0", "purpose": "shopify_returns_ingestion"},
     executor_def=dg.in_process_executor)
 
+marts_job = dg.define_asset_job(
+    "shopify_marts_build",
+    selection=dg.AssetSelection.assets(shopify_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt),
+    tags={"dagster/max_retries": "0", "purpose": "shopify_marts_build"},
+    executor_def=dg.in_process_executor)
+
 defs = dg.Definitions(
     assets=[probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_dbt, shopify_refunds, shopify_refunds_raw, refund_dbt,
-            shopify_returns, shopify_returns_raw, returns_dbt],
+            shopify_returns, shopify_returns_raw, returns_dbt, intermediate_dbt, marts_dbt],
     jobs=[smoke_job, orders_job, refunds_job, dg.define_asset_job(
         "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw, refund_dbt),
         tags={"dagster/max_retries": "0", "purpose": "shopify_refunds_ingestion"},
-        executor_def=dg.in_process_executor), returns_job],
+        executor_def=dg.in_process_executor), returns_job, marts_job],
     resources={"dbt": DbtCliResource(project_dir=DBT_DIR, profiles_dir=DBT_DIR)},
     # No recurring data schedule until live-source and acceptance gates pass.
 )

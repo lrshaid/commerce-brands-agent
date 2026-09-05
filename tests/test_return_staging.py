@@ -31,8 +31,11 @@ class ReturnStagingContractTests(unittest.TestCase):
         self.assertIn("p.operation = 'refunds'", refunds)
         self.assertIn('r.order_gid', lines)
         self.assertIn('r.order_gid', refunds)
-        self.assertNotIn('subtotal_amount', returns + lines + refunds)
-        self.assertNotIn('tax_amount', returns + lines + refunds)
+        self.assertIn('order_line_item_id', lines)
+        self.assertIn('subtotal_amount', lines)
+        self.assertIn('total_tax_amount', lines)
+        self.assertNotIn('subtotal_amount', returns + refunds)
+        self.assertNotIn('tax_amount', returns + refunds)
 
     def test_compiled_returns_models_use_analytics_schema(self):
         manifest_path = ROOT / 'dbt/target/manifest.json'

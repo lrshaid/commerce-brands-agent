@@ -46,6 +46,8 @@ models:
         data_tests: [not_null]
       - name: order_gid
         data_tests: [not_null]
+      - name: order_line_item_id
+        data_tests: [not_null]
   - name: stg_shopify__refund_transactions
     description: Versioned observations, not financial recognition or current-state records.
     columns:

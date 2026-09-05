@@ -52,9 +52,12 @@ class SemanticModelTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.model.join_condition("abandoned_checkouts", "products", rel)
 
-    def test_unvalidated_revenue_is_not_marked_implemented(self):
-        self.assertFalse(self.model.metrics["gmv"]["implemented"])
-        self.assertFalse(self.model.metrics["rmv"]["implemented"])
+    def test_revenue_implementation_state(self):
+        # GMV/RMV/NMV marts are implemented; EMV remains blocked by invalid exchange query.
+        self.assertTrue(self.model.metrics["gmv"]["implemented"])
+        self.assertTrue(self.model.metrics["rmv"]["implemented"])
+        self.assertTrue(self.model.metrics["nmv"]["implemented"])
+        self.assertFalse(self.model.metrics["emv"]["implemented"])
 
 
 if __name__ == "__main__":

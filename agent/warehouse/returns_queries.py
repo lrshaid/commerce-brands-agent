@@ -112,7 +112,8 @@ def compile_return_queries(source: str) -> ReturnQueryPlan:
         _source_connection_args(refunds)
         line_node = _node(line_items)
         refund_node = _node(refunds)
-        if any(not isinstance(s, FieldNode) or s.name.value not in {"id", "quantity"} or s.alias or s.directives
+        allowed_line_fields = {"id", "quantity", "lineItem", "subtotalSet", "totalTaxSet"}
+        if any(not isinstance(s, FieldNode) or s.name.value not in allowed_line_fields or s.alias or s.directives
                for s in line_node.selection_set.selections):
             raise ReturnProjectionError("Return line-item projection changed")
         if any(not isinstance(s, FieldNode) or s.name.value != "id" or s.alias or s.directives

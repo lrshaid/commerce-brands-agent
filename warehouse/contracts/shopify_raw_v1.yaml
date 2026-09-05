@@ -1,7 +1,7 @@
 version: 1
 status: orders_live_verified_others_pending
 scope: orders_refunds_returns_exchanges
-query_files_modified: false
+query_files_modified: true
 warehouse_has_data: true
 dataset_role: raw_shopify
 dbt_source_name: shopify
@@ -148,7 +148,7 @@ streams:
 
   order_refunds:
     query_file: queries/shopify/order_refunds_bulk.graphql
-    query_sha256: 0a8c3e1e76b37e1039b14bcd6b688fa8d3ad61fab45dc4b6e9e903c1d1421185
+    query_sha256: c6e20f13cb36c3f7287f0807f565dcbd525ba261058543dbea9ed3de0569d98e
     raw_table: order_refunds
     graphql_schema_validation: passed
     transport: bulk_candidate_blocked_pending_connection_review
@@ -158,21 +158,21 @@ streams:
     selected_root_fields: [id, name, updatedAt]
     child_selections:
       - {path: refunds, kind: list_not_connection, key_selected: id, proposed_stg: stg_shopify__refunds}
-      - {path: refunds.refundLineItems.edges.node, kind: connection_below_list, key_selected: null, proposed_stg: stg_shopify__refund_line_items}
+      - {path: refunds.refundLineItems.edges.node, kind: connection_below_list, key_selected: id, proposed_stg: stg_shopify__refund_line_items}
       - {path: refunds.transactions.edges.node, kind: connection_below_list, key_selected: id, proposed_stg: stg_shopify__refund_transactions}
       - {path: refunds.orderAdjustments.edges.node, kind: connection_below_list, key_selected: id, proposed_stg: stg_shopify__refund_order_adjustments}
     selected_refund_fields: [id, note, createdAt, updatedAt, totalRefundedSet]
+    selected_refund_line_fields: [id, quantity, lineItem, subtotalSet, totalTaxSet]
     blockers:
       - RefundLineItem is not Node in the inspected schema; bulk schema validation does not prove this transport is supported.
-      - Refund lines omit id and lineItem.id; original-line linkage is unavailable.
-      - Refund lines omit tax and currencyCode in their money selection; do not assume the order currency silently.
       - Refund.processedAt is not selected; createdAt and updatedAt must not be relabeled as processedAt.
       - Transaction timestamps/currency and adjustment tax/reason details need an explicit selection.
       - Nested connection serialization below the refunds list requires a verified adapter or separately paginated queries; never infer parents from adjacent lines.
+      - Refund line id, lineItem.id, subtotalSet and totalTaxSet are now selected for order-line grain RMV.
 
   returns:
     query_file: queries/shopify/return_line_items_bulk.graphql
-    query_sha256: 764194ed90b4ac1d36ffd63800898caaddcc2e8611fc19e7eedf22d828b4042d
+    query_sha256: ef78e4ca94fbddcefd72781d49982e7e6e31b8e6f3756a71bf0102fde92bf5b4
     raw_table: returns
     graphql_schema_validation: passed
     transport: bulk_candidate_not_runtime_verified
@@ -185,12 +185,12 @@ streams:
       - {path: returns.edges.node.returnLineItems.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__return_line_items}
       - {path: returns.edges.node.refunds.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__return_refunds}
     selected_return_fields: [id, name, status, totalQuantity, closedAt, requestApprovedAt]
-    selected_return_line_fields: [id, quantity]
+    selected_return_line_fields: [id, quantity, lineItem, subtotalSet, totalTaxSet]
     blockers:
-      - No return line linkage to fulfillment/original order line or return-line monetary fields is selected.
       - Return reasons and createdAt are absent; use concrete-type fragments when the schema requires them.
       - Return-to-refund ids define an object-level relationship, not a line allocation policy.
       - Order.updatedAt coverage for child-only changes must be tested before using it as a complete incremental cursor.
+      - Return line id, quantity, lineItem.id, subtotalSet and totalTaxSet are now selected for order-line grain RMV.
 
   exchanges:
     query_file: queries/shopify/exchanges_bulk.graphql

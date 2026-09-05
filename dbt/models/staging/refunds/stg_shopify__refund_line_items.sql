@@ -2,9 +2,11 @@ select
     to_hex(sha256(to_json_string(struct(p.page_key, node_offset)))) as observation_key,
     p.shop_key, p.extraction_id, p.page_key, p.captured_at, p.published_at,
     p.refund_gid, r.order_gid,
+    json_value(n, '$.node.lineItem.id') as order_line_item_id,
     cast(json_value(n, '$.node.quantity') as int64) as quantity,
     json_value(n, '$.node.restockType') as restock_type,
     cast(json_value(n, '$.node.subtotalSet.shopMoney.amount') as numeric) as subtotal_amount,
+    cast(json_value(n, '$.node.totalTaxSet.shopMoney.amount') as numeric) as total_tax_amount,
     json_query(n, '$.node') as detail_payload
 from {{ ref('stg_shopify__refund_pages') }} p
 cross join unnest(json_query_array(p.payload, '$.data.node.refundLineItems.edges')) n with offset node_offset

@@ -24,6 +24,16 @@ def returns_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "returns")
 
 
+@dbt_assets(manifest=MANIFEST, select="tag:business_intermediate")
+def intermediate_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "intermediate")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:business_marts")
+def marts_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "marts")
+
+
 def run_dbt(context, dbt, artifact_group):
     invocation = None
     failed = False

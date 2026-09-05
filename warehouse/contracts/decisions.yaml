@@ -1,6 +1,19 @@
 version: 1
 # No decision is implicitly accepted by the preflight.
 decisions:
+  rmv_line_aggregation:
+    affects: [returns, marts]
+    status: decided_2026_09_05
+    decision: >
+      Aggregate refund_line_items and return_line_items to one row per original
+      order line before the FULL OUTER JOIN in fct_returns. This prevents the
+      known many-to-many fan-out when the same original line has multiple refund
+      events and/or multiple return events. Refund values win per line; the
+      aggregate preserves total quantity, subtotal and tax per side. This is an
+      explicit implementation choice documented here, not a hidden deduplication.
+    alternatives_rejected:
+      - join_without_aggregation: duplicates RMV when multiple events exist per line
+      - pick_latest_event: silently drops partial refund/return value
   raw_landing:
     affects: [staging]
     question: Supply the read-only raw envelope, JSON paths, shop key, version cursor and uniqueness guarantee for each source. Are rows current-state parents or versioned snapshots?

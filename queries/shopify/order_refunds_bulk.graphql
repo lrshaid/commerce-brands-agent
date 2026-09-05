@@ -10,7 +10,7 @@ query OrderRefundsBulk ($query: String) {
         createdAt
         updatedAt
         totalRefundedSet { shopMoney { amount currencyCode } }
-        refundLineItems(first: 50) { edges { node { quantity restockType subtotalSet { shopMoney { amount } } } } }
+        refundLineItems(first: 50) { edges { node { id quantity restockType lineItem { id } subtotalSet { shopMoney { amount } } totalTaxSet { shopMoney { amount } } } } }
         transactions(first: 10) { edges { node { id kind status amountSet { shopMoney { amount } } } } }
         orderAdjustments(first: 10) { edges { node { id amountSet { shopMoney { amount } } } } }
       }

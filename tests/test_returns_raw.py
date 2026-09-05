@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from test_refund_capture import Bucket, connection
+from tests.test_refund_capture import Bucket, connection
 from agent.warehouse.returns_capture import ReturnsCapture
 from agent.warehouse.refund_capture import CaptureError
 from agent.warehouse.returns_raw import prepare_returns_raw

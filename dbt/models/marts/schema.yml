@@ -1,0 +1,38 @@
+version: 2
+models:
+  - name: fct_returns
+    description: Shopify-native RMV fact at original-order-line grain. Refund values win; RMV stored negative.
+    columns:
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: order_line_item_id
+        data_tests: [not_null]
+      - name: match_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: [matched, refund_no_return, return_no_refund]
+      - name: rmv_merchandise_amount
+        data_tests: [not_null]
+      - name: rmv_tax_amount
+        data_tests: [not_null]
+
+  - name: metric_revenue_daily
+    description: Daily revenue-core metrics. EMV is intentionally absent until a valid exchange contract exists.
+    columns:
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: metric_date
+        data_tests: [not_null]
+      - name: gmv_amount
+        data_tests: [not_null]
+      - name: rmv_amount
+        data_tests: [not_null]
+      - name: nmv_amount
+        data_tests: [not_null]

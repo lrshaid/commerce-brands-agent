@@ -45,6 +45,8 @@ models:
         data_tests: [not_null]
       - name: return_line_item_gid
         data_tests: [not_null]
+      - name: order_line_item_id
+        data_tests: [not_null]
   - name: stg_shopify__return_refunds
     columns:
       - name: observation_key

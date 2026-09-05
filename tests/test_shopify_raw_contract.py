@@ -26,7 +26,7 @@ class ShopifyRawContractTests(unittest.TestCase):
     def test_scope_is_partial_and_deployment_claim_is_stream_specific(self):
         self.assertEqual(set(self.contract["streams"]), {"orders", "order_refunds", "returns", "exchanges"})
         self.assertTrue(self.contract["warehouse_has_data"])
-        self.assertFalse(self.contract["query_files_modified"])
+        self.assertTrue(self.contract["query_files_modified"])
         self.assertEqual(self.contract["status"], "orders_live_verified_others_pending")
         self.assertIn("live_evidence", self.contract["streams"]["orders"])
         for name in ("order_refunds", "returns", "exchanges"):
@@ -66,7 +66,7 @@ class ShopifyRawContractTests(unittest.TestCase):
         self.assertEqual(streams["exchanges"]["graphql_schema_validation"], "failed")
         self.assertEqual(streams["exchanges"]["transport"], "blocked")
         refund_lines = next(c for c in streams["order_refunds"]["child_selections"] if c["proposed_stg"] == "stg_shopify__refund_line_items")
-        self.assertIsNone(refund_lines["key_selected"])
+        self.assertEqual(refund_lines["key_selected"], "id")
         for stream in streams.values():
             self.assertTrue(stream["blockers"])
             for child in stream["child_selections"]:

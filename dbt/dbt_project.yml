@@ -22,6 +22,13 @@ models:
         +tags: [shopify_staging]
       platform:
         +tags: [platform_smoke]
+    intermediate:
+      +schema: analytics
+      +tags: [business_intermediate]
+    marts:
+      +schema: analytics
+      +tags: [business_marts]
+      +materialized: table
     reports:
       platform:
         +tags: [platform_smoke]

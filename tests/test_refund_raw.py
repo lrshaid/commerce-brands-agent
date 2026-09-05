@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import unittest
 from unittest.mock import patch
 
-from test_refund_capture import Bucket, SOURCE, ORDER, connection, response
+from tests.test_refund_capture import Bucket, SOURCE, ORDER, connection, response
 from agent.warehouse.refund_capture import CaptureError, RefundCapture
 from agent.warehouse.refund_raw import prepare_refund_raw
 
