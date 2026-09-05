@@ -26,7 +26,7 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion"),
+    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
     parser.add_argument("--expected-shop-gid", required=True)
@@ -66,6 +66,8 @@ def main():
                       "shopify_returns_raw": {"config": config}}
     if args.job == "shopify_refunds_ingestion":
         operations["shopify_refunds_raw"] = {"config": config}
+    if args.job == "shopify_marts_build":
+        operations = {}
     parameters = {
         "selector": {"repositoryLocationName": "commerce", "repositoryName": "__repository__",
                      "pipelineName": args.job},

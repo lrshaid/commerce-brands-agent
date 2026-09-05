@@ -5,19 +5,19 @@
 -- RMV is stored negative so NMV = GMV + EMV + RMV by simple addition.
 with gmv as (
     select
-        shop_key,
-        extraction_id,
-        date(processed_at) as metric_date,
-        sum(discounted_total_shop_amount) as gmv_amount,
-        count(distinct order_gid) as gmv_orders,
-        sum(quantity) as gmv_units
+        o.shop_key,
+        o.extraction_id,
+        date(o.processed_at) as metric_date,
+        sum(l.discounted_total_shop_amount) as gmv_amount,
+        count(distinct o.order_gid) as gmv_orders,
+        sum(l.quantity) as gmv_units
     from {{ ref('stg_shopify__orders') }} o
     join {{ ref('stg_shopify__order_line_items') }} l
         on o.shop_key = l.shop_key
         and o.extraction_id = l.extraction_id
         and o.order_gid = l.order_gid
     where o.processed_at is not null
-    group by shop_key, extraction_id, date(processed_at)
+    group by o.shop_key, o.extraction_id, date(o.processed_at)
 )
 , rmv as (
     select
