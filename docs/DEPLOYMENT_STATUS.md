@@ -486,3 +486,26 @@ Próximos pasos: exchanges, actualización incremental, modelos de negocio,
 GA4/sesiones, operación (concurrencia, alertas, cancellation tests), gastos
 (export + remitente + delivery) y schedules solo tras acuerdo de frecuencia.
 
+
+## Business marts deployment (fct_returns, metric_revenue_daily) — 2026-09-05/06
+
+- Implementación: commits `679f544` (marts + intermediate con agregación a grain
+de línea, resolución documentada del fan-out en `decisions.yaml`) y `2949fd6`
+(fix `shop_key` ambiguo en `metric_revenue_daily`; job `shopify_marts_build`
+agregado al launcher).
+- Imagen del worker: digest
+  `sha256:6b83bffab5783543d24aa620e41e49d0ebcd6637314b715e85b6aec5b427618e`,
+  pineada en `deployment.auto.tfvars`, rollout confirmado en Cloud Run.
+- Runs Dagster (`shopify_marts_build`, extracción `marts-initial-20260905-02`):
+  - `7d140b7a-a5fe-4c12-820b-2440f94fccfd`: `FAILURE` (ambigüedad de `shop_key`,
+    corregida en `2949fd6` antes del rollout del fix).
+  - `f5021f5f-2016-43c5-b1f6-9865a3783156`: `SUCCESS` (Cloud Run execution
+    `dagster-worker-qj7ks`), materializa `fct_returns` y `metric_revenue_daily`.
+  - Replay idempotente `5c7224b2-9a88-4428-b5fd-b4b404d521cf`: `SUCCESS`.
+- Verificación BigQuery: `analytics.metric_revenue_daily` 1 fila, grain único
+  (2025-08-05, canal `all`), GMV = NMV = 9298.69 USD, 101 órdenes, 208 unidades,
+  0 refunds/returns (dummy data) — NMV = GMV + EMV + RMV con EMV/RMV = 0.
+  `analytics.fct_returns` 0 filas (esperado: sin refunds ni returns en la tienda
+  de desarrollo). Replay sin duplicados: mismos conteos y totales tras el replay.
+- `semantic/metrics.yaml`: `gmv`, `rmv`, `nmv` marcadas `implemented: true`.
+- No se habilitaron schedules ni se hizo push a origin.

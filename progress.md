@@ -29,6 +29,7 @@ Este archivo consolida decisiones, pasos ejecutados, arquitectura del código y 
 | Proyecto, facturación e infraestructura base | Desplegados, documentados | Proyecto `commerce-agents-dev`; Terraform |
 | Dagster en VM + workers Cloud Run | Operativos, documentados | Pruebas sintéticas, orders y captura de refunds |
 | Orders → GCS → raw → dbt | Verificado con la tienda disponible | 101 órdenes + 208 líneas; 17 checks; replay sin duplicados |
+| Marts de negocio (fct_returns, metric_revenue_daily) | Desplegados y aceptados | Runs `f5021f5f` + replay `5c7224b2` SUCCESS; GMV = NMV = 9298.69; idempotente |
 | Refunds → captura GCS | Verificado para órdenes sin refunds | 3 páginas: 50/50/1; 0 refunds |
 | Refunds → raw BigQuery | **Publicado** | Extracción `refunds-initial-20260904-01`; 3 raw pages |
 | Refunds → dbt staging | **5 vistas en analytics** | Desplegado y verificado |
