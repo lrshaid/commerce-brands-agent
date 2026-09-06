@@ -1,6 +1,61 @@
 version: 1
 # No decision is implicitly accepted by the preflight.
 decisions:
+  typed_model_naming:
+    affects: [typed]
+    status: decided_2026_09_06
+    decision: >
+      The typed business-grain layer uses the prefix typed_shopify__* and lives
+      under dbt/models/typed/shopify/. This scope is referenced in
+      semantic/warehouse_models.yaml as 'typed' and is materialised in the
+      analytics schema with tag shopify_typed.
+
+  typed_refund_grain:
+    affects: [typed, returns, marts]
+    status: decided_2026_09_06
+    decision: >
+      typed_shopify__refunds is deliberately built at REFUND LINE ITEM grain
+      (one row per refund line item), not at the refund-header grain defined in
+      semantic/shopify_entities.yaml. Refund header fields are denormalised on
+      each line, and transactions / order adjustments are nested as arrays.
+      Refunds with no line items are excluded by this grain choice.
+
+  deleted_pages_models:
+    affects: [staging, tests]
+    status: decided_2026_09_06
+    decision: >
+      stg_shopify__refund_pages and stg_shopify__return_pages are removed as
+      dbt models because pages are transport metadata (lineage lives in
+      raw_shopify.ingestion_runs), not business entities. The raw-page parsing
+      logic is preserved as dbt macros (shopify_refund_pages / shopify_return_pages)
+      so the remaining flat staging models can still build from raw directly.
+
+  uncaptured_discount_objects:
+    affects: [typed]
+    status: decided_2026_09_06
+    decision: >
+      discountApplications and shippingLines ARE requested by the active
+      orders_bulk.graphql query, but the dummy store has no child data (0
+      shipping-line records and 0 discount-application records in raw_shopify.orders).
+      discountAllocations is NOT requested by the active query, so it is not merely
+      uncaptured: it is not asked for. totalDiscountsSet at order level is sufficient
+      for metric_revenue_daily while no real discounts exist. Before trusting the
+      typed nested arrays with live discounts, validate that the child nodes are
+      actually materialised in raw_shopify.orders after extending the GraphQL query
+      and re-extracting.
+
+  metrics_implemented_flags_2026_09_06:
+    affects: [metrics]
+    status: decided_2026_09_06
+    decision: >
+      gmv, order_count and gross_units are marked implemented=true because they
+      are verified against real dummy-store data (GMV 9298.69, 101 orders, 208
+      units). rmv, nmv, returned_units and net_units remain implemented=false
+      because the dummy store has 0 refunds and 0 returns; the full-outer-join
+      and COALESCE-priority logic in fct_returns/metric_revenue_daily was never
+      exercised by real data. Re-evaluate when live refunds/returns exist or a
+      synthetic fixture materialises the blueprint cases in BigQuery.
+
   rmv_line_aggregation:
     affects: [returns, marts]
     status: decided_2026_09_05

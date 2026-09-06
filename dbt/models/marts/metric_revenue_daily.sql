@@ -11,8 +11,8 @@ with gmv as (
         sum(l.discounted_total_shop_amount) as gmv_amount,
         count(distinct o.order_gid) as gmv_orders,
         sum(l.quantity) as gmv_units
-    from {{ ref('stg_shopify__orders') }} o
-    join {{ ref('stg_shopify__order_line_items') }} l
+    from {{ ref('typed_shopify__orders') }} o
+    join {{ ref('typed_shopify__order_line_items') }} l
         on o.shop_key = l.shop_key
         and o.extraction_id = l.extraction_id
         and o.order_gid = l.order_gid

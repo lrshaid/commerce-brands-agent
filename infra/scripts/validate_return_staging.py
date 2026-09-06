@@ -32,21 +32,30 @@ def build_probe():
     raw = """raw_pages as (select 'shop' shop_key, 'returns-probe' extraction_id, cast(i + 1 as string) file_id, 1 record_index, 'query' query_sha256, 'request' request_sha256, '2026-04' api_version, timestamp('2026-01-01') ingested_at, to_hex(sha256(body)) record_sha256, body record_text, parse_json(body) payload, cast(null as string) object_gid, cast(null as string) parent_gid from unnest(@bodies) body with offset i)"""
     manifest = """manifests as (select 'shop' shop_key, 'returns-probe' extraction_id, 'returns' stream, 'published' status, 'shopify_graphql_pages' transport, timestamp('2026-01-01') published_at, 7 raw_record_count, parse_json(@files) files)"""
     env = Environment(undefined=StrictUndefined)
-    env.globals.update(source=lambda _, table: 'raw_pages' if table == 'returns' else 'manifests', ref=lambda name: name, config=lambda **_: None)
+    env.globals.update(
+        source=lambda _, table: 'raw_pages' if table == 'returns' else 'manifests',
+        ref=lambda name: name,
+        config=lambda **_: None,
+    )
+    macro_template = env.from_string((ROOT / 'dbt/macros/shopify_return_pages.sql').read_text())
+    env.globals['shopify_return_pages'] = macro_template.module.shopify_return_pages
     ctes = [raw, manifest]
-    for suffix in ('return_pages', 'returns', 'return_line_items', 'return_refunds'):
+    # stg_shopify__return_pages was removed as a dbt model; the probe keeps a
+    # pages CTE so the count assertions remain meaningful.
+    ctes.append('return_pages as (select * from ' + env.globals['shopify_return_pages']() + ')')
+    for suffix in ('returns', 'return_line_items', 'return_refunds'):
         name = 'stg_shopify__' + suffix
         sql = env.from_string((ROOT / 'dbt/models/staging/returns' / (name + '.sql')).read_text()).render()
         ctes.append(name + ' as (' + sql + ')')
     sql = 'with ' + ',\n'.join(ctes) + """
-select (select count(*) from stg_shopify__return_pages) page_count,
+select (select count(*) from return_pages) page_count,
   (select count(*) from stg_shopify__returns) return_count,
   (select count(*) from stg_shopify__return_line_items) line_count,
   (select count(*) from stg_shopify__return_refunds) refund_link_count,
   (select count(*) from stg_shopify__returns where total_quantity = 0) empty_return_count,
   (select count(*) from stg_shopify__return_line_items where order_gid is null or return_gid is null) missing_line_parents,
   (select count(*) from stg_shopify__return_refunds where order_gid is null or return_gid is null) missing_refund_parents,
-  (select count(*) from stg_shopify__return_pages p where p.operation in ('returnLineItems','refunds') and not exists (select 1 from stg_shopify__returns r where r.return_gid = p.owner_gid)) orphan_child_pages
+  (select count(*) from return_pages p where p.operation in ('returnLineItems','refunds') and not exists (select 1 from stg_shopify__returns r where r.return_gid = p.owner_gid)) orphan_child_pages
 """
     return sql, texts, files
 

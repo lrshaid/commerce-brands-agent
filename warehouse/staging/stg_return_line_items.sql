@@ -1,3 +1,5 @@
+-- TEMPLATE HISTORICO — NO EJECUTABLE. Equivalente vivo en dbt/models/. No editar sin actualizar el equivalente dbt.
+
 -- Expected BigQuery contract for the not-yet-vendored returns stream.
 -- Input contract: raw_shopify.returns(payload JSON).
 select

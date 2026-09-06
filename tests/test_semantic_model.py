@@ -53,10 +53,13 @@ class SemanticModelTests(unittest.TestCase):
             self.model.join_condition("abandoned_checkouts", "products", rel)
 
     def test_revenue_implementation_state(self):
-        # GMV/RMV/NMV marts are implemented; EMV remains blocked by invalid exchange query.
+        # GMV is verified against real dummy-store data. RMV/NMV marts exist but
+        # their core full-outer-join logic was never exercised by real refunds/returns,
+        # so they remain unimplemented until live data or a synthetic fixture validates
+        # them. EMV remains blocked by the invalid exchange query.
         self.assertTrue(self.model.metrics["gmv"]["implemented"])
-        self.assertTrue(self.model.metrics["rmv"]["implemented"])
-        self.assertTrue(self.model.metrics["nmv"]["implemented"])
+        self.assertFalse(self.model.metrics["rmv"]["implemented"])
+        self.assertFalse(self.model.metrics["nmv"]["implemented"])
         self.assertFalse(self.model.metrics["emv"]["implemented"])
 
 

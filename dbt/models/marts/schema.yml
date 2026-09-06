@@ -15,7 +15,8 @@ models:
         data_tests:
           - not_null
           - accepted_values:
-              values: [matched, refund_no_return, return_no_refund]
+              arguments:
+                values: [matched, refund_no_return, return_no_refund]
       - name: rmv_merchandise_amount
         data_tests: [not_null]
       - name: rmv_tax_amount

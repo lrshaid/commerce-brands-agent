@@ -16,17 +16,6 @@ sources:
             dagster:
               asset_key: [shopify_returns, ingestion_runs]
 models:
-  - name: stg_shopify__return_pages
-    columns:
-      - name: page_key
-        data_tests: [not_null, unique]
-      - name: operation
-        data_tests:
-          - not_null
-          - accepted_values:
-              arguments: {values: [orders, returns, returnLineItems, refunds]}
-      - name: captured_at
-        data_tests: [not_null]
   - name: stg_shopify__returns
     columns:
       - name: observation_key

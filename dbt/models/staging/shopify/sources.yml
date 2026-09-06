@@ -42,3 +42,15 @@ models:
     columns:
       - name: observation_key
         data_tests: [not_null, unique]
+  - name: stg_shopify__order_discount_allocations
+    description: >
+      Discount allocation observations per order line. The active
+      orders_bulk.graphql query does not request discountAllocations, so this
+      view currently returns zero rows; retained for forward-compatibility.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: line_item_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]

@@ -1,11 +1,16 @@
-{{ config(tags=['returns_staging'], meta={'dagster': {'ref': {'name': 'stg_shopify__return_pages'}}}) }}
-with expected as (
+{{ config(tags=['returns_staging']) }}
+-- Verify that flattened return child counts match the raw page payloads.
+-- Uses the shopify_return_pages macro directly because stg_shopify__return_pages
+-- was removed as a dbt model.
+with pages as (
+    select * from {{ shopify_return_pages() }}
+), expected as (
     select 'returnLineItems' as operation,
         coalesce(sum(array_length(json_query_array(payload, '$.data.node.returnLineItems.edges'))), 0) as n
-    from {{ ref('stg_shopify__return_pages') }} where operation = 'returnLineItems'
+    from pages where operation = 'returnLineItems'
     union all
     select 'refunds', coalesce(sum(array_length(json_query_array(payload, '$.data.node.refunds.edges'))), 0)
-    from {{ ref('stg_shopify__return_pages') }} where operation = 'refunds'
+    from pages where operation = 'refunds'
 ), actual as (
     select 'returnLineItems' as operation, count(*) as n from {{ ref('stg_shopify__return_line_items') }}
     union all

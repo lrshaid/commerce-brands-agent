@@ -11,5 +11,5 @@ select
     sum(subtotal_amount) as refund_subtotal_amount,
     sum(total_tax_amount) as refund_tax_amount,
     count(*) as refund_line_count
-from {{ ref('stg_shopify__refund_line_items') }}
+from {{ ref('typed_shopify__refunds') }}
 group by shop_key, extraction_id, order_gid, order_line_item_id

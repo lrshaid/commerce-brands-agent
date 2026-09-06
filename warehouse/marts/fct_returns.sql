@@ -1,3 +1,5 @@
+-- TEMPLATE HISTORICO — NO EJECUTABLE. Equivalente vivo en dbt/models/. No editar sin actualizar el equivalente dbt.
+
 -- Full-outer return/refund fact. Refund values win when both sides exist.
 with refund_lines as (
     select

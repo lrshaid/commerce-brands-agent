@@ -22,6 +22,10 @@ models:
         +tags: [shopify_staging]
       platform:
         +tags: [platform_smoke]
+    typed:
+      shopify:
+        +schema: analytics
+        +tags: [shopify_typed]
     intermediate:
       +schema: analytics
       +tags: [business_intermediate]

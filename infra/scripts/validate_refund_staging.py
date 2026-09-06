@@ -41,15 +41,22 @@ def build_probe():
                timestamp('2026-01-01') as published_at, parse_json(@files) as files
     )"""]
     env = Environment(undefined=StrictUndefined)
-    env.globals.update(source=lambda _, table: "raw_pages" if table == "order_refunds" else "manifests",
-                       ref=lambda name: name)
-    names = ["refund_pages", "refunds", "refund_line_items", "refund_transactions", "refund_adjustments"]
-    for suffix in names:
+    env.globals.update(
+        source=lambda _, table: "raw_pages" if table == "order_refunds" else "manifests",
+        ref=lambda name: name,
+        config=lambda **_: None,
+    )
+    macro_template = env.from_string((ROOT / 'dbt/macros/shopify_refund_pages.sql').read_text())
+    env.globals['shopify_refund_pages'] = macro_template.module.shopify_refund_pages
+    # stg_shopify__refund_pages was removed as a dbt model; the probe keeps a
+    # pages CTE so the count assertions remain meaningful.
+    ctes.append('refund_pages as (select * from ' + env.globals['shopify_refund_pages']() + ')')
+    for suffix in ("refunds", "refund_line_items", "refund_transactions", "refund_adjustments"):
         name = "stg_shopify__" + suffix
         sql = env.from_string((ROOT / "dbt/models/staging/refunds" / (name + ".sql")).read_text()).render()
         ctes.append(name + " as (" + sql + ")")
     sql = "with " + ",\n".join(ctes) + """
-    select (select count(*) from stg_shopify__refund_pages) as pages,
+    select (select count(*) from refund_pages) as pages,
       (select count(*) from stg_shopify__refunds) as refunds,
       (select count(*) from stg_shopify__refund_line_items) as lines,
       (select sum(quantity) from stg_shopify__refund_line_items) as quantity,

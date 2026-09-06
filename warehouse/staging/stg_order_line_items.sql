@@ -1,3 +1,5 @@
+-- TEMPLATE HISTORICO — NO EJECUTABLE. Equivalente vivo en dbt/models/. No editar sin actualizar el equivalente dbt.
+
 -- BigQuery Standard SQL. Input contract: raw_shopify.orders(payload JSON).
 select
     regexp_extract(json_value(order_json, '$.id'), r'(\d+)$') as order_id,

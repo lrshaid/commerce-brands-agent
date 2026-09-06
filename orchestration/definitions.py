@@ -116,6 +116,9 @@ returns_job = dg.define_asset_job(
 
 marts_job = dg.define_asset_job(
     "shopify_marts_build",
+    # Typed models carry the same stream tag as their source staging models, so
+    # they are built cohesively inside each stream step rather than in a separate
+    # typed step that would leave reconciliation tests without upstream assets.
     selection=dg.AssetSelection.assets(shopify_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt),
     tags={"dagster/max_retries": "0", "purpose": "shopify_marts_build"},
     executor_def=dg.in_process_executor)

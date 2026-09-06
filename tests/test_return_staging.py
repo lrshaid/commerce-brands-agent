@@ -20,7 +20,8 @@ class ReturnStagingContractTests(unittest.TestCase):
 
     def test_models_preserve_only_projection_fields_and_lineage(self):
         models = ROOT / 'dbt/models/staging/returns'
-        pages = (models / 'stg_shopify__return_pages.sql').read_text()
+        macros = ROOT / 'dbt/macros/shopify_return_pages.sql'
+        pages = macros.read_text()
         returns = (models / 'stg_shopify__returns.sql').read_text()
         lines = (models / 'stg_shopify__return_line_items.sql').read_text()
         refunds = (models / 'stg_shopify__return_refunds.sql').read_text()
@@ -42,7 +43,6 @@ class ReturnStagingContractTests(unittest.TestCase):
         self.assertTrue(manifest_path.is_file(), 'run dbt compile before checking relations')
         manifest = json.loads(manifest_path.read_text())
         expected = {
-            'stg_shopify__return_pages',
             'stg_shopify__returns',
             'stg_shopify__return_line_items',
             'stg_shopify__return_refunds',

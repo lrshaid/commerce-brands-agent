@@ -1,3 +1,5 @@
+-- TEMPLATE HISTORICO — NO EJECUTABLE. Equivalente vivo en dbt/models/. No editar sin actualizar el equivalente dbt.
+
 -- Revenue-core mart. The EMV business rule is documented, but its raw exchange-line contract is still missing.
 with gmv as (
     select

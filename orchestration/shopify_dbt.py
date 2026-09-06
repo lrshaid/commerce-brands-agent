@@ -11,16 +11,23 @@ MANIFEST = Path(__file__).resolve().parents[1] / "dbt/target/manifest.json"
 
 @dbt_assets(manifest=MANIFEST, select="tag:shopify_staging")
 def shopify_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    # Includes typed_shopify__orders/order_line_items/shipping_lines because they
+    # also carry the shopify_staging tag; typed models are built cohesively with
+    # their source stream.
     yield from run_dbt(context, dbt, "shopify")
 
 
 @dbt_assets(manifest=MANIFEST, select="tag:refund_staging")
 def refund_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    # Includes typed_shopify__refunds because it also carries the refund_staging tag.
+
     yield from run_dbt(context, dbt, "refunds")
 
 
 @dbt_assets(manifest=MANIFEST, select="tag:returns_staging")
 def returns_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    # Includes typed_shopify__return_line_items because it also carries the
+    # returns_staging tag.
     yield from run_dbt(context, dbt, "returns")
 
 
