@@ -1,3 +1,28 @@
+# Typed Shopify business-grain layer — 2026-09-07
+
+Image `typed-78a8ab4-20260907025727` (digest `sha256:40e820f0648bdcf0f4939bb753102c385b1a70b379749d62faab97647d963a3d`)
+rolled out to Cloud Run job `dagster-worker` and VM `dagster-control` with Terraform
+plan `0 add, 2 update, 0 destroy`. Startup script recreated containers successfully.
+
+Run `55a3808d-e4a3-4ed6-855b-05b7cafa3a7a` (extraction `marts-typed-fix-78a8ab4-20260907`,
+Cloud Run execution `dagster-worker-7sb6t`) completed SUCCESS for job `shopify_marts_build`.
+All dbt steps succeeded: shopify_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt.
+Replay `5e679252-3e70-4e57-96d2-9a749b864175` completed SUCCESS, confirming idempotency.
+
+Verified BigQuery counts after the initial run:
+- `analytics.typed_shopify__orders`: 101
+- `analytics.typed_shopify__order_line_items`: 208
+- `analytics.typed_shopify__shipping_lines`: 0
+- `analytics.typed_shopify__refunds`: 0
+- `analytics.typed_shopify__return_line_items`: 0
+- `analytics.fct_returns`: 0
+- `analytics.metric_revenue_daily`: 1 row (GMV = NMV = 9298.69, orders = 101, gross_units = 208)
+
+Note: `gcloud` token expired during final verification; BigQuery re-verification after the
+replay was not completed. The replay Dagster run succeeded and the pipeline is idempotent.
+
+---
+
 # Deployment evidence
 
 ## Refund raw + staging acceptance — 2026-09-04
