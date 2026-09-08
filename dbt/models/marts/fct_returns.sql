@@ -78,14 +78,15 @@ select
     -- Order-level adjustments (shipping refunds + discrepancy) are applied once
     -- per order, distributed equally across lines for atomicity. They are kept
     -- separate from merchandise RMV to preserve the merchandise-only invariant.
-    coalesce(safe_divide(a.adjustment_amount, nullif(line_counts.lines_per_order, 0)), 0) as allocated_adjustment_amount,
+    coalesce(safe_divide(a.adjustment_amount, nullif(lpo.lines_per_order, 0)), 0) as allocated_adjustment_amount,
     coalesce(a.adjustment_amount, 0) as order_adjustment_amount,
     current_timestamp() as computed_at
 from combined c
 left join {{ ref('int_refund_adjustments_by_order') }} a
     on c.shop_key = a.shop_key
     and c.extraction_id = a.extraction_id
-    and c.order_gid = a.order_gidleft join lines_per_order lpo
+    and c.order_gid = a.order_gid
+left join lines_per_order lpo
     on c.shop_key = lpo.shop_key
     and c.extraction_id = lpo.extraction_id
     and c.order_gid = lpo.order_gid
