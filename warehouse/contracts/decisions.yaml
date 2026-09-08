@@ -1,20 +1,22 @@
 version: 1
 # No decision is implicitly accepted by the preflight.
 decisions:
-  typed_model_naming:
-    affects: [typed]
-    status: decided_2026_09_06
+  intermediate_naming:
+    affects: [intermediate]
+    status: decided_2026_09_07
     decision: >
-      The typed business-grain layer uses the prefix typed_shopify__* and lives
-      under dbt/models/typed/shopify/. This scope is referenced in
-      semantic/warehouse_models.yaml as 'typed' and is materialised in the
-      analytics schema with tag shopify_typed.
+      The clean business-grain layer follows standard dbt practice: it lives
+      under dbt/models/intermediate/shopify/ with the prefix int_shopify__*
+      and tag business_intermediate (replaces the former typed_shopify__* /
+      shopify_typed). Reconciliation and array-integrity tests were renamed
+      to reconcile_int_shopify__* / int_shopify__*_array_integrity. This is a
+      naming-only change; grains and SQL are unchanged.
 
-  typed_refund_grain:
-    affects: [typed, returns, marts]
+  intermediate_refund_grain:
+    affects: [intermediate, returns, marts]
     status: decided_2026_09_06
     decision: >
-      typed_shopify__refunds is deliberately built at REFUND LINE ITEM grain
+      int_shopify__refunds is deliberately built at REFUND LINE ITEM grain
       (one row per refund line item), not at the refund-header grain defined in
       semantic/shopify_entities.yaml. Refund header fields are denormalised on
       each line, and transactions / order adjustments are nested as arrays.
@@ -31,7 +33,7 @@ decisions:
       so the remaining flat staging models can still build from raw directly.
 
   uncaptured_discount_objects:
-    affects: [typed]
+    affects: [intermediate]
     status: decided_2026_09_06
     decision: >
       discountApplications and shippingLines ARE requested by the active
@@ -78,18 +80,69 @@ decisions:
   merchandise_taxonomy:
     affects: [commercial, product]
     question: Supply unit_style_type mapping, rule priority and tie policy; these columns are absent from the supplied taxonomy schema.
-  return_event_matching:
-    affects: [returns]
-    question: Supply an event-level refund-to-return linkage or quantity allocation policy for repeated/partial events; original order line alone is not a unique event key.
-  return_value_contract:
-    affects: [returns]
-    question: Map verified and unverified return line identifiers, discounted merchandise value and tax from actual landed fields; subtotalSet/totalTaxSet are not established Return fields.
-  return_recognition:
-    affects: [returns]
-    question: Specify recognition fallbacks for refund-only, open-return and return-only rows where the selected timestamp does not exist; define refund_processed_at.
+  return_recognition_refund_date:
+    affects: [returns, marts]
+    status: decided_2026_09_07
+    decision: >
+      A refund/return is recognized on the day its associated refund is created
+      (refund_created_at). The refund is the atomic recognition unit: its line
+      items have no timestamp of their own and all share the refund header's
+      created_at. fct_returns carries rmv_recognition_ts_utc from the
+      refund side and metric_revenue_daily buckets RMV by
+      date(rmv_recognition_ts_utc) instead of current_timestamp. Return-only
+      rows (return_no_refund, pending store credit) are not recognized until a
+      refund exists. Only an original line included in several separate refunds
+      collapses to the latest refund created date at the order-line grain;
+      per-event recognition would require a refund-event grain.
+
+  refund_is_main_line_source:
+    affects: [returns, marts]
+    status: decided_2026_09_07
+    decision: >
+      Refund line items are the main source of return/refund line-item value.
+      fct_returns keeps its order-line grain (fan-out fix) with refund-side
+      values winning via COALESCE and carries the recognition date from the
+      refund side; the return side remains secondary context for
+      matched / refund_no_return / return_no_refund classification.
+
   adjustments:
     affects: [returns]
     question: Decide how discrepancy adjustments affect merchandise RMV; shipping and tax must remain separate under the merchandise-only invariant. Preserve refund/event keys for adjustment legs.
+  exclusions_mart_level:
+    affects: [commercial]
+    status: decided_2026_09_07
+    decision: >
+      Cancelled orders are excluded from GMV at the mart level: a CASE inside
+      the sums (amount, orders, units) keeps the joined rows visible while only
+      valid orders count. Their refunds are excluded from RMV too, so NMV
+      stays consistent (a cancellation refund is not a return against sales).
+      Staging stays observation-pure: financial_status / cancelled_at remain
+      preserved columns. Amounts are discounted (post-promotion) totals, i.e.
+      already net value; a separate promotion measure is not split out yet.
+
+  adjustments_separate_from_merchandise:
+    affects: [returns, marts]
+    status: decided_2026_09_07
+    decision: >
+      Refund adjustments (shipping refunds + discrepancies) contribute at the
+      line level but stay separated from merchandise RMV: fct_returns exposes
+      allocated_adjustment_amount / order_adjustment_amount as their own
+      columns and never folds them into rmv_merchandise_amount, preserving the
+      merchandise-only invariant. Shipping and tax remain separate.
+
+  rfm_klaviyo_methodology:
+    affects: [customer, rfm]
+    status: decided_2026_09_07
+    decision: >
+      RFM follows Klaviyo's published methodology: scores 1-3 per dimension.
+      Recency uses fixed day bands (3: <=180 days since last purchase, 2:
+      181-365, 1: >365). Frequency follows Klaviyo's percentile rule
+      (orders <= p33 -> 1, <= max(p33+1, p66) -> 2, else 3). Monetary uses the
+      33rd/66th percentiles of gross spend. Monetary scores gross purchases
+      (post-promotion, non-cancelled), per Klaviyo's "amount spent"; net
+      contribution (gross + recognized refunds) is carried separately as
+      lifetime value. The six customer groups map all 27 score combinations.
+
   exchanges:
     affects: [commercial, returns]
     question: Supply added-item exchange linkage and original-order resolution scoped by shop; do not detect arbitrary display names containing -E as exchanges.
@@ -102,9 +155,20 @@ decisions:
   inventory_rerun:
     affects: [inventory]
     question: For an already-published snapshot date, reject reruns or skip identical input? Specify atomic publication and handling of changed inputs; blind INSERT duplicates keys.
-  customer_identity:
-    affects: [customer]
-    question: Define cross-shop customer equivalence, guest matching, timestamp tie-breaks and first-purchase restatement; shop-local numeric IDs cannot establish cross-shop identity.
+  customer_identity_email:
+    affects: [customer, rfm]
+    status: decided_2026_09_07
+    decision: >
+      Single-shop customer identity is keyed by sha256(lower(trim(email))) ->
+      customer_identity_id; customers without an email fall back to their own
+      customer_gid and are flagged as guests. Multiple customer_gid sharing an
+      email consolidate to a canonical customer (tie-break: oldest created_at,
+      then highest amount_spent, then customer_gid). Raw email is never emitted
+      in marts. Marketing consent is not captured by the customers projection,
+      so no consent flag is asserted. GA4 sessions link to identity only when
+      the shop sends GA4 user_id equal to sha256(lower(trim(email))); otherwise
+      the fallback is order-linked matching in fct_ga4__customer_attribution.
+
   point_in_time:
     affects: [product]
     question: Supply historical attributes or first-load snapshot semantics for sale-time product attributes; current-state dimensions cannot reconstruct historical values.

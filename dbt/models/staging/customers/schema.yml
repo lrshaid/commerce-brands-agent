@@ -1,0 +1,25 @@
+version: 2
+sources:
+  - name: shopify_customers
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: customers
+      - name: ingestion_runs
+models:
+  - name: stg_shopify__customer_pages
+    columns:
+      - name: page_key
+        data_tests: [not_null, unique]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: published_at
+        data_tests: [not_null]
+  - name: stg_shopify__customers
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: customer_gid
+        data_tests: [not_null]
+      - name: shop_key
+        data_tests: [not_null]

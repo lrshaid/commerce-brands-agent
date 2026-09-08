@@ -17,6 +17,7 @@ import yaml
 
 _REFUND_OPERATIONS = {'orders', 'refundLineItems', 'transactions', 'orderAdjustments'}
 _RETURN_OPERATIONS = {'orders', 'returns', 'returnLineItems', 'refunds'}
+_CATALOG_OPERATIONS = {'customers', 'products', 'variants'}
 _SHA256 = re.compile(r'[0-9a-f]{64}')
 
 
@@ -193,6 +194,91 @@ def _validate_returns_page_publication(rows, files):
     if set(rows_by_generation) != set(response_pages):
         raise ValueError('Returns raw rows omit a response page')
 
+
+def _validate_catalog_page_publication(rows, files, stream=None):
+    """Validate customers/products/variants page grain before any write."""
+    response_pages, seals, generations = {}, [], set()
+    for source in files:
+        if not isinstance(source, dict):
+            raise ValueError('Catalog manifest file must be an object')
+        generation, sha256 = source.get('generation'), source.get('sha256')
+        if (not isinstance(generation, str) or not generation.isdigit()
+                or not isinstance(sha256, str) or not _SHA256.fullmatch(sha256)
+                or not str(source.get('uri', '')).startswith('gs://')):
+            raise ValueError('Catalog manifest file must include GCS URI, generation and SHA256')
+        if generation in generations:
+            raise ValueError('Catalog manifest generations must be unique')
+        generations.add(generation)
+        if source.get('role') == 'completion_seal':
+            seals.append(source)
+            continue
+        if source.get('role') != 'response_page' or source.get('operation') not in _CATALOG_OPERATIONS:
+            raise ValueError('Catalog manifest has an unsupported file role or operation')
+        if stream in _CATALOG_OPERATIONS and source.get('operation') != stream:
+            raise ValueError('Catalog stream and response operation do not match')
+        variables = source.get('variables')
+        operation = source['operation']
+        expected = {'first', 'after', 'query'} if operation in {'customers', 'products'} else {'first', 'after', 'id'}
+        if (not isinstance(variables, dict) or set(variables) != expected
+                or not isinstance(variables.get('first'), int) or isinstance(variables.get('first'), bool)
+                or not 1 <= variables['first'] <= 100
+                or variables.get('after') is not None and not isinstance(variables.get('after'), str)
+                or operation in {'customers', 'products'} and not isinstance(variables.get('query'), str)
+                or operation == 'variants' and not re.fullmatch(r'gid://shopify/Product/[0-9]+', str(variables.get('id')))
+                or not isinstance(source.get('request_sha256'), str)
+                or not _SHA256.fullmatch(source['request_sha256'])
+                or not _aware_timestamp(source.get('captured_at'))):
+            raise ValueError('Catalog response-page metadata is incomplete or invalid')
+        response_pages[generation] = source
+    if len(seals) != 1 or (not response_pages and stream != 'variants'):
+        raise ValueError('Catalog manifest requires one completion seal and response pages')
+    if stream == 'variants' and not response_pages:
+        counts = seals[0].get('catalog_counts')
+        if (not isinstance(counts, dict) or counts.get('products') != 0
+                or counts.get('variants') != 0):
+            raise ValueError('Empty variants stream requires an extraction with zero products')
+
+    rows_by_generation = {}
+    for row in rows:
+        if (not isinstance(row, dict) or set(row) != set(contract_columns()[0])
+                or not isinstance(row.get('file_id'), str) or row.get('record_index') != 1):
+            raise ValueError('Catalog response pages require envelope columns and record_index=1')
+        generation = row['file_id']
+        if generation not in response_pages or generation in rows_by_generation:
+            raise ValueError('Catalog raw rows must map one-to-one to response pages')
+        text = row.get('record_text')
+        if not isinstance(text, str) or row.get('payload') != text:
+            raise ValueError('Catalog raw row must preserve original JSON text')
+        digest_value = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if row.get('record_sha256') != digest_value or response_pages[generation].get('sha256') != digest_value:
+            raise ValueError('Catalog raw row or response page checksum mismatch')
+        try:
+            payload = json.loads(text)
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError('Catalog response page is not valid JSON') from None
+        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), dict):
+            raise ValueError('Catalog response page is incomplete or has GraphQL errors')
+        source = response_pages[generation]
+        operation, variables = source['operation'], source['variables']
+        if operation in {'customers', 'products'}:
+            connection = payload['data'].get(operation)
+        else:
+            node = payload['data'].get('node')
+            if not isinstance(node, dict) or node.get('id') != variables.get('id'):
+                raise ValueError('Catalog response page owner does not match its request')
+            connection = node.get('variants')
+        if (not isinstance(connection, dict) or not isinstance(connection.get('pageInfo'), dict)
+                or type(connection['pageInfo'].get('hasNextPage')) is not bool
+                or (connection['pageInfo'].get('endCursor') is not None
+                    and not isinstance(connection['pageInfo'].get('endCursor'), str))
+                or not isinstance(connection.get('nodes'), list)):
+            raise ValueError('Catalog response page is missing its connection')
+        if connection['pageInfo']['hasNextPage'] and not connection['pageInfo'].get('endCursor'):
+            raise ValueError('Catalog response page has a nonadvancing cursor')
+        rows_by_generation[generation] = row
+    if set(rows_by_generation) != set(response_pages):
+        raise ValueError('Catalog raw rows omit a response page')
+
 CONTRACT = Path(__file__).resolve().parents[2] / 'warehouse/contracts/shopify_raw_v1.yaml'
 
 
@@ -210,7 +296,7 @@ def dataset_id(value):
 
 def publication_sql(dataset, stream, stage):
     dataset_id(dataset)
-    if stream not in ('orders', 'order_refunds', 'returns', 'acceptance'):
+    if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants', 'acceptance'):
         raise ValueError('Stream has no publication contract')
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
         raise ValueError('Invalid staging identifier')
@@ -332,6 +418,18 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             return_rows.append(row)
         _validate_returns_page_publication(return_rows, files)
         records = return_rows
+    if stream in ('customers', 'products', 'variants'):
+        if manifest['transport'] != 'shopify_graphql_pages':
+            raise ValueError('Catalog publication requires shopify_graphql_pages transport')
+        catalog_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            catalog_rows.append(row)
+        _validate_catalog_page_publication(catalog_rows, files, stream)
+        records = catalog_rows
     stage = '_load_' + uuid.uuid4().hex
     sql = publication_sql(dataset, stream, stage)
     with tempfile.SpooledTemporaryFile(max_size=4*1024*1024, mode='r+b') as data:

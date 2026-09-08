@@ -23,3 +23,6 @@ infra/local/
 # Temporary probes and generated artifacts (not part of runtime build)
 infra/scripts/probe_worker_network.py
 dbt/dbt_internal_packages/
+
+# Editor config
+**/.vscode/

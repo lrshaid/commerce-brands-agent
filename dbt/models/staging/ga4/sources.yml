@@ -1,0 +1,37 @@
+version: 2
+
+sources:
+  - name: ga4_export
+    description: >-
+      GA4 BigQuery daily export. This source is disabled at the model layer
+      until the owner supplies the property, project, dataset, and export
+      contract. The wildcard identifier is intentional: each row is one GA4
+      event from events_YYYYMMDD (and must not be mixed with intraday rows).
+    database: "{{ var('ga4_project', '') }}"
+    schema: "{{ var('ga4_dataset', '') }}"
+    tables:
+      - name: events
+        identifier: events_*
+        description: >-
+          Daily GA4 event export. event_date is in the property's registered
+          timezone; event_timestamp is UTC microseconds. Late daily events may
+          be revised by GA4 for the documented export window.
+        config:
+          meta:
+            ga4:
+              property_id_var: ga4_property_id
+              date_vars: [ga4_scan_start_date, ga4_scan_end_date, ga4_report_start_date, ga4_report_end_date]
+              stream_ids_var: ga4_stream_ids
+              source_contract: daily_export_only
+              intraday_supported: false
+        columns:
+          - name: event_date
+          - name: event_timestamp
+          - name: event_name
+          - name: user_pseudo_id
+          - name: stream_id
+          - name: event_params
+          - name: ecommerce
+          - name: privacy_info
+          - name: collected_traffic_source
+          - name: session_traffic_source_last_click

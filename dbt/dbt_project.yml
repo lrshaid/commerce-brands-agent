@@ -6,6 +6,31 @@ model-paths: [models]
 test-paths: [tests]
 macro-paths: [macros]
 clean-targets: [target, dbt_packages]
+vars:
+  # GA4 export is deliberately opt-in.  A property/dataset must be supplied
+  # by the deployment that owns the export; there is no production default.
+  ga4_export_enabled: false
+  ga4_project: ''
+  ga4_dataset: ''
+  ga4_property_id: ''
+  ga4_scan_start_date: ''
+  ga4_scan_end_date: ''
+  ga4_report_start_date: ''
+  ga4_report_end_date: ''
+  ga4_start_date: ''
+  ga4_end_date: ''
+  ga4_property_timezone: ''
+  ga4_stream_ids: []
+  ga4_shopify_order_identifier_fields: []
+  ga4_attribution_enabled: false
+  ga4_attribution_lookback_days: ''
+  ga4_attribution_output_start_date: ''
+  ga4_attribution_output_end_date: ''
+  ga4_owned_hosts: []
+  ga4_channel_taxonomy: []
+  ga4_funnel_steps: ['add_to_cart', 'begin_checkout', 'purchase']
+  ga4_shop_key: ''
+  ga4_unknown_consent_policy: exclude
 models:
   commerce:
     +persist_docs: {relation: true, columns: true}
@@ -20,15 +45,23 @@ models:
       shopify:
         +schema: analytics
         +tags: [shopify_staging]
+      customers:
+        +schema: analytics
+        +tags: [customers_staging]
+      products:
+        +schema: analytics
+        +tags: [products_staging]
       platform:
         +tags: [platform_smoke]
-    typed:
-      shopify:
+      ga4:
         +schema: analytics
-        +tags: [shopify_typed]
+        +tags: [ga4_staging]
     intermediate:
       +schema: analytics
       +tags: [business_intermediate]
+      ga4:
+        +schema: analytics
+        +tags: [ga4_intermediate]
     marts:
       +schema: analytics
       +tags: [business_marts]

@@ -9,7 +9,7 @@
       ],
       "decisions": []
     },
-    "typed": {
+    "intermediate": {
       "config_keys": [],
       "tables": [],
       "decisions": []
@@ -64,7 +64,6 @@
         "cfg_sales_channel_map"
       ],
       "decisions": [
-        "exclusions",
         "merchandise_taxonomy",
         "exchanges"
       ]
@@ -81,12 +80,7 @@
       "tables": [
         "cfg_return_reason_map"
       ],
-      "decisions": [
-        "return_event_matching",
-        "return_value_contract",
-        "return_recognition",
-        "adjustments"
-      ]
+      "decisions": []
     },
     "payment": {
       "config_keys": [
@@ -127,9 +121,7 @@
       "tables": [
         "cfg_test_order_rules"
       ],
-      "decisions": [
-        "customer_identity"
-      ]
+      "decisions": []
     },
     "rfm": {
       "config_keys": [
@@ -139,9 +131,7 @@
         "cfg_rfm_groups",
         "cfg_acquisition_segments"
       ],
-      "decisions": [
-        "customer_identity"
-      ]
+      "decisions": []
     },
     "product": {
       "config_keys": [
@@ -585,7 +575,7 @@
       ]
     },
     "core.dim_collection": {
-      "scope": "typed",
+      "scope": "intermediate",
       "purity": "shopify_native",
       "implementation": "not_started",
       "depends_on": [
@@ -593,7 +583,7 @@
       ]
     },
     "core.brg_product_collection": {
-      "scope": "typed",
+      "scope": "intermediate",
       "purity": "shopify_native",
       "implementation": "not_started",
       "depends_on": [
@@ -601,7 +591,7 @@
       ]
     },
     "core.dim_discount": {
-      "scope": "typed",
+      "scope": "intermediate",
       "purity": "shopify_native",
       "implementation": "not_started",
       "depends_on": [
@@ -1411,7 +1401,7 @@
       "depends_on": []
     },
     "core.xf_return_line__erp": {
-      "scope": "typed",
+      "scope": "intermediate",
       "purity": "third_party",
       "implementation": "unmounted_stub",
       "depends_on": [],

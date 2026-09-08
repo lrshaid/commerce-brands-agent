@@ -1,0 +1,101 @@
+version: 2
+
+models:
+  - name: int_ga4__session_identity
+    description: >-
+      Custom 30-minute sessions linked to a resolved customer identity when GA4
+      user_id equals the hashed email key (sha256(lower(trim(email)))). No
+      identity is inferred without user_id; user_pseudo_id is never an identity
+      key. Order-linked matching remains the fallback.
+    columns:
+      - name: custom_session_key
+        data_tests: [not_null, unique]
+      - name: identity_link_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [no_user_id, user_id_unmatched, matched_email_identity]
+  - name: int_ga4__session_event_map_30m
+    description: >-
+      Event-to-custom-session mapping using browser-scoped user_pseudo_id and
+      a strict gap greater than 30 minutes. Events without a native browser
+      identity remain as excluded rows for reconciliation.
+    columns:
+      - name: observation_key
+        data_tests: [not_null]
+      - name: session_exclusion_reason
+        description: Null for assigned events; non-null explains excluded identity rows.
+      - name: custom_session_key
+        description: Null only when session_exclusion_reason is non-null.
+  - name: int_ga4__sessions_30m
+    description: >-
+      Custom 30-minute session aggregate with deterministic entry/landing
+      attributes, duration and bounce shape, separate from GA4-native sessions.
+    columns:
+      - name: custom_session_key
+        data_tests: [not_null, unique]
+      - name: user_pseudo_id
+        data_tests: [not_null]
+      - name: session_start_ts_utc
+        data_tests: [not_null]
+      - name: entry_page_location
+        description: First page/screen event location in the session.
+      - name: entry_channel_group
+        description: >-
+          Channel label of the session entry from ga4_channel_taxonomy; null
+          when unconfigured.
+  - name: int_ga4__purchase_order_candidates
+    description: >-
+      Exact-string GA4 transaction-to-Shopify order candidates. It preserves
+      every purchase observation and reports unmatched or ambiguous outcomes.
+    columns:
+      - name: purchase_observation_key
+        data_tests: [not_null]
+      - name: order_match_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - unmatched_missing_transaction_id
+                  - unmatched_no_identifier_mapping
+                  - unmatched_no_exact_order
+                  - ambiguous_multiple_orders
+                  - matched_exact_identifier
+  - name: int_ga4__touchpoints
+    description: >-
+      Native/custom session touchpoints with raw campaign fields, documented
+      precedence buckets and an ordered configurable channel classification.
+      channel_group is null until ga4_channel_taxonomy is supplied; owned
+      inheritance remains a separate configured post-step.
+    columns:
+      - name: touchpoint_observation_key
+        data_tests: [not_null]
+      - name: session_definition
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ga4_native, ga4_custom_30m]
+      - name: session_key
+        description: Session key for the row's own session_definition.
+      - name: channel_group
+        description: >-
+          Configurable channel label from ga4_channel_taxonomy; null when
+          unconfigured or unmatched.
+  - name: int_ga4__purchase_attribution
+    description: >-
+      Candidate attribution touchpoints for exact-matched purchases. Exposes
+      first, last, first-30-days, and linear 1/N models for both definitions;
+      financial measures and a primary model are intentionally absent.
+    columns:
+      - name: purchase_observation_key
+        data_tests: [not_null]
+      - name: attribution_model
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [first_click, last_click, first_click_30days, linear_multi_click]
+      - name: attribution_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [attributed, no_eligible_touchpoints]

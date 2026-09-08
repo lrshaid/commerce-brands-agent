@@ -1,21 +1,23 @@
-# Actualización — capa tipada de negocio — 2026-09-07
+# Actualización — capa intermedia de negocio — 2026-09-07
 
-Se implementó y desplegó la capa de modelos tipados a grain de negocio con objetos anidados:
+Se implementó y desplegó la capa de modelos intermedios a grain de negocio con objetos
+anidados. Ese mismo día la capa se renombró a nomenclatura dbt estándar (de
+`typed_shopify__*` a `int_shopify__*`, de `dbt/models/typed/` a
+`dbt/models/intermediate/shopify/`, tag `business_intermediate`); el deploy y los
+conteos BigQuery abajo se hicieron bajo los nombres previos.
 
-- Nuevos modelos en `dbt/models/typed/shopify/`:
-  - `typed_shopify__orders` (1 fila/orden, discount applications anidados)
-  - `typed_shopify__order_line_items` (1 fila/línea, discount allocations anidados)
-  - `typed_shopify__shipping_lines` (1 fila/línea de envío)
-  - `typed_shopify__refunds` (grain = refund line item, transactions + adjustments anidados)
-  - `typed_shopify__return_line_items` (1 fila/línea devuelta, return refunds anidados)
+- Nuevos modelos en `dbt/models/intermediate/shopify/`:
+  - `int_shopify__orders` (1 fila/orden, discount applications anidados)
+  - `int_shopify__order_line_items` (1 fila/línea, discount allocations anidados)
+  - `int_shopify__shipping_lines` (1 fila/línea de envío)
+  - `int_shopify__refunds` (grain = refund line item, transactions + adjustments anidados)
+  - `int_shopify__return_line_items` (1 fila/línea devuelta, return refunds anidados)
 - Eliminados como modelos dbt: `stg_shopify__refund_pages` y `stg_shopify__return_pages`;
   su lógica de parseo de páginas raw se preserva como macros dbt.
 - Staging plano re-cableado para leer raw directamente; marts/intermediate re-cableados
-  a los modelos tipados.
-- Tags de stream duales en modelos tipados para que se construyan cohesivamente
-  dentro de cada paso de stream (shopify_dbt/refund_dbt/returns_dbt).
+  a los modelos intermedios.
 - Tests dbt nuevos: grain/unicidad, no-nulos, integridad de arrays, reconciliación
-  staging↔typed, unicidad/conteo de páginas vs manifiesto.
+  staging↔intermediate, unicidad/conteo de páginas vs manifiesto.
 - Decisiones documentadas en `warehouse/contracts/decisions.yaml`.
 - `semantic/metrics.yaml`: `gmv`, `order_count`, `gross_units` → implemented=true;
   `rmv`, `nmv`, `returned_units`, `net_units` → implemented=false (sin datos reales
@@ -25,8 +27,8 @@ Deploy: image `typed-78a8ab4-20260907025727`, digest
 `sha256:40e820f0648bdcf0f4939bb753102c385b1a70b379749d62faab97647d963a3d`.
 Run `55a3808d-e4a3-4ed6-855b-05b7cafa3a7a` (execution `dagster-worker-7sb6t`) SUCCESS;
 replay `5e679252-3e70-4e57-96d2-9a749b864175` SUCCESS, idempotente.
-Conteos verificados en BigQuery: typed_orders 101, typed_order_line_items 208,
-typed_shipping_lines 0, typed_refunds 0, typed_return_line_items 0,
+Conteos verificados en BigQuery (nombres previos al renombre): orders 101,
+order_line_items 208, shipping_lines 0, refunds 0, return_line_items 0,
 fct_returns 0, metric_revenue_daily 1 fila (GMV=NMV=9298.69, 101 órdenes, 208 unidades).
 
 ---

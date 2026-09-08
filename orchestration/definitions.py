@@ -8,11 +8,13 @@ from dagster_dbt import DbtCliResource, dbt_assets
 from google.cloud import bigquery, storage
 from orchestration.ingestion_acceptance import ingestion_probe
 from orchestration.shopify_orders import shopify_orders
-from orchestration.shopify_dbt import shopify_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt
+from orchestration.shopify_dbt import shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
 from orchestration.shopify_returns_raw import shopify_returns_raw
+from orchestration.shopify_catalog import shopify_catalog
+from orchestration.shopify_catalog_raw import shopify_catalog_raw
 
 ROOT = Path(__file__).resolve().parents[1]
 DBT_DIR = ROOT / "dbt"
@@ -116,20 +118,24 @@ returns_job = dg.define_asset_job(
 
 marts_job = dg.define_asset_job(
     "shopify_marts_build",
-    # Typed models carry the same stream tag as their source staging models, so
-    # they are built cohesively inside each stream step rather than in a separate
-    # typed step that would leave reconciliation tests without upstream assets.
-    selection=dg.AssetSelection.assets(shopify_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt),
+    # Stream staging steps feed a single intermediate step (tag:business_intermediate)
+    # that builds the clean int_shopify__* grains, then marts. Reconciliation tests
+    # reference both staging and intermediate, so the whole chain builds in one job.
+    selection=dg.AssetSelection.assets(shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt),
     tags={"dagster/max_retries": "0", "purpose": "shopify_marts_build"},
     executor_def=dg.in_process_executor)
 
 defs = dg.Definitions(
-    assets=[probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_dbt, shopify_refunds, shopify_refunds_raw, refund_dbt,
-            shopify_returns, shopify_returns_raw, returns_dbt, intermediate_dbt, marts_dbt],
+    assets=[probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_dbt, customers_dbt, products_dbt,
+            shopify_refunds, shopify_refunds_raw, refund_dbt, shopify_returns, shopify_returns_raw, returns_dbt,
+            shopify_catalog, shopify_catalog_raw, intermediate_dbt, marts_dbt],
     jobs=[smoke_job, orders_job, refunds_job, dg.define_asset_job(
         "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw, refund_dbt),
         tags={"dagster/max_retries": "0", "purpose": "shopify_refunds_ingestion"},
-        executor_def=dg.in_process_executor), returns_job, marts_job],
+        executor_def=dg.in_process_executor), returns_job, dg.define_asset_job(
+        "shopify_catalog_ingestion", selection=dg.AssetSelection.assets(shopify_catalog, shopify_catalog_raw),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_catalog_ingestion"},
+        executor_def=dg.in_process_executor), marts_job],
     resources={"dbt": DbtCliResource(project_dir=DBT_DIR, profiles_dir=DBT_DIR)},
     # No recurring data schedule until live-source and acceptance gates pass.
 )

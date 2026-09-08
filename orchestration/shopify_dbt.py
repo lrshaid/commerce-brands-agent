@@ -11,23 +11,33 @@ MANIFEST = Path(__file__).resolve().parents[1] / "dbt/target/manifest.json"
 
 @dbt_assets(manifest=MANIFEST, select="tag:shopify_staging")
 def shopify_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    # Includes typed_shopify__orders/order_line_items/shipping_lines because they
-    # also carry the shopify_staging tag; typed models are built cohesively with
-    # their source stream.
+    # Orders staging only. The clean intermediate grains (int_shopify__*)
+    # live under tag:business_intermediate and are built by intermediate_dbt
+    # in the marts job; the stream step no longer carries them.
     yield from run_dbt(context, dbt, "shopify")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:customers_staging")
+def customers_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "customers")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:products_staging")
+def products_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "products")
 
 
 @dbt_assets(manifest=MANIFEST, select="tag:refund_staging")
 def refund_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    # Includes typed_shopify__refunds because it also carries the refund_staging tag.
-
+    # Refund staging only; int_shopify__refunds is an intermediate model and is
+    # built by intermediate_dbt in the marts job.
     yield from run_dbt(context, dbt, "refunds")
 
 
 @dbt_assets(manifest=MANIFEST, select="tag:returns_staging")
 def returns_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    # Includes typed_shopify__return_line_items because it also carries the
-    # returns_staging tag.
+    # Returns staging only; int_shopify__return_line_items is an intermediate
+    # model and is built by intermediate_dbt in the marts job.
     yield from run_dbt(context, dbt, "returns")
 
 

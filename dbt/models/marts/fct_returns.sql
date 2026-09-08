@@ -3,6 +3,8 @@
 -- Refund values win when both a refund line and a return line exist for the
 -- same original order line. This captures matched refunds, refunds with no
 -- formal return, and returns with no refund yet (store credit / pending).
+-- Recognition date = the associated refund created date; return-only rows stay
+-- null (not yet recognized) until a refund exists.
 --
 -- FAN-OUT FIX: refund and return lines are aggregated to order-line grain
 -- (one row per original order line) before the FULL OUTER JOIN. This prevents
@@ -15,7 +17,8 @@ with refund_lines as (
         order_line_item_id,
         refund_subtotal_amount,
         refund_tax_amount,
-        refunded_quantity
+        refunded_quantity,
+        latest_refund_created_at
     from {{ ref('int_refund_lines_by_order_line') }}
 )
 , return_lines as (
@@ -46,12 +49,20 @@ with refund_lines as (
         coalesce(rf.refund_subtotal_amount, rt.return_subtotal_amount, 0) as merchandise_subtotal_amount,
         coalesce(rf.refund_tax_amount, rt.return_tax_amount, 0) as tax_amount,
         -- Refund side wins when both exist; otherwise use whichever side exists.
-        coalesce(rf.refunded_quantity, rt.returned_quantity, 0) as quantity
+        coalesce(rf.refunded_quantity, rt.returned_quantity, 0) as quantity,
+        -- Recognition date from the refund side (refund is the main source);
+        -- null while a return has no associated refund (pending store credit).
+        rf.latest_refund_created_at as rmv_recognition_ts_utc
     from refund_lines rf
     full outer join return_lines rt
         on rf.shop_key = rt.shop_key
         and rf.extraction_id = rt.extraction_id
         and rf.order_line_item_id = rt.order_line_item_id
+)
+, lines_per_order as (
+    select shop_key, extraction_id, order_gid, count(*) as lines_per_order
+    from combined
+    group by shop_key, extraction_id, order_gid
 )
 select
     c.shop_key,
@@ -63,6 +74,7 @@ select
     -abs(c.merchandise_subtotal_amount) as rmv_merchandise_amount,
     -abs(c.tax_amount) as rmv_tax_amount,
     c.quantity as returned_quantity,
+    c.rmv_recognition_ts_utc,
     -- Order-level adjustments (shipping refunds + discrepancy) are applied once
     -- per order, distributed equally across lines for atomicity. They are kept
     -- separate from merchandise RMV to preserve the merchandise-only invariant.
@@ -73,12 +85,7 @@ from combined c
 left join {{ ref('int_refund_adjustments_by_order') }} a
     on c.shop_key = a.shop_key
     and c.extraction_id = a.extraction_id
-    and c.order_gid = a.order_gid
-left join (
-    select shop_key, extraction_id, order_gid, count(*) as lines_per_order
-    from combined
-    group by shop_key, extraction_id, order_gid
-) line_counts
-    on c.shop_key = line_counts.shop_key
-    and c.extraction_id = line_counts.extraction_id
-    and c.order_gid = line_counts.order_gid
+    and c.order_gid = a.order_gidleft join lines_per_order lpo
+    on c.shop_key = lpo.shop_key
+    and c.extraction_id = lpo.extraction_id
+    and c.order_gid = lpo.order_gid

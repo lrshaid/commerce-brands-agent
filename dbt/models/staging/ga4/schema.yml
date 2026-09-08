@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: stg_ga4__events
+    description: >-
+      Opt-in, one-row-per-GA4-export-event adapter. It preserves native GA4
+      identifiers and source JSON; it does not create cross-device identities,
+      30-minute sessions, or attribution claims.
+    columns:
+      - name: property_id
+        description: Configured GA4 property ID; null when not configured.
+      - name: event_timestamp_micros
+        data_tests: [not_null]
+      - name: event_name
+        data_tests: [not_null]
+      - name: source_event_json
+        data_tests: [not_null]
+      - name: native_session_key
+        description: >-
+          property:stream:user_pseudo_id:ga_session_id only when all native
+          components exist; otherwise null.
+  - name: stg_ga4__pages
+    description: GA4 page/screen events projected from the event adapter.
+    columns:
+      - name: event_timestamp_micros
+        data_tests: [not_null]
+  - name: stg_ga4__purchases
+    description: GA4 purchase events; transaction_id remains nullable and native.
+    columns:
+      - name: event_timestamp_micros
+        data_tests: [not_null]
+      - name: missing_purchase_transaction_id
+        description: True when a purchase event has no native transaction ID.
+  - name: stg_ga4__sessions
+    description: >-
+      GA4-native session rollup keyed only by property, stream,
+      user_pseudo_id, and ga_session_id. It is not the custom 30-minute
+      tracker session layer.
+    columns:
+      - name: native_session_key
+        data_tests: [not_null, unique]
+      - name: user_pseudo_id
+        data_tests: [not_null]
+      - name: ga_session_id
+        data_tests: [not_null]

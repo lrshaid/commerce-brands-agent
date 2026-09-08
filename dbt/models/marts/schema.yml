@@ -1,7 +1,10 @@
 version: 2
 models:
   - name: fct_returns
-    description: Shopify-native RMV fact at original-order-line grain. Refund values win; RMV stored negative.
+    description: >-
+      Shopify-native RMV fact at original-order-line grain. Refund values win;
+      RMV stored negative. Recognition date = refund created date; return-only
+      rows stay null until a refund exists.
     columns:
       - name: shop_key
         data_tests: [not_null]
@@ -17,6 +20,10 @@ models:
           - accepted_values:
               arguments:
                 values: [matched, refund_no_return, return_no_refund]
+      - name: rmv_recognition_ts_utc
+        description: >-
+          Refund created date (recognition date); null for return_no_refund
+          rows that are not yet recognized.
       - name: rmv_merchandise_amount
         data_tests: [not_null]
       - name: rmv_tax_amount
@@ -36,4 +43,90 @@ models:
       - name: rmv_amount
         data_tests: [not_null]
       - name: nmv_amount
+        data_tests: [not_null]
+
+  - name: dim_customer_rfm
+    description: >-
+      Customer RFM per Klaviyo's methodology: recency by fixed day bands
+      (180/365), frequency and monetary by 33rd/66th percentiles, scores 1-3
+      and six customer groups over all 27 combinations. Monetary scores gross
+      purchases; net_contribution is lifetime value.
+    columns:
+      - name: customer_identity_id
+        data_tests: [not_null, unique]
+      - name: r_score
+        data_tests: [not_null]
+      - name: f_score
+        data_tests: [not_null]
+      - name: m_score
+        data_tests: [not_null]
+      - name: rfm_combo
+        data_tests: [not_null]
+      - name: rfm_group
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Champions, Loyal, Recent, Needs attention, At risk, Inactive]
+      - name: net_contribution
+        data_tests: [not_null]
+
+  - name: fct_customer_cohorts
+    description: >-
+      Customer acquisition cohorts by first-purchase month, with monthly
+      activity (customers, orders, spend) and months since first purchase.
+    columns:
+      - name: cohort_month
+        data_tests: [not_null]
+      - name: activity_month
+        data_tests: [not_null]
+      - name: months_since_first_purchase
+        data_tests: [not_null]
+
+  - name: fct_ga4__customer_attribution
+    description: >-
+      Marketing + customer mart. One row per matched GA4 purchase attributed
+      touchpoint, joined to its Shopify order and customer. Weights only; no
+      revenue/financial policy. Identity is order-linked (no cross-device
+      stitching).
+    columns:
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: purchase_observation_key
+        data_tests: [not_null]
+      - name: session_definition
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ga4_native, ga4_custom_30m]
+      - name: attribution_model
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [first_click, last_click, first_click_30days, linear_multi_click]
+      - name: attribution_weight
+        data_tests: [not_null]
+
+  - name: metric_ga4__funnel_daily
+    description: >-
+      Digital funnel mart: sessions -> users -> configured funnel steps by day
+      and entry channel, based on custom 30-minute sessions. Steps count
+      distinct sessions reaching each event name; no revenue/financial policy.
+      Single-shop assumption: property_id is the shop's GA4 property.
+    columns:
+      - name: property_id
+        data_tests: [not_null]
+      - name: metric_date
+        data_tests: [not_null]
+      - name: channel_group
+        data_tests: [not_null]
+      - name: sessions
+        data_tests: [not_null]
+      - name: users
+        data_tests: [not_null]
+      - name: purchase_sessions
         data_tests: [not_null]
