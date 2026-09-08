@@ -89,7 +89,7 @@ class CustomerRfmKlaviyoTests(unittest.TestCase):
             "linked_customer_gids",
             "cancelled_at is null",
             "discounted_total_shop_amount",
-            "rmv_recognition_ts_utc is not null",
+            "refund_created_at is not null",
             "net_contribution",
         ):
             self.assertIn(field, sql)

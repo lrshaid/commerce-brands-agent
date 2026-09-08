@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate']) }}
+{{ config(tags=['business_intermediate', 'shopify_staging']) }}
 -- Intermediate shipping-line grain: one row per order shipping line.
 -- Shipping lines are requested by orders_bulk.graphql but the dummy store has
 -- none, so this view currently returns zero rows.

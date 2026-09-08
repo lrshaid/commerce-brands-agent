@@ -7,9 +7,10 @@
 -- identity (sha256(lower(trim(email)))); orders map to identity through their
 -- customer_gid. Purchases exclude cancelled orders and use discounted
 -- (post-promotion) merchandise totals, the same basis as GMV. Net contribution
--- adds recognized refunds (rmv_recognition_ts_utc) of non-cancelled orders, so
--- lifetime value matches the revenue core. Orders without a resolvable
--- customer_gid are excluded: no customer to attribute them to.
+-- adds refund line merchandise value (refund is the main source; the refund's
+-- created date proves recognition) of non-cancelled orders, so lifetime value
+-- matches the revenue core. Orders without a resolvable customer_gid are
+-- excluded: no customer to attribute them to.
 with purchases as (
     select
         o.shop_key,
@@ -34,13 +35,13 @@ recognized_refunds as (
         o.extraction_id,
         o.order_gid,
         o.customer_gid,
-        sum(r.rmv_merchandise_amount) as order_rmv
-    from {{ ref('fct_returns') }} r
+        sum(-abs(r.subtotal_amount)) as order_rmv
+    from {{ ref('int_shopify__refunds') }} r
     join {{ ref('int_shopify__orders') }} o
         on r.shop_key = o.shop_key
         and r.extraction_id = o.extraction_id
         and r.order_gid = o.order_gid
-    where r.rmv_recognition_ts_utc is not null
+    where r.refund_created_at is not null
       and o.cancelled_at is null
     group by o.shop_key, o.extraction_id, o.order_gid, o.customer_gid
 ),

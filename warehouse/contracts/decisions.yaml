@@ -10,7 +10,12 @@ decisions:
       and tag business_intermediate (replaces the former typed_shopify__* /
       shopify_typed). Reconciliation and array-integrity tests were renamed
       to reconcile_int_shopify__* / int_shopify__*_array_integrity. This is a
-      naming-only change; grains and SQL are unchanged.
+      naming-only change; grains and SQL are unchanged. Stream tags
+      (shopify_staging / refund_staging / returns_staging) are kept alongside
+      business_intermediate on the int models whose reconciliation tests cross
+      staging and intermediate: Dagster builds each stream step with eager
+      indirect selection, so those tests run inside the stream step and need
+      their upstream already materialized.
 
   intermediate_refund_grain:
     affects: [intermediate, returns, marts]

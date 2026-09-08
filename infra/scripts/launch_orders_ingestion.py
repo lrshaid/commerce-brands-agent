@@ -65,7 +65,7 @@ def main():
         operations = {"shopify_capture__return_pages": {"config": config},
                       "shopify_returns_raw": {"config": config}}
     if args.job == "shopify_catalog_ingestion":
-        operations = {"shopify_catalog": {"config": config},
+        operations = {"shopify_capture__catalog_pages": {"config": config},
                       "shopify_catalog_raw": {"config": config}}
     if args.job == "shopify_refunds_ingestion":
         operations["shopify_refunds_raw"] = {"config": config}

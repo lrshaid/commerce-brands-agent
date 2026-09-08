@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate']) }}
+{{ config(tags=['business_intermediate', 'shopify_staging']) }}
 -- Intermediate order-line grain: one row per order line, with nested discount allocations.
 -- IMPORTANT: discountAllocations is NOT requested by the active orders_bulk.graphql
 -- query (it is not merely uncaptured: it is not asked for). To populate this struct
