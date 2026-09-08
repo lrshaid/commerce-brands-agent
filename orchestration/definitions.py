@@ -118,9 +118,10 @@ returns_job = dg.define_asset_job(
 
 marts_job = dg.define_asset_job(
     "shopify_marts_build",
-    # Stream staging steps feed a single intermediate step (tag:business_intermediate)
-    # that builds the clean int_shopify__* grains, then marts. Reconciliation tests
-    # reference both staging and intermediate, so the whole chain builds in one job.
+    # Stream staging steps build their clean int_shopify__ entity grains
+    # cohesively (their reconciliation tests need all parents materialized in
+    # the same step); tag:intermediate_view aggregates sessionization, refund/
+    # return order-line grains and customer identity; then marts.
     selection=dg.AssetSelection.assets(shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt),
     tags={"dagster/max_retries": "0", "purpose": "shopify_marts_build"},
     executor_def=dg.in_process_executor)

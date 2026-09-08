@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate', 'returns_staging']) }}
+{{ config(tags=['returns_staging']) }}
 -- Intermediate return-line grain: one row per returned order line, with return header
 -- fields denormalised and linked return refunds nested as an array.
 with return_refunds_agg as (

@@ -11,9 +11,9 @@ MANIFEST = Path(__file__).resolve().parents[1] / "dbt/target/manifest.json"
 
 @dbt_assets(manifest=MANIFEST, select="tag:shopify_staging")
 def shopify_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    # Orders staging only. The clean intermediate grains (int_shopify__*)
-    # live under tag:business_intermediate and are built by intermediate_dbt
-    # in the marts job; the stream step no longer carries them.
+    # Orders staging plus the clean int_shopify__ entity grains
+    # (orders/order_line_items/shipping_lines), built cohesively so their
+    # reconciliation tests find every parent materialized in this step.
     yield from run_dbt(context, dbt, "shopify")
 
 
@@ -29,20 +29,25 @@ def products_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
 
 @dbt_assets(manifest=MANIFEST, select="tag:refund_staging")
 def refund_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    # Refund staging only; int_shopify__refunds is an intermediate model and is
-    # built by intermediate_dbt in the marts job.
+    # Refund staging plus int_shopify__refunds (same cohesive-step rationale).
     yield from run_dbt(context, dbt, "refunds")
 
 
 @dbt_assets(manifest=MANIFEST, select="tag:returns_staging")
 def returns_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
-    # Returns staging only; int_shopify__return_line_items is an intermediate
-    # model and is built by intermediate_dbt in the marts job.
+    # Returns staging plus int_shopify__return_line_items.
     yield from run_dbt(context, dbt, "returns")
 
 
-@dbt_assets(manifest=MANIFEST, select="tag:business_intermediate")
+@dbt_assets(manifest=MANIFEST, select="tag:intermediate_view")
 def intermediate_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    # Custom-sessionization aggregates, refund/return order-line grains and the
+    # customer identity/summary views. The clean int_shopify__ entity grains
+    # (orders/line_items/shipping_lines/refunds/return_line_items) are instead
+    # built cohesively inside their stream steps, because their reconciliation
+    # tests run with eager indirect selection inside those same steps and need
+    # every parent materialized there. Each dbt node must match exactly one
+    # @dbt_assets selection or Dagster raises a duplicate-asset-key error.
     yield from run_dbt(context, dbt, "intermediate")
 
 

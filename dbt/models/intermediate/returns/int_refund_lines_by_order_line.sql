@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate']) }}
+{{ config(tags=['intermediate_view']) }}
 -- Aggregate refund line items to order-line grain before joining to returns.
 -- This prevents the many-to-many fan-out when an original line has multiple
 -- refund events and/or multiple return events.

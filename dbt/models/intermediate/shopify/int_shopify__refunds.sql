@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate', 'refund_staging']) }}
+{{ config(tags=['refund_staging']) }}
 -- Intermediate refund grain: one row per REFUND LINE ITEM, with refund header fields
 -- denormalised and transactions / adjustments nested as arrays.
 -- Refunds with no line items are excluded by design (user-defined grain).

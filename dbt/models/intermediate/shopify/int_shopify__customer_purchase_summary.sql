@@ -1,6 +1,6 @@
 {{ config(
     materialized='view',
-    tags=['business_intermediate']
+    tags=['intermediate_view']
 ) }}
 
 -- Per-customer-identity purchase summary (single shop). Grain is the resolved

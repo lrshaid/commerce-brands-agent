@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate', 'shopify_staging']) }}
+{{ config(tags=['shopify_staging']) }}
 -- Intermediate order grain: one row per order, with nested discount applications.
 -- Discount applications are requested by orders_bulk.graphql but the dummy store
 -- has none, so the array is empty for every order in the current dataset.

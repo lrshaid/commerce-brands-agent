@@ -1,7 +1,7 @@
 {{ config(
     materialized='view',
     enabled=var('ga4_export_enabled', false),
-    tags=['ga4_intermediate']
+    tags=['ga4_intermediate', 'intermediate_view']
 ) }}
 
 {% set taxonomy = var('ga4_channel_taxonomy', []) %}

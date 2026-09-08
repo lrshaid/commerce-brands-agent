@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate']) }}
+{{ config(tags=['intermediate_view']) }}
 -- Aggregate return line items to order-line grain before joining to refunds.
 select
     shop_key,

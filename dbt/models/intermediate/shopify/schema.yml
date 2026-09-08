@@ -8,7 +8,7 @@ models:
       customer_gid (guests). Multiple customer_gid sharing an email consolidate
       to a canonical customer. Raw email is never emitted.
     config:
-      tags: [business_intermediate]
+      tags: [intermediate_view]
     columns:
       - name: customer_identity_id
         data_tests: [not_null, unique]
@@ -24,7 +24,7 @@ models:
       (gross + recognized refunds) as lifetime value. Orders without a
       resolvable customer_gid are excluded.
     config:
-      tags: [business_intermediate]
+      tags: [intermediate_view]
     columns:
       - name: customer_identity_id
         data_tests: [not_null, unique]
@@ -45,7 +45,7 @@ models:
       for every order in the current dataset. Arrays are intended to be
       consumed via UNNEST.
     config:
-      tags: [business_intermediate, shopify_staging]
+      tags: [shopify_staging]
     columns:
       - name: observation_key
         data_tests: [not_null, unique]
@@ -68,7 +68,7 @@ models:
       extend the GraphQL query and re-extract. Arrays are intended to be
       consumed via UNNEST.
     config:
-      tags: [business_intermediate, shopify_staging]
+      tags: [shopify_staging]
     columns:
       - name: observation_key
         data_tests: [not_null, unique]
@@ -91,7 +91,7 @@ models:
       the active query but the dummy store has none, so this model currently
       returns zero rows.
     config:
-      tags: [business_intermediate, shopify_staging]
+      tags: [shopify_staging]
     columns:
       - name: observation_key
         data_tests: [not_null, unique]
@@ -111,7 +111,7 @@ models:
       adjustments nested as arrays. Refunds with no line items are excluded by
       design. Arrays are intended to be consumed via UNNEST.
     config:
-      tags: [business_intermediate, refund_staging]
+      tags: [refund_staging]
     columns:
       - name: observation_key
         data_tests: [not_null, unique]
@@ -142,7 +142,7 @@ models:
       denormalised and linked return refunds nested as an array. Arrays are
       intended to be consumed via UNNEST.
     config:
-      tags: [business_intermediate, returns_staging]
+      tags: [returns_staging]
     columns:
       - name: observation_key
         data_tests: [not_null, unique]

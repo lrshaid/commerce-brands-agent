@@ -1,4 +1,4 @@
-{{ config(tags=['business_intermediate']) }}
+{{ config(tags=['intermediate_view']) }}
 -- Aggregate refund order adjustments (shipping refunds + discrepancies) to order grain.
 -- Source is the typed refund model at line grain; adjustments are nested and
 -- repeated per line, so deduplicate by adjustment_gid before aggregating.

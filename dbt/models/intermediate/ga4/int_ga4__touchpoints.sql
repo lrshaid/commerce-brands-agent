@@ -1,7 +1,7 @@
 {{ config(
     materialized='view',
     enabled=var('ga4_export_enabled', false),
-    tags=['ga4_intermediate']
+    tags=['ga4_intermediate', 'intermediate_view']
 ) }}
 
 {% set owned_hosts = var('ga4_owned_hosts', []) %}

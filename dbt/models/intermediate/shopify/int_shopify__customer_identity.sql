@@ -1,6 +1,6 @@
 {{ config(
     materialized='view',
-    tags=['business_intermediate']
+    tags=['intermediate_view']
 ) }}
 
 -- Customer identity resolved from email. Single-shop assumption. The identity

@@ -1,7 +1,7 @@
 {{ config(
     materialized='view',
     enabled=var('ga4_export_enabled', false),
-    tags=['ga4_intermediate']
+    tags=['ga4_intermediate', 'intermediate_view']
 ) }}
 
 {% set identifier_fields = var('ga4_shopify_order_identifier_fields', []) %}
