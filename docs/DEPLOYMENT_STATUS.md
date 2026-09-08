@@ -23,6 +23,41 @@ replay was not completed. The replay Dagster run succeeded and the pipeline is i
 
 ---
 
+# Catalog streams live: customers, products, variants — 2026-09-08
+
+Image `catalog-fix3-44083d5-20260908142604` (digest `sha256:3e69b40fec64fed6370f47d8fb3b83e890c3d5fd1638f01dae12a4b45f133b20`)
+rolled out via Terraform (0 add, 2 update, 0 destroy) after PostgreSQL backup
+`163104.dump`. Code location loads clean after the single-op selection fix.
+
+Catalog ingestion run `60e9298e-04bb-46d8-89e2-1f7f0a7e0731` (extraction
+`catalog-initial-20260908-01`, worker `dagster-worker-bg8qb`) SUCCESS:
+capture + raw publication. Verified BigQuery counts: raw_shopify.customers 2,
+products 11, variants 517; 6 published manifests total.
+
+Marts build `b0289739-0bf2-4e8e-b811-bdd3776579eb` (extraction
+`marts-catalog-20260908-01`, third retry after two live-discovered defects)
+SUCCESS: all seven dbt steps (staging x5 streams, intermediate, marts).
+Verified counts: stg_shopify__customers 100, stg_shopify__products 517,
+stg_shopify__product_variants 526, int_shopify__customer_identity 100,
+int_shopify__customer_purchase_summary 68, dim_customer_rfm 68
+(47 Inactive / 17 Needs attention / 4 At risk), fct_customer_cohorts 1,
+fct_returns 0, metric_revenue_daily 1.
+
+Defects discovered live and fixed during this rollout:
+1. Launcher used op name `shopify_catalog` instead of
+   `shopify_capture__catalog_pages` (config validation failed; no run created).
+2. Dual tags put int_shopify__ nodes in two @dbt_assets selections → Dagster
+   Duplicate asset key → code location unloaded (empty repository). Fixed with
+   single-op selection: int entity grains carry their stream tag;
+   intermediate_dbt selects tag:intermediate_view.
+3. fct_returns had a glued token (`order_gidleft join`) from a concurrent
+   refactor — undetectable by dbt compile, caught only by BigQuery execution.
+
+Replay/idempotency of the catalog run and GA4 (still unconfigured) remain
+pending.
+
+---
+
 # Deployment evidence
 
 ## Refund raw + staging acceptance — 2026-09-04
