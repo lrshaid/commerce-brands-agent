@@ -74,9 +74,6 @@ decisions:
   raw_landing:
     affects: [staging]
     question: Supply the read-only raw envelope, JSON paths, shop key, version cursor and uniqueness guarantee for each source. Are rows current-state parents or versioned snapshots?
-  exclusions:
-    affects: [commercial]
-    question: Keep staging business-logic-free and apply reporting exclusions as core flags, or drop rows in staging? Also reconcile exclude_cancelled=false with the unconditional exclusion in section 5.5.
   merchandise_taxonomy:
     affects: [commercial, product]
     question: Supply unit_style_type mapping, rule priority and tie policy; these columns are absent from the supplied taxonomy schema.
@@ -105,9 +102,6 @@ decisions:
       refund side; the return side remains secondary context for
       matched / refund_no_return / return_no_refund classification.
 
-  adjustments:
-    affects: [returns]
-    question: Decide how discrepancy adjustments affect merchandise RMV; shipping and tax must remain separate under the merchandise-only invariant. Preserve refund/event keys for adjustment legs.
   exclusions_mart_level:
     affects: [commercial]
     status: decided_2026_09_07
