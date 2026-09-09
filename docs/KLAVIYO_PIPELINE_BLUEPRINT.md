@@ -1,28 +1,27 @@
 # Klaviyo ↔ BigQuery pipeline blueprint (vendored snapshot)
 
-> Provenance: saved 2026-09-09 from ~/Downloads/blueprint-klaviyo-bigquery.md.
-> Reflects `origin/master` of `mejuri-dagster` (ago-2026) and current `mejuri-dbt`.
+> Provenance: distilled from a production Dagster/dbt Klaviyo↔BigQuery implementation (2026-08), scrubbed of brand identifiers. Cod simplified but faithful to the real logic; where it cuts corners, it says so.
 > Reference material for a future Klaviyo ingestion pipeline in this repo — read-only snapshot, not implemented here.
 
-Aca va el blueprint. Refleja `origin/master` de `mejuri-dagster` (ago-2026) y `mejuri-dbt` actual. Codigo simplificado pero fiel a la logica real; donde recorto, lo digo.
+Blueprint de referencia: pipelines Klaviyo ↔ BigQuery de una implementación productiva. Código simplificado pero fiel a la lógica real; donde recorta, lo dice.
 
 ---
 
-# Blueprint: pipelines Klaviyo ↔ BigQuery (Mejuri)
+# Blueprint: pipelines Klaviyo ↔ BigQuery
 
 ## Componentes y dirección del dato
 
 ```
 ─────────── Klaviyo → BigQuery ───────────
-Klaviyo API → events (6 metricas x 4 cuentas) → mejuri-silver.klaviyo.events_{inc,us,uk,australia}
-Klaviyo API → google_rating (segmento NPS)     → mejuri-silver.klaviyo.google_rating_{inc,us,uk,aus}
-Klaviyo API → campaigns (one-off, ids fijos)   → mejuri-silver.klaviyo.campaigns_inc
+Klaviyo API → events (6 metricas x 4 cuentas) → silver-project.klaviyo.events_{inc,us,uk,australia}
+Klaviyo API → google_rating (segmento NPS)     → silver-project.klaviyo.google_rating_{inc,us,uk,aus}
+Klaviyo API → campaigns (one-off, ids fijos)   → silver-project.klaviyo.campaigns_inc
 
 ─────────── BigQuery → Klaviyo ───────────
-mejuri-gold.analytics.xa_user_traits_{market} → Klaviyo Profile Bulk Import
+gold-project.analytics.xa_user_traits_{market} → Klaviyo Profile Bulk Import
 Klaviyo segmento "sin email"                  → Klaviyo Data Privacy Deletion Jobs
 
-─────────── dbt (mejuri-gold) ───────────
+─────────── dbt (gold-project) ───────────
 events_* → src_klaviyo_events → fct_marketing_email → xa_marketing_email_action
                               → xa_crm_email_attribution → xi_marketing_crm_performance
 google_rating_* → src_klaviyo_short_nps → xi_cx_nps
@@ -31,10 +30,10 @@ google_rating_* → src_klaviyo_short_nps → xi_cx_nps
 ## Convenciones comunes a todos los jobs Dagster
 
 - Un `@graph` por caso de uso, convertido a 4 jobs con `.to_job(name=..., config=yaml_por_cuenta)`. Las 4 cuentas (INC, US, UK, AUS) son 4 API keys distintas en Klaviyo.
-- Secretos siempre via `SecretManager().get_secret(id)`. Dos tipos: API key de Klaviyo (`klaviyo-api-key-{inc,us,uk,aus}`) y service account de BigQuery (`mejuri-silver-dagster-klaviyo-service-account`; en dev, la de `mejuri-black`).
+- Secretos siempre via `SecretManager().get_secret(id)`. Dos tipos: API key de Klaviyo (`klaviyo-api-key-{inc,us,uk,aus}`) y service account de BigQuery (`silver-project-dagster-klaviyo-service-account`; en dev, la de `dev-project`).
 - Header fijo de Klaviyo: `revision: 2025-07-15`, `Authorization: Klaviyo-API-Key <key>`, `accept: application/vnd.api+json`.
 - Paginacion siempre por cursor: seguir `links.next` hasta que sea null. Los `params` van solo en la primera request; `next` ya los trae.
-- `IS_DAGSTER_AGENT_MODE == 'True'` (cloud) expone solo jobs prod; local expone tambien los `_dev_job` que escriben a `mejuri-black`.
+- `IS_DAGSTER_AGENT_MODE == 'True'` (cloud) expone solo jobs prod; local expone tambien los `_dev_job` que escriben a `dev-project`.
 - Slack hook `slack_message_on_failure` a `#data-alerts` solo en events y google_rating.
 
 ```python
@@ -71,13 +70,13 @@ ops:
   list_klaviyo_metric_events:
     config:
       klaviyo_secret_id: "klaviyo-api-key-us"
-      metric_ids_to_keep:        # ES UNA LISTA DE PRIORIDAD, no un set
-        - VnQTZ5   # emailReceived (send)  -- primero: es el denominador
-        - XbgMvy   # emailOpen              -- mas volumen, mas barato de perder
-        - RaY6mu   # emailClick
-        - V5qFQQ   # emailSubscribe
-        - Teg47v   # emailUnSubscribe
-        - WyfJSV   # emailBounce            -- ultimo
+      metric_ids_to_keep:        # ids REALES por cuenta; ES UNA LISTA DE PRIORIDAD, no un set
+        - <us_send>   # emailReceived (send)  -- primero: es el denominador
+        - <us_open>   # emailOpen              -- mas volumen, mas barato de perder
+        - <us_click>   # emailClick
+        - <us_sub>   # emailSubscribe
+        - <us_unsub>   # emailUnSubscribe
+        - <us_bounce>   # emailBounce            -- ultimo
       max_pages: 50000           # guard por slice
       hours_back: 1              # = cadencia del cron
       overlap_hours: 3           # INC/US 3, UK/AUS 5
@@ -85,7 +84,7 @@ ops:
       max_workers: 8
   load_events_to_bigquery:
     config:
-      secret_id: "mejuri-silver-dagster-klaviyo-service-account"
+      secret_id: "silver-project-dagster-klaviyo-service-account"
       dataset_id: klaviyo
       table_id: events_us
 ```
@@ -242,7 +241,7 @@ Sin schedule. `GET /api/campaigns/{id}` para ids hardcodeados en el YAML; extrae
 
 Schedule 2x/dia en UTC: INC 09/21, US 08/20, UK 05/17, AUS 03/15.
 
-Fuente: `mejuri-gold.analytics.xa_user_traits_{market}`, un modelo dbt (table, grano email, una tienda por modelo). Logica:
+Fuente: `gold-project.analytics.xa_user_traits_{market}`, un modelo dbt (table, grano email, una tienda por modelo). Logica:
 
 ```sql
 -- xa_user_traits_us.sql (esquema)
@@ -254,7 +253,7 @@ WITH customers AS (              -- base: Shopify customers de ESA tienda
   FROM {{ ref('src_shopify_customers') }}
 ),
 xa AS (                          -- enriquecimiento de xa_user_email: RFM, LTV, acquisition
-  SELECT email, is_member AS has_mejuri_account, user_type, last_order_dt,
+  SELECT email, is_member AS has_brand_account, user_type, last_order_dt,
          aov_usd_lt, lt_order_count, lt_order_revenue,
          segment_l1_status, segment_l3_status, segment_l4_status, ...
   FROM {{ ref('xa_user_email') }}
@@ -290,7 +289,7 @@ LEFT JOIN promo p                                        ON p.order_email = c.em
 LEFT JOIN multi_store_customer msc                       ON c.email = msc.email
 LEFT JOIN product_ranking pr                             ON c.email = pr.email
 LEFT JOIN store_assignment sa                            ON LOWER(c.email) = sa.email
-WHERE LOWER(c.shop_url) = 'mejuri_us'
+WHERE LOWER(c.shop_url) = '<market>_shop'
 QUALIFY ROW_NUMBER() OVER (PARTITION BY c.email ORDER BY c.updated_at) = 1
 ```
 
@@ -352,7 +351,7 @@ for pid in profile_ids:
     time.sleep(0.2)
 ```
 
-## 3. Capa dbt (mejuri-gold)
+## 3. Capa dbt (gold-project)
 
 ### 3.1 `src_klaviyo_events` (view, dataset `source`)
 
@@ -367,26 +366,26 @@ WITH all_events AS (
          subject AS email_subject, message AS message_id, campaign AS campaign_id,
          campaign_name, message_name AS message_type_name, flow,
          method, list_ids AS email_list_ids, ...   -- ~45 columnas STRING
-  FROM `mejuri-silver.klaviyo.events_inc`
+  FROM `silver-project.klaviyo.events_inc`
   UNION ALL ... events_us  UNION ALL ... events_uk  UNION ALL ... events_australia
 )
 SELECT event_id,
   CASE                                             -- orden dentro de cada IN: UK, AUS, INC, US
-    WHEN metric_id IN ('X2CzZd','UHPUn2','UUgFc3','V5qFQQ') THEN 'emailSubscribe'
-    WHEN metric_id IN ('Vy2jyY','XkdsWY','Vaew82','XbgMvy') THEN 'emailOpen'
-    WHEN metric_id IN ('Xksd5t','RjUKNU','WWEpCv','RaY6mu') THEN 'emailClick'
-    WHEN metric_id IN ('V2VbDr','WbJLuV','UUvVdu','Teg47v') THEN 'emailUnSubscribe'
-    WHEN metric_id IN ('XXtfG6','VxMzsv','TmNCBx','VnQTZ5') THEN 'emailReceived'
-    WHEN metric_id IN ('UUZgWm','WHcqkm','Uxdtvp','WyfJSV') THEN 'emailBounce'
+    WHEN metric_id IN ('<uk_sub>','<aus_sub>','<inc_sub>','<us_sub>') THEN 'emailSubscribe'
+    WHEN metric_id IN ('<uk_open>','<aus_open>','<inc_open>','<us_open>') THEN 'emailOpen'
+    WHEN metric_id IN ('<uk_click>','<aus_click>','<inc_click>','<us_click>') THEN 'emailClick'
+    WHEN metric_id IN ('<uk_unsub>','<aus_unsub>','<inc_unsub>','<us_unsub>') THEN 'emailUnSubscribe'
+    WHEN metric_id IN ('<uk_send>','<aus_send>','<inc_send>','<us_send>') THEN 'emailReceived'
+    WHEN metric_id IN ('<uk_bounce>','<aus_bounce>','<inc_bounce>','<us_bounce>') THEN 'emailBounce'
   END AS event_type,
   metric_id,
-  CASE WHEN metric_id IN ('X2CzZd','UHPUn2','UUgFc3','V5qFQQ') THEN method END AS signup_source,
-  CASE WHEN metric_id IN ('V2VbDr','WbJLuV','UUvVdu','Teg47v') THEN method END AS unsub_source,
+  CASE WHEN metric_id IN ('<uk_sub>','<aus_sub>','<inc_sub>','<us_sub>') THEN method END AS signup_source,
+  CASE WHEN metric_id IN ('<uk_unsub>','<aus_unsub>','<inc_unsub>','<us_unsub>') THEN method END AS unsub_source,
   CASE
-    WHEN metric_id IN ('X2CzZd','Vy2jyY','Xksd5t','V2VbDr','XXtfG6','UUZgWm') THEN 'Mejuri UK'
-    WHEN metric_id IN ('UHPUn2','XkdsWY','RjUKNU','WbJLuV','VxMzsv','WHcqkm') THEN 'Mejuri AUS'
-    WHEN metric_id IN ('UUgFc3','Vaew82','WWEpCv','UUvVdu','TmNCBx','Uxdtvp') THEN 'Mejuri INC'
-    WHEN metric_id IN ('V5qFQQ','XbgMvy','RaY6mu','Teg47v','VnQTZ5','WyfJSV') THEN 'Mejuri US'
+    WHEN metric_id IN ('<uk_sub>','<uk_open>','<uk_click>','<uk_unsub>','<uk_send>','<uk_bounce>') THEN 'Market UK'
+    WHEN metric_id IN ('<aus_sub>','<aus_open>','<aus_click>','<aus_unsub>','<aus_send>','<aus_bounce>') THEN 'Market AUS'
+    WHEN metric_id IN ('<inc_sub>','<inc_open>','<inc_click>','<inc_unsub>','<inc_send>','<inc_bounce>') THEN 'Market INC'
+    WHEN metric_id IN ('<us_sub>','<us_open>','<us_click>','<us_unsub>','<us_send>','<us_bounce>') THEN 'Market US'
   END AS account,
   * EXCEPT (event_id, event_type, metric_id)
 FROM all_events
@@ -395,7 +394,7 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY uuid ORDER BY created_ts DESC) = 1
 
 ### 3.2 `fct_marketing_email` (incremental, insert_overwrite, particion `created_ts`)
 
-Union de tres ESPs con corte historico: Iterable `< 2025-09-29`, Klaviyo `>= 2025-09-29`, Postscript (SMS) `>= 2025-09-29`. Todas al mismo schema canonico (~35 columnas). Ventana de reproceso 7 dias via macro `backfill_partitions('marketing_email', 'datetime', 6)`, override con `--vars '{marketing_email_backfill_start: ..., marketing_email_backfill_end: ...}'`.
+Union de tres ESPs con corte historico: el ESP anterior `< 2025-09-29`, Klaviyo `>= 2025-09-29`, el proveedor de SMS `>= 2025-09-29`. Todas al mismo schema canonico (~35 columnas). Ventana de reproceso 7 dias via macro `backfill_partitions('marketing_email', 'datetime', 6)`, override con `--vars '{marketing_email_backfill_start: ..., marketing_email_backfill_end: ...}'`.
 
 ```sql
 {% set partitions_to_replace = backfill_partitions('marketing_email', 'datetime', 6) %}
@@ -433,9 +432,9 @@ WITH klaviyo_src AS (
     {% if is_incremental() %} AND created_dt IN ({{ partitions_to_replace | join(', ') }}) {% endif %}
     AND created_ts >= DATETIME('2025-09-29')          -- migration date
 ),
-iterable_src AS ( ... FROM src_iterable_event ... WHERE created_ts < DATETIME('2025-09-29') ),
-postscript_src AS ( ... FROM src_postscript_events ... 'SMS' AS event_group ... ),
-all_events AS (SELECT * FROM klaviyo_src UNION ALL SELECT * FROM iterable_src UNION ALL SELECT * FROM postscript_src)
+prior_esp_src AS ( ... FROM src_prior_esp_events ... WHERE created_ts < DATETIME('2025-09-29') ),
+sms_src AS ( ... FROM src_sms_events ... 'SMS' AS event_group ... ),
+all_events AS (SELECT * FROM klaviyo_src UNION ALL SELECT * FROM prior_esp_src UNION ALL SELECT * FROM sms_src)
 SELECT * REPLACE (
   CASE WHEN country IN ('US','USA') THEN 'United States' WHEN country IN ('PR','PRI') THEN 'Puerto Rico'
        WHEN country='CA' THEN 'Canada' WHEN country='GB' THEN 'United Kingdom' WHEN country='AU' THEN 'Australia'
@@ -443,7 +442,7 @@ SELECT * REPLACE (
 FROM all_events
 ```
 
-Detalle clave: en Klaviyo el evento "send" es `emailReceived`; en Iterable era `emailSend`. Downstream se tratan ambos como send.
+Detalle clave: en Klaviyo el evento "send" es `emailReceived`; en el ESP anterior era `emailSend`. Downstream se tratan ambos como send.
 
 ### 3.3 `xa_marketing_email_action` (incremental, particion `action_dt`, misma ventana de 7 dias)
 
@@ -482,7 +481,7 @@ GROUP BY ...
 
 ### 3.4 `xa_crm_email_attribution` (table, rebuild completo, ~120 dias + LY)
 
-Atribuye ordenes de `xa_order` a sends por email con 3 logicas. El "send" es `emailReceived` para Klaviyo y `emailSend` para Iterable; `smsSend` para Postscript.
+Atribuye ordenes de `xa_order` a sends por email con 3 logicas. El "send" es `emailReceived` para Klaviyo y `emailSend` para el ESP anterior; `smsSend` para el proveedor de SMS.
 
 ```sql
 stg_klaviyo_emails AS (
@@ -502,14 +501,14 @@ stg_klaviyo_emails AS (
 
 ### 3.5 `xi_marketing_crm_performance` (table, grano semana × event_group × market × user_type × campaign)
 
-Junta engagement (3.3) con revenue (3.4) por `campaign_name`, `market` del lado engagement = cuenta emisora (`Mejuri US` → United States, `Mejuri INC` → Canada, etc.), del lado revenue = `order_market` del comprador. L1/L2/send_type via macro `get_crm_taxonomy` (flow si `journey_id IS NOT NULL`). Unsubs (que llegan con `campaign_name` NULL) se prorratean por sends dentro de cada celda. Target NMV semanal de `xi_crm_targets` repartido 85/10/5 Commercial/Brand/Service.
+Junta engagement (3.3) con revenue (3.4) por `campaign_name`, `market` del lado engagement = cuenta emisora (`Market US` → United States, `Market INC` → Canada, etc.), del lado revenue = `order_market` del comprador. L1/L2/send_type via macro `get_crm_taxonomy` (flow si `journey_id IS NOT NULL`). Unsubs (que llegan con `campaign_name` NULL) se prorratean por sends dentro de cada celda. Target NMV semanal de `xi_crm_targets` repartido 85/10/5 Commercial/Brand/Service.
 
 ### 3.6 `src_klaviyo_short_nps` → `xi_cx_nps`
 
 ```sql
 SELECT email, SAFE_CAST(google_rating AS INT64) AS nps_score, CAST(ingested_at AS DATE) AS response_dt,
        'United States' AS market
-FROM `mejuri-silver.klaviyo.google_rating_us` WHERE google_rating IS NOT NULL
+FROM `silver-project.klaviyo.google_rating_us` WHERE google_rating IS NOT NULL
 UNION ALL ... google_rating_inc ('Canada') ... google_rating_uk ('United Kingdom') ...
 google_rating_aus ('Australia')
 ```
@@ -518,8 +517,8 @@ google_rating_aus ('Australia')
 
 ### 3.7 Otros consumidores
 
-- `xf_marketing_email_sign_up`: primer `emailSubscribe` marketing por email, excluyendo emails que ya existian en Klaviyo (migrados de Iterable).
-- `stg_digital_identity_enhanced`: usa `emailClick` (email + IP) y `profile_id` → email como anchors de identidad, mas las tablas `mejuri-silver.klaviyo.identity.*` (pipeline `klaviyo_identity`, cuyo codigo no esta en `mejuri-dagster`).
+- `xf_marketing_email_sign_up`: primer `emailSubscribe` marketing por email, excluyendo emails que ya existian en Klaviyo (migrados del ESP anterior).
+- `stg_digital_identity_enhanced`: usa `emailClick` (email + IP) y `profile_id` → email como anchors de identidad, mas las tablas `silver-project.klaviyo.identity.*` (pipeline `klaviyo_identity`, cuyo codigo no esta en `<dagster-repo>`).
 - `get_attr_channel`: `utm_source LIKE '%klaviyo%'` → canal `email`.
 
 ## 4. Invariantes y trampas para quien lo reconstruya
@@ -529,7 +528,7 @@ google_rating_aus ('Australia')
 3. **Tablas sin particion ni cluster.** Cualquier query directa a `events_us` es full scan. Filtrar por `datetime` no prunea.
 4. `metric_id` es por cuenta y el mapeo vive en dbt, no en Dagster. Agregar una cuenta o metrica implica tocar YAML + `src_klaviyo_events`.
 5. **Perdida silenciosa:** si los 90 min se agotan, el run termina verde con `log.error`. La cobertura incompleta solo se detecta con tests dbt (`assert_klaviyo_campaign_sends_vs_openers`, `assert_fct_marketing_email_volume_drop`).
-6. **Corte historico fijo `2025-09-29`** para Iterable → Klaviyo/Postscript, en `fct_marketing_email`, `xa_crm_email_attribution`, `xf_marketing_email_sign_up`.
+6. **Corte historico fijo `2025-09-29`** del ESP anterior → Klaviyo/SMS, en `fct_marketing_email`, `xa_crm_email_attribution`, `xf_marketing_email_sign_up`.
 7. **Send = `emailReceived`** en Klaviyo. Cualquier metrica de rate lo usa como denominador.
 8. `google_rating.ingested_at` no es fecha de respuesta, es fecha de cambio en BQ.
 9. **Traits:** `updated_at` es de Shopify, no de dbt. Un rebuild del modelo no re-manda a nadie; solo se re-manda quien fue tocado en Shopify en la ventana.
