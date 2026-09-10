@@ -356,6 +356,116 @@ def _checked_page_row_grain(rows, response_pages, envelope):
     return rows_by_generation
 
 
+def _validate_klaviyo_events_page_publication(rows, files, stream=None):
+    """Validate the Klaviyo events page grain (JSON:API, one page per row)."""
+    if stream is not None and stream != 'events':
+        raise ValueError('Unknown Klaviyo stream')
+    response_pages, seals, generations = {}, [], set()
+    for source in files:
+        if not isinstance(source, dict):
+            raise ValueError('Klaviyo manifest file must be an object')
+        generation, sha256 = source.get('generation'), source.get('sha256')
+        if (not isinstance(generation, str) or not generation.isdigit()
+                or not isinstance(sha256, str) or not _SHA256.fullmatch(sha256)
+                or not str(source.get('uri', '')).startswith('gs://')):
+            raise ValueError('Klaviyo manifest file must include GCS URI, generation and SHA256')
+        if generation in generations:
+            raise ValueError('Klaviyo manifest generations must be unique')
+        generations.add(generation)
+        if source.get('role') == 'completion_seal':
+            seals.append(source)
+            continue
+        if source.get('role') != 'response_page':
+            raise ValueError('Klaviyo manifest has an unsupported file role')
+        operation = source.get('operation')
+        if (not isinstance(operation, str) or not operation
+                or re.search(r'["\'\\,\n\r]', operation)):
+            raise ValueError('Klaviyo response page operation is invalid')
+        variables = source.get('variables')
+        if not isinstance(variables, dict) or not variables:
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        page_size = variables.get('page[size]')
+        if set(variables) == {'cursor'}:
+            cursor = variables['cursor']
+            if not isinstance(cursor, str) or not cursor.startswith('https://a.klaviyo.com/api/events'):
+                raise ValueError('Klaviyo response page cursor metadata is invalid')
+        elif (set(variables) == {'page[size]', 'sort', 'include', 'filter'}
+                and isinstance(page_size, int) and not isinstance(page_size, bool)
+                and 1 <= page_size <= 200
+                and variables.get('sort') == '-datetime'
+                and variables.get('include') == 'profile'
+                and isinstance(variables.get('filter'), str)
+                and f'equals(metric_id,"{operation}")' in variables['filter']):
+            pass
+        else:
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        if (not isinstance(source.get('request_sha256'), str)
+                or not _SHA256.fullmatch(source['request_sha256'])
+                or not _aware_timestamp(source.get('captured_at'))):
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        if generation in response_pages:
+            raise ValueError('Klaviyo response page generations must be unique')
+        response_pages[generation] = source
+    if len(seals) != 1:
+        raise ValueError('Klaviyo manifest requires one completion seal')
+    if not response_pages:
+        counts = seals[0].get('klaviyo_counts')
+        if not isinstance(counts, dict) or any(value != 0 for value in counts.values()):
+            raise ValueError('Empty Klaviyo events stream requires a sealed zero count')
+
+    rows_by_generation = {}
+    for row in rows:
+        if (not isinstance(row, dict) or set(row) != set(contract_columns()[0])
+                or not isinstance(row.get('file_id'), str) or row.get('record_index') != 1):
+            raise ValueError('Klaviyo response pages require envelope columns and record_index=1')
+        generation = row['file_id']
+        if generation not in response_pages or generation in rows_by_generation:
+            raise ValueError('Klaviyo raw rows must map one-to-one to response pages')
+        text = row.get('record_text')
+        if not isinstance(text, str) or row.get('payload') != text:
+            raise ValueError('Klaviyo raw row must preserve original JSON text')
+        digest_value = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if row.get('record_sha256') != digest_value or response_pages[generation].get('sha256') != digest_value:
+            raise ValueError('Klaviyo raw row or response page checksum mismatch')
+        try:
+            payload = json.loads(text)
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError('Klaviyo response page is not valid JSON') from None
+        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), list):
+            raise ValueError('Klaviyo response page is incomplete or has errors')
+        rows_by_generation[generation] = payload
+    if set(rows_by_generation) != set(response_pages):
+        raise ValueError('Klaviyo raw rows omit a response page')
+    for generation, payload in rows_by_generation.items():
+        source = response_pages[generation]
+        included = payload.get('included', [])
+        if not isinstance(included, list):
+            raise ValueError('Klaviyo response page included collection is invalid')
+        profiles = set()
+        for item in included:
+            if not isinstance(item, dict) or item.get('type') != 'profile':
+                raise ValueError('Klaviyo response page contains an unexpected included resource')
+            if not isinstance(item.get('id'), str) or not item['id']:
+                raise ValueError('Klaviyo included profile is missing its identity')
+            profiles.add(item['id'])
+        for event in payload['data']:
+            if not isinstance(event, dict) or not isinstance(event.get('id'), str) or not event['id']:
+                raise ValueError('Klaviyo response page contains an unidentified event')
+            relationships = event.get('relationships')
+            if not isinstance(relationships, dict):
+                raise ValueError('Klaviyo response page event is missing its relationships')
+            metric = relationships.get('metric')
+            metric_data = metric.get('data') if isinstance(metric, dict) else None
+            if not isinstance(metric_data, dict) or metric_data.get('id') != source['operation']:
+                raise ValueError('Klaviyo response page contains an event outside its filtered metric')
+            profile = relationships.get('profile')
+            profile_data = profile.get('data') if isinstance(profile, dict) else None
+            if (isinstance(profile_data, dict) and profile_data.get('id') is not None
+                    and profile_data.get('id') not in profiles):
+                raise ValueError('Klaviyo event profile relationship is missing from included profiles')
+
+
+
 def _checked_connection(connection):
     if (not isinstance(connection, dict) or not isinstance(connection.get('pageInfo'), dict)
             or type(connection['pageInfo'].get('hasNextPage')) is not bool
@@ -478,7 +588,7 @@ def publication_sql(dataset, stream, stage):
     dataset_id(dataset)
     if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants',
                       'tender_transactions', 'balance_transactions', 'disputes', 'fulfillments',
-                      'inventory_items', 'inventory_levels', 'acceptance'):
+                      'inventory_items', 'inventory_levels', 'events', 'acceptance'):
         raise ValueError('Stream has no publication contract')
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
         raise ValueError('Invalid staging identifier')
@@ -648,6 +758,18 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             inventory_rows.append(row)
         _validate_inventory_page_publication(inventory_rows, files, stream)
         records = inventory_rows
+    if stream == 'events':
+        if manifest['transport'] != 'klaviyo_jsonapi_pages':
+            raise ValueError('Klaviyo events publication requires klaviyo_jsonapi_pages transport')
+        event_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            event_rows.append(row)
+        _validate_klaviyo_events_page_publication(event_rows, files, stream)
+        records = event_rows
     stage = '_load_' + uuid.uuid4().hex
     sql = publication_sql(dataset, stream, stage)
     with tempfile.SpooledTemporaryFile(max_size=4*1024*1024, mode='r+b') as data:

@@ -10,7 +10,7 @@ from orchestration.ingestion_acceptance import ingestion_probe
 from orchestration.shopify_orders import shopify_orders
 from orchestration.shopify_dbt import (shopify_dbt, customers_dbt, products_dbt, refund_dbt,
                                        returns_dbt, payments_dbt, fulfillments_dbt, inventory_dbt,
-                                       intermediate_dbt, marts_dbt)
+                                       intermediate_dbt, marts_dbt, klaviyo_dbt)
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
@@ -23,6 +23,8 @@ from orchestration.shopify_fulfillments import shopify_fulfillments
 from orchestration.shopify_fulfillments_raw import shopify_fulfillments_raw
 from orchestration.shopify_inventory import shopify_inventory
 from orchestration.shopify_inventory_raw import shopify_inventory_raw
+from orchestration.klaviyo_events import klaviyo_events
+from orchestration.klaviyo_events_raw import klaviyo_events_raw
 
 ROOT = Path(__file__).resolve().parents[1]
 DBT_DIR = ROOT / "dbt"
@@ -143,7 +145,8 @@ defs = dg.Definitions(
             shopify_refunds, shopify_refunds_raw, refund_dbt, shopify_returns, shopify_returns_raw, returns_dbt,
             shopify_catalog, shopify_catalog_raw, payments_dbt, fulfillments_dbt, inventory_dbt,
             shopify_payments, shopify_payments_raw, shopify_fulfillments, shopify_fulfillments_raw,
-            shopify_inventory, shopify_inventory_raw, intermediate_dbt, marts_dbt],
+            shopify_inventory, shopify_inventory_raw, intermediate_dbt, marts_dbt,
+            klaviyo_events, klaviyo_events_raw, klaviyo_dbt],
     jobs=[smoke_job, orders_job, refunds_job, dg.define_asset_job(
         "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw, refund_dbt),
         tags={"dagster/max_retries": "0", "purpose": "shopify_refunds_ingestion"},
@@ -159,7 +162,12 @@ defs = dg.Definitions(
         executor_def=dg.in_process_executor), dg.define_asset_job(
         "shopify_inventory_ingestion", selection=dg.AssetSelection.assets(shopify_inventory, shopify_inventory_raw),
         tags={"dagster/max_retries": "0", "purpose": "shopify_inventory_ingestion"},
-        executor_def=dg.in_process_executor), marts_job],
+        executor_def=dg.in_process_executor),
+    dg.define_asset_job(
+        "klaviyo_events_ingestion", selection=dg.AssetSelection.assets(klaviyo_events, klaviyo_events_raw),
+        tags={"dagster/max_retries": "0", "purpose": "klaviyo_events_ingestion"},
+        executor_def=dg.in_process_executor),
+    marts_job],
     resources={"dbt": DbtCliResource(project_dir=DBT_DIR, profiles_dir=DBT_DIR)},
     # No recurring data schedule until live-source and acceptance gates pass.
 )

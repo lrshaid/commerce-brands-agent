@@ -31,6 +31,10 @@ vars:
   ga4_funnel_steps: ['add_to_cart', 'begin_checkout', 'purchase']
   ga4_shop_key: ''
   ga4_unknown_consent_policy: exclude
+  # Klaviyo metric dictionary: metric_id -> canonical event_type, maintained by
+  # the deployment.  Empty by default: an unknown metric keeps event_type NULL
+  # and never guesses a mapping.
+  klaviyo_metric_map: []
 models:
   commerce:
     +persist_docs: {relation: true, columns: true}
@@ -60,6 +64,9 @@ models:
       inventory:
         +schema: analytics
         +tags: [inventory_staging]
+      klaviyo:
+        +schema: analytics
+        +tags: [klaviyo_staging]
       platform:
         +tags: [platform_smoke]
       ga4:

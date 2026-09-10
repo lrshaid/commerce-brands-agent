@@ -28,7 +28,7 @@ variable "runtime_image" {
 
 locals {
   labels   = { application = "commerce-agents", environment = "dev", managed_by = "terraform" }
-  datasets = toset(["raw_shopify", "cfg", "analytics", "platform_smoke", "billing_export"])
+  datasets = toset(["raw_shopify", "raw_klaviyo", "cfg", "analytics", "platform_smoke", "billing_export"])
   buckets  = toset(["landing", "artifacts", "backups", "builds"])
 }
 

@@ -31,7 +31,7 @@ class DbtSelectionDisjointnessTests(unittest.TestCase):
 
     def test_new_stream_tags_are_declared_as_dagster_selections(self):
         selects = re.findall(r'select="tag:([a-z_]+)"', DBT_MODULE.read_text())
-        for tag in ("payments_staging", "fulfillments_staging", "inventory_staging"):
+        for tag in ("payments_staging", "fulfillments_staging", "inventory_staging", "klaviyo_staging"):
             self.assertIn(tag, selects)
 
 

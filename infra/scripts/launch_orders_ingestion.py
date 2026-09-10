@@ -26,12 +26,15 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_inventory_ingestion", "shopify_marts_build"),
+    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
     parser.add_argument("--expected-shop-gid", required=True)
     parser.add_argument("--window-start", required=True)
     parser.add_argument("--window-end", required=True)
+    parser.add_argument("--account-key", help="Klaviyo account-scoped registry key (required for klaviyo_events_ingestion)")
+    parser.add_argument("--metric", action="append", default=[], metavar="METRIC_ID[=EVENT_TYPE]",
+                        help="Ordered priority metric (repeatable; first is the send denominator); required for klaviyo_events_ingestion")
     parser.add_argument("--replay-completed-run", help="Explicitly replay this successful run's extraction")
     parser.add_argument("--retry-failed-run", help="Retry this terminal failed run after verifying its remote worker stopped")
     args = parser.parse_args()
@@ -76,6 +79,15 @@ def main():
     if args.job == "shopify_inventory_ingestion":
         operations = {"shopify_capture__inventory_pages": {"config": config},
                       "shopify_inventory_raw": {"config": config}}
+    if args.job == "klaviyo_events_ingestion":
+        if not args.account_key or not args.metric:
+            parser.error("klaviyo_events_ingestion requires --account-key and at least one --metric")
+        klaviyo_config = dict(config, account_key=args.account_key, metrics=[
+            dict(zip(("metric_id", "event_type"), (entry, ""))) if "=" not in entry
+            else {"metric_id": entry.split("=", 1)[0], "event_type": entry.split("=", 1)[1]}
+            for entry in args.metric])
+        operations = {"klaviyo_capture__event_pages": {"config": klaviyo_config},
+                      "klaviyo_events_raw": {"config": klaviyo_config}}
     if args.job == "shopify_refunds_ingestion":
         operations["shopify_refunds_raw"] = {"config": config}
     if args.job == "shopify_marts_build":

@@ -55,6 +55,12 @@ def inventory_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "inventory")
 
 
+@dbt_assets(manifest=MANIFEST, select="tag:klaviyo_staging")
+def klaviyo_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    # Klaviyo events staging projection; email stays in staging only.
+    yield from run_dbt(context, dbt, "klaviyo")
+
+
 @dbt_assets(manifest=MANIFEST, select="tag:intermediate_view")
 def intermediate_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     # Custom-sessionization aggregates, refund/return order-line grains and the

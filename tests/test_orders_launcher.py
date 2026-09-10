@@ -52,6 +52,23 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(set(params["runConfigData"]["ops"]),
                          {"shopify_capture__return_pages", "shopify_returns_raw"})
 
+    def test_klaviyo_job_maps_capture_and_raw_assets_in_priority_order(self):
+        calls = self.invoke([], ["--job", "klaviyo_events_ingestion", "--account-key", "klaviyo-main",
+                                 "--metric", "send", "--metric", "open=emailOpen"])
+        params = calls[1].kwargs["json"]["variables"]["params"]
+        self.assertEqual(params["selector"]["pipelineName"], "klaviyo_events_ingestion")
+        self.assertEqual(set(params["runConfigData"]["ops"]),
+                         {"klaviyo_capture__event_pages", "klaviyo_events_raw"})
+        config = params["runConfigData"]["ops"]["klaviyo_capture__event_pages"]["config"]
+        self.assertEqual(config["account_key"], "klaviyo-main")
+        self.assertEqual(config["metrics"], [{"metric_id": "send", "event_type": ""},
+                                             {"metric_id": "open", "event_type": "emailOpen"}])
+
+    def test_klaviyo_job_requires_account_key_and_metrics(self):
+        for extra in ([], ["--account-key", "klaviyo-main"], ["--metric", "send"]):
+            with self.assertRaises(SystemExit):
+                self.invoke([], ["--job", "klaviyo_events_ingestion"] + extra)
+
 
 if __name__ == "__main__":
     unittest.main()

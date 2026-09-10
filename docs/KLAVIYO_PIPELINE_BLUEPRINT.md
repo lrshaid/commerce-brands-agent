@@ -335,6 +335,11 @@ Emite en el output el ultimo email enviado como cursor (`start_after_email`) par
 
 ### 2.2 Delete profiles without email
 
+> Owner decision (2026-09-09): **no deletion jobs are implemented.** Both this
+> hygiene job and Shopify→Klaviyo GDPR erasure propagation are out of scope
+> until explicitly revisited. Known implication: erasure requests processed by
+> Shopify do not reach Klaviyo (see invariant 11).
+
 Diario 04:00–05:30 Toronto. Segmento de Klaviyo con perfiles sin email (ruido de POS/SMS). Se usa deletion y no suppression porque el bulk suppression exige email como identificador.
 
 ```python
