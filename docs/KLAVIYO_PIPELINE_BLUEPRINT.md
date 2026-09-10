@@ -533,3 +533,4 @@ google_rating_aus ('Australia')
 8. `google_rating.ingested_at` no es fecha de respuesta, es fecha de cambio en BQ.
 9. **Traits:** `updated_at` es de Shopify, no de dbt. Un rebuild del modelo no re-manda a nadie; solo se re-manda quien fue tocado en Shopify en la ventana.
 10. **El readme del code location esta desactualizado** (dice 6h/12h Toronto). La fuente de verdad es `scheduler.py`.
+11. **La propagación GDPR Shopify→Klaviyo NO existe en este blueprint ni en la integración nativa.** Klaviyo documenta que el borrado de perfiles no se sincroniza entre Shopify y Klaviyo en ninguna dirección. El job de §2.2 solo hace higiene interna (borra perfiles de Klaviyo sin email, ruido POS/SMS, vía un segmento de Klaviyo). Para compliance GDPR real habría que detectar los erasure de Shopify (clientes borrados/redacted) y emitir un `data-privacy-deletion-job` por `email` o `profile_id`; este pipeline no lo hace.
