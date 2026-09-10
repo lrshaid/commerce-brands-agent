@@ -82,10 +82,13 @@ def main():
     if args.job == "klaviyo_events_ingestion":
         if not args.account_key or not args.metric:
             parser.error("klaviyo_events_ingestion requires --account-key and at least one --metric")
-        klaviyo_config = dict(config, account_key=args.account_key, metrics=[
+        # Klaviyo is account-scoped: expected_shop_gid is not part of its config.
+        klaviyo_config = {k: v for k, v in config.items() if k != "expected_shop_gid"}
+        klaviyo_config["account_key"] = args.account_key
+        klaviyo_config["metrics"] = [
             dict(zip(("metric_id", "event_type"), (entry, ""))) if "=" not in entry
             else {"metric_id": entry.split("=", 1)[0], "event_type": entry.split("=", 1)[1]}
-            for entry in args.metric])
+            for entry in args.metric]
         operations = {"klaviyo_capture__event_pages": {"config": klaviyo_config},
                       "klaviyo_events_raw": {"config": klaviyo_config}}
     if args.job == "shopify_refunds_ingestion":

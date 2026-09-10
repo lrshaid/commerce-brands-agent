@@ -31,6 +31,73 @@ vars:
   ga4_funnel_steps: ['add_to_cart', 'begin_checkout', 'purchase']
   ga4_shop_key: ''
   ga4_unknown_consent_policy: exclude
+  klaviyo_metric_map:
+    - {metric_id: 'NcwPP8', event_type: received-email}
+    - {metric_id: 'JBF4Na', event_type: opened-email}
+    - {metric_id: 'Lq6WiD', event_type: clicked-email}
+    - {metric_id: 'Wj4VPg', event_type: subscribed-to-email-marketing}
+    - {metric_id: 'XCtgV5', event_type: unsubscribed-from-email-marketing}
+    - {metric_id: 'M37YVg', event_type: bounced-email}
+    - {metric_id: 'XuLwAR', event_type: added-to-list}
+    - {metric_id: 'VWgW4i', event_type: bounce-suppression-added}
+    - {metric_id: 'TXatRk', event_type: bounce-suppression-removed}
+    - {metric_id: 'SpfPfa', event_type: bounced-push}
+    - {metric_id: 'NPxSrK', event_type: clicked-email-to-unsubscribe}
+    - {metric_id: 'TcE5xx', event_type: clicked-text-message}
+    - {metric_id: 'U3Pe7G', event_type: coupon-assigned}
+    - {metric_id: 'WRXv2j', event_type: coupon-used}
+    - {metric_id: 'QXWzFG', event_type: customer-hub-add-to-favorites}
+    - {metric_id: 'RBTGKT', event_type: customer-hub-clicked-add-to-cart}
+    - {metric_id: 'XGK4jS', event_type: customer-hub-clicked-chat-tab}
+    - {metric_id: 'WAYvFA', event_type: customer-hub-clicked-coupons}
+    - {metric_id: 'Vz5z7C', event_type: customer-hub-clicked-for-you-tab}
+    - {metric_id: 'TCphge', event_type: customer-hub-clicked-hub-launcher-chat}
+    - {metric_id: 'Wksefx', event_type: customer-hub-clicked-order-line-item}
+    - {metric_id: 'S2n8x2', event_type: customer-hub-clicked-orders-tab}
+    - {metric_id: 'VUYWtj', event_type: customer-hub-clicked-product}
+    - {metric_id: 'TwhYNs', event_type: customer-hub-clicked-profile-tab}
+    - {metric_id: 'WDgvNm', event_type: customer-hub-clicked-shopify-return}
+    - {metric_id: 'XGnpgi', event_type: customer-hub-clicked-track-shipment}
+    - {metric_id: 'Y7wEZg', event_type: customer-hub-clicked-view-order}
+    - {metric_id: 'TJV3nu', event_type: customer-hub-coupon-applied}
+    - {metric_id: 'WAZyFu', event_type: customer-hub-login}
+    - {metric_id: 'HsgdUi', event_type: dropped-email}
+    - {metric_id: 'SS8kVb', event_type: escalated-customer-agent-conversation}
+    - {metric_id: 'Un4Urp', event_type: failed-to-deliver-automated-response-text-message}
+    - {metric_id: 'TDY5px', event_type: failed-to-deliver-text-message}
+    - {metric_id: 'R2TRrK', event_type: invalid-email-suppression-added}
+    - {metric_id: 'WTUPVq', event_type: manually-suppressed-from-email-marketing}
+    - {metric_id: 'TvbJnS', event_type: manually-unsuppressed-from-email-marketing}
+    - {metric_id: 'QBXKWe', event_type: marked-email-as-spam}
+    - {metric_id: 'TGuzPH', event_type: merged-profile}
+    - {metric_id: 'YcYbsY', event_type: opened-customer-hub}
+    - {metric_id: 'WgxfxW', event_type: opened-push}
+    - {metric_id: 'SzRMtD', event_type: opened-text}
+    - {metric_id: 'SzD2UU', event_type: received-automated-response-text-message}
+    - {metric_id: 'VyGaWF', event_type: received-product-recommendation-from-customer-agent}
+    - {metric_id: 'T2X2LU', event_type: received-push}
+    - {metric_id: 'VspWU2', event_type: received-text-message}
+    - {metric_id: 'V6zCZV', event_type: received-web-chat-message}
+    - {metric_id: 'SRDtMA', event_type: received-whatsapp}
+    - {metric_id: 'WQLe5X', event_type: relayed-text-message}
+    - {metric_id: 'Rr3S9g', event_type: resolved-customer-agent-conversation}
+    - {metric_id: 'YzVJ4Y', event_type: sent-text-message}
+    - {metric_id: 'UaM5xt', event_type: sent-web-chat-message}
+    - {metric_id: 'XfHwKE', event_type: skipped-send}
+    - {metric_id: 'VpQEW3', event_type: started-customer-agent-conversation}
+    - {metric_id: 'VXcX3W', event_type: started-web-chat-conversation}
+    - {metric_id: 'J57gNU', event_type: subscribed-to-back-in-stock}
+    - {metric_id: 'MaEYwM', event_type: subscribed-to-list}
+    - {metric_id: 'WMvQyv', event_type: subscribed-to-text-messaging-marketing}
+    - {metric_id: 'SZtpmQ', event_type: subscribed-to-text-messaging-transactional}
+    - {metric_id: 'TZ5TXy', event_type: ticket-closed}
+    - {metric_id: 'R86XLV', event_type: ticket-created}
+    - {metric_id: 'KugFeL', event_type: unsubscribed-from-list}
+    - {metric_id: 'UZ5X42', event_type: unsubscribed-from-text-messaging-marketing}
+    - {metric_id: 'Ycf6uQ', event_type: unsubscribed-from-text-messaging-transactional}
+    - {metric_id: 'SvsKkB', event_type: unsuppressed-from-list-for-email-marketing}
+    - {metric_id: 'JQVcwM', event_type: updated-email-preferences}
+    - {metric_id: 'VP4vad', event_type: web-chat-conversation-escalated}
   # Klaviyo metric dictionary: metric_id -> canonical event_type, maintained by
   # the deployment.  Empty by default: an unknown metric keeps event_type NULL
   # and never guesses a mapping.

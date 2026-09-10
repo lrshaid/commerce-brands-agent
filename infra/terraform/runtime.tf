@@ -106,6 +106,15 @@ resource "google_cloud_run_v2_job" "worker" {
           }
         }
         env {
+          name = "KLAVIYO_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = "klaviyo-api-key"
+              version = "1"
+            }
+          }
+        }
+        env {
           name = "DAGSTER_POSTGRES_PASSWORD"
           value_source {
             secret_key_ref {
@@ -125,7 +134,7 @@ resource "google_cloud_run_v2_job" "worker" {
       }
     }
   }
-  depends_on = [google_secret_manager_secret_iam_member.postgres, google_secret_manager_secret_iam_member.shopify_worker]
+  depends_on = [google_secret_manager_secret_iam_member.postgres, google_secret_manager_secret_iam_member.shopify_worker, google_secret_manager_secret_iam_member.klaviyo_worker]
 }
 
 resource "google_cloud_run_v2_job_iam_member" "control" {
