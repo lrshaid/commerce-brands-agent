@@ -27,6 +27,14 @@ profiles as (
     from pages p
     cross join unnest(json_query_array(p.payload, '$.included')) i
     where json_value(i, '$.type') = 'profile'
+    -- A profile appears in the included[] of every page carrying one of its
+    -- events; without deduplication the join below fans each event out by the
+    -- number of pages the profile appeared in. Deterministic winner: latest
+    -- ingested page, then page_key, then email.
+    qualify row_number() over (
+        partition by p.shop_key, p.extraction_id, json_value(i, '$.id')
+        order by p.ingested_at desc, p.page_key desc, json_value(i, '$.attributes.email') desc
+    ) = 1
 )
 select
     to_hex(sha256(to_json_string(struct(p.shop_key, p.extraction_id, p.file_id, p.record_index, event_offset)))) as event_key,
