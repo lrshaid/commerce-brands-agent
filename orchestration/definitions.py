@@ -135,7 +135,7 @@ marts_job = dg.define_asset_job(
     # fulfillments and inventory streams are observation-oriented (catalog
     # style), so their staging builds here without entity grains for now.
     selection=dg.AssetSelection.assets(shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt,
-                                       payments_dbt, fulfillments_dbt, inventory_dbt,
+                                       payments_dbt, fulfillments_dbt, inventory_dbt, klaviyo_dbt,
                                        intermediate_dbt, marts_dbt),
     tags={"dagster/max_retries": "0", "purpose": "shopify_marts_build"},
     executor_def=dg.in_process_executor)
