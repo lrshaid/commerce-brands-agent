@@ -39,6 +39,22 @@ def returns_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "returns")
 
 
+@dbt_assets(manifest=MANIFEST, select="tag:payments_staging")
+def payments_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    # Tender/balance/dispute observation staging only; no int entity grain yet.
+    yield from run_dbt(context, dbt, "payments")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:fulfillments_staging")
+def fulfillments_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "fulfillments")
+
+
+@dbt_assets(manifest=MANIFEST, select="tag:inventory_staging")
+def inventory_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "inventory")
+
+
 @dbt_assets(manifest=MANIFEST, select="tag:intermediate_view")
 def intermediate_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     # Custom-sessionization aggregates, refund/return order-line grains and the

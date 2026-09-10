@@ -1,0 +1,40 @@
+version: 2
+sources:
+  - name: shopify_inventory
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: inventory_items
+        description: Exact HTTP response pages for the paginated inventory items operation.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, inventory_items]
+      - name: inventory_levels
+        description: Exact HTTP response pages for the locations root and owner-scoped level pages.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, inventory_levels]
+      - name: ingestion_runs
+models:
+  - name: stg_shopify__inventory_items
+    description: Inventory item observations; not stock valuation or current state.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: inventory_item_gid
+        data_tests: [not_null]
+  - name: stg_shopify__inventory_levels
+    description: >
+      Inventory level observations, one row per quantity name per level edge.
+      The owning location comes from the page request, not from the payload.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: inventory_level_gid
+        data_tests: [not_null]
+      - name: inventory_item_gid
+        data_tests: [not_null]
+      - name: location_gid
+        data_tests: [not_null]

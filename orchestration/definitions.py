@@ -8,13 +8,21 @@ from dagster_dbt import DbtCliResource, dbt_assets
 from google.cloud import bigquery, storage
 from orchestration.ingestion_acceptance import ingestion_probe
 from orchestration.shopify_orders import shopify_orders
-from orchestration.shopify_dbt import shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt
+from orchestration.shopify_dbt import (shopify_dbt, customers_dbt, products_dbt, refund_dbt,
+                                       returns_dbt, payments_dbt, fulfillments_dbt, inventory_dbt,
+                                       intermediate_dbt, marts_dbt)
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
 from orchestration.shopify_returns_raw import shopify_returns_raw
 from orchestration.shopify_catalog import shopify_catalog
 from orchestration.shopify_catalog_raw import shopify_catalog_raw
+from orchestration.shopify_payments import shopify_payments
+from orchestration.shopify_payments_raw import shopify_payments_raw
+from orchestration.shopify_fulfillments import shopify_fulfillments
+from orchestration.shopify_fulfillments_raw import shopify_fulfillments_raw
+from orchestration.shopify_inventory import shopify_inventory
+from orchestration.shopify_inventory_raw import shopify_inventory_raw
 
 ROOT = Path(__file__).resolve().parents[1]
 DBT_DIR = ROOT / "dbt"
@@ -121,21 +129,36 @@ marts_job = dg.define_asset_job(
     # Stream staging steps build their clean int_shopify__ entity grains
     # cohesively (their reconciliation tests need all parents materialized in
     # the same step); tag:intermediate_view aggregates sessionization, refund/
-    # return order-line grains and customer identity; then marts.
-    selection=dg.AssetSelection.assets(shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt, intermediate_dbt, marts_dbt),
+    # return order-line grains and customer identity; then marts. The payments,
+    # fulfillments and inventory streams are observation-oriented (catalog
+    # style), so their staging builds here without entity grains for now.
+    selection=dg.AssetSelection.assets(shopify_dbt, customers_dbt, products_dbt, refund_dbt, returns_dbt,
+                                       payments_dbt, fulfillments_dbt, inventory_dbt,
+                                       intermediate_dbt, marts_dbt),
     tags={"dagster/max_retries": "0", "purpose": "shopify_marts_build"},
     executor_def=dg.in_process_executor)
 
 defs = dg.Definitions(
     assets=[probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_dbt, customers_dbt, products_dbt,
             shopify_refunds, shopify_refunds_raw, refund_dbt, shopify_returns, shopify_returns_raw, returns_dbt,
-            shopify_catalog, shopify_catalog_raw, intermediate_dbt, marts_dbt],
+            shopify_catalog, shopify_catalog_raw, payments_dbt, fulfillments_dbt, inventory_dbt,
+            shopify_payments, shopify_payments_raw, shopify_fulfillments, shopify_fulfillments_raw,
+            shopify_inventory, shopify_inventory_raw, intermediate_dbt, marts_dbt],
     jobs=[smoke_job, orders_job, refunds_job, dg.define_asset_job(
         "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw, refund_dbt),
         tags={"dagster/max_retries": "0", "purpose": "shopify_refunds_ingestion"},
         executor_def=dg.in_process_executor), returns_job, dg.define_asset_job(
         "shopify_catalog_ingestion", selection=dg.AssetSelection.assets(shopify_catalog, shopify_catalog_raw),
         tags={"dagster/max_retries": "0", "purpose": "shopify_catalog_ingestion"},
+        executor_def=dg.in_process_executor), dg.define_asset_job(
+        "shopify_payments_ingestion", selection=dg.AssetSelection.assets(shopify_payments, shopify_payments_raw),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_payments_ingestion"},
+        executor_def=dg.in_process_executor), dg.define_asset_job(
+        "shopify_fulfillments_ingestion", selection=dg.AssetSelection.assets(shopify_fulfillments, shopify_fulfillments_raw),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_fulfillments_ingestion"},
+        executor_def=dg.in_process_executor), dg.define_asset_job(
+        "shopify_inventory_ingestion", selection=dg.AssetSelection.assets(shopify_inventory, shopify_inventory_raw),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_inventory_ingestion"},
         executor_def=dg.in_process_executor), marts_job],
     resources={"dbt": DbtCliResource(project_dir=DBT_DIR, profiles_dir=DBT_DIR)},
     # No recurring data schedule until live-source and acceptance gates pass.

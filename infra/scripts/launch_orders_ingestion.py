@@ -26,7 +26,7 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_marts_build"),
+    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_inventory_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
     parser.add_argument("--expected-shop-gid", required=True)
@@ -67,6 +67,15 @@ def main():
     if args.job == "shopify_catalog_ingestion":
         operations = {"shopify_capture__catalog_pages": {"config": config},
                       "shopify_catalog_raw": {"config": config}}
+    if args.job == "shopify_payments_ingestion":
+        operations = {"shopify_capture__payment_pages": {"config": config},
+                      "shopify_payments_raw": {"config": config}}
+    if args.job == "shopify_fulfillments_ingestion":
+        operations = {"shopify_capture__fulfillment_pages": {"config": config},
+                      "shopify_fulfillments_raw": {"config": config}}
+    if args.job == "shopify_inventory_ingestion":
+        operations = {"shopify_capture__inventory_pages": {"config": config},
+                      "shopify_inventory_raw": {"config": config}}
     if args.job == "shopify_refunds_ingestion":
         operations["shopify_refunds_raw"] = {"config": config}
     if args.job == "shopify_marts_build":

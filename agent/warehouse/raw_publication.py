@@ -18,6 +18,14 @@ import yaml
 _REFUND_OPERATIONS = {'orders', 'refundLineItems', 'transactions', 'orderAdjustments'}
 _RETURN_OPERATIONS = {'orders', 'returns', 'returnLineItems', 'refunds'}
 _CATALOG_OPERATIONS = {'customers', 'products', 'variants'}
+_PAYMENT_STREAM_OPERATIONS = {'tender_transactions': 'tenderTransactions',
+                              'balance_transactions': 'balanceTransactions',
+                              'disputes': 'disputes'}
+_PAYMENT_QUERY_OPERATIONS = {'tenderTransactions', 'disputes'}
+_FULFILLMENT_OPERATIONS = {'orders', 'fulfillments'}
+_INVENTORY_STREAM_OPERATIONS = {'inventory_items': ('inventoryItems',),
+                                'inventory_levels': ('locations', 'inventoryLevels')}
+_INVENTORY_QUERY_OPERATIONS = {'inventoryItems'}
 _SHA256 = re.compile(r'[0-9a-f]{64}')
 
 
@@ -279,6 +287,178 @@ def _validate_catalog_page_publication(rows, files, stream=None):
     if set(rows_by_generation) != set(response_pages):
         raise ValueError('Catalog raw rows omit a response page')
 
+def _checked_page_files(files, allowed_operations):
+    """Common manifest-file envelope validation shared by the page transports."""
+    response_pages, seals, generations = {}, [], set()
+    for source in files:
+        if not isinstance(source, dict):
+            raise ValueError('Manifest file must be an object')
+        generation, sha256 = source.get('generation'), source.get('sha256')
+        if (not isinstance(generation, str) or not generation.isdigit()
+                or not isinstance(sha256, str) or not _SHA256.fullmatch(sha256)
+                or not str(source.get('uri', '')).startswith('gs://')):
+            raise ValueError('Manifest file must include GCS URI, generation and SHA256')
+        if generation in generations:
+            raise ValueError('Manifest generations must be unique')
+        generations.add(generation)
+        if source.get('role') == 'completion_seal':
+            seals.append(source)
+            continue
+        if source.get('role') != 'response_page' or source.get('operation') not in allowed_operations:
+            raise ValueError('Manifest has an unsupported file role or operation')
+        response_pages[generation] = source
+    return response_pages, seals
+
+
+def _checked_page_variables(source, expected, owner_pattern=None, query_operation=False):
+    variables = source.get('variables')
+    first = variables.get('first') if isinstance(variables, dict) else None
+    if (not isinstance(variables, dict) or set(variables) != expected
+            or ('first' in expected
+                and (not isinstance(first, int) or isinstance(first, bool) or not 1 <= first <= 100))
+            or ('after' in expected and variables.get('after') is not None
+                and not isinstance(variables.get('after'), str))
+            or query_operation and not isinstance(variables.get('query'), str)
+            or not isinstance(source.get('request_sha256'), str)
+            or not _SHA256.fullmatch(source['request_sha256'])
+            or not _aware_timestamp(source.get('captured_at'))):
+        raise ValueError('Response-page metadata is incomplete or invalid')
+    if owner_pattern is not None and (not isinstance(variables.get('id'), str)
+                                      or not re.fullmatch(owner_pattern, variables['id'])):
+        raise ValueError('Response page owner metadata is invalid')
+
+
+def _checked_page_row_grain(rows, response_pages, envelope):
+    """One raw row per response page with an exact preserved text and checksum."""
+    rows_by_generation = {}
+    for row in rows:
+        if (not isinstance(row, dict) or set(row) != set(envelope)
+                or not isinstance(row.get('file_id'), str) or row.get('record_index') != 1):
+            raise ValueError('Raw rows must match envelope columns with record_index=1')
+        generation = row['file_id']
+        if generation not in response_pages or generation in rows_by_generation:
+            raise ValueError('Raw rows must map one-to-one to response pages')
+        text = row.get('record_text')
+        if not isinstance(text, str) or row.get('payload') != text:
+            raise ValueError('Raw row must preserve original JSON text')
+        digest_value = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if row.get('record_sha256') != digest_value or response_pages[generation].get('sha256') != digest_value:
+            raise ValueError('Raw row or response page checksum mismatch')
+        try:
+            payload = json.loads(text)
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError('Response page is not valid JSON') from None
+        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), dict):
+            raise ValueError('Response page is incomplete or has GraphQL errors')
+        rows_by_generation[generation] = payload
+    if set(rows_by_generation) != set(response_pages):
+        raise ValueError('Raw rows omit a response page')
+    return rows_by_generation
+
+
+def _checked_connection(connection):
+    if (not isinstance(connection, dict) or not isinstance(connection.get('pageInfo'), dict)
+            or type(connection['pageInfo'].get('hasNextPage')) is not bool
+            or (connection['pageInfo'].get('endCursor') is not None
+                and not isinstance(connection['pageInfo'].get('endCursor'), str))
+            or not isinstance(connection.get('edges'), list)):
+        raise ValueError('Response page is missing its connection')
+    if connection['pageInfo']['hasNextPage'] and not connection['pageInfo'].get('endCursor'):
+        raise ValueError('Response page has a nonadvancing cursor')
+
+
+def _validate_payments_page_publication(rows, files, stream):
+    """Validate tender/balance/dispute root-connection page grain before any write."""
+    operation = _PAYMENT_STREAM_OPERATIONS.get(stream)
+    if operation is None:
+        raise ValueError('Unknown payments stream')
+    response_pages, seals = _checked_page_files(files, {operation})
+    for source in response_pages.values():
+        if source.get('operation') != operation:
+            raise ValueError('Payments stream and response operation do not match')
+        expected = {'first', 'after', 'query'} if operation in _PAYMENT_QUERY_OPERATIONS else {'first', 'after'}
+        _checked_page_variables(source, expected, query_operation=operation in _PAYMENT_QUERY_OPERATIONS)
+    if len(seals) != 1:
+        raise ValueError('Payments manifest requires one completion seal')
+    if not response_pages:
+        counts = seals[0].get('payments_counts')
+        if not isinstance(counts, dict) or counts.get(operation) != 0:
+            raise ValueError('Empty payments stream requires a sealed zero count')
+    rows_by_generation = _checked_page_row_grain(rows, response_pages, contract_columns()[0])
+    for payload in rows_by_generation.values():
+        if operation == 'tenderTransactions':
+            connection = payload['data'].get(operation)
+        else:
+            account = payload['data'].get('shopifyPaymentsAccount')
+            if not isinstance(account, dict):
+                raise ValueError('Payments response page is missing its account')
+            connection = account.get(operation)
+        _checked_connection(connection)
+
+
+def _validate_fulfillments_page_publication(rows, files):
+    """Validate orders/fulfillments page grain before any write."""
+    response_pages, seals = _checked_page_files(files, _FULFILLMENT_OPERATIONS)
+    for source in response_pages.values():
+        operation = source['operation']
+        if operation == 'orders':
+            _checked_page_variables(source, {'first', 'after', 'query'}, query_operation=True)
+        else:
+            _checked_page_variables(source, {'id'}, owner_pattern=r'gid://shopify/Order/[0-9]+')
+    if len(seals) != 1 or not response_pages:
+        raise ValueError('Fulfillments manifest requires one completion seal and response pages')
+    rows_by_generation = _checked_page_row_grain(rows, response_pages, contract_columns()[0])
+    for generation, payload in rows_by_generation.items():
+        source = response_pages[generation]
+        if source['operation'] == 'orders':
+            _checked_connection(payload['data'].get('orders'))
+            continue
+        owner = source['variables'].get('id')
+        node = payload['data'].get('node')
+        if not isinstance(owner, str) or not isinstance(node, dict) or node.get('id') != owner:
+            raise ValueError('Fulfillments response page owner does not match its request')
+        fulfillments = node.get('fulfillments')
+        if (not isinstance(fulfillments, list)
+                or any(not isinstance(item, dict) or not isinstance(item.get('id'), str)
+                       for item in fulfillments)):
+            raise ValueError('Fulfillments response page does not contain identified fulfillment objects')
+
+
+def _validate_inventory_page_publication(rows, files, stream):
+    """Validate inventory items/levels page grain before any write."""
+    allowed = _INVENTORY_STREAM_OPERATIONS.get(stream)
+    if allowed is None:
+        raise ValueError('Unknown inventory stream')
+    response_pages, seals = _checked_page_files(files, set(allowed))
+    for source in response_pages.values():
+        operation = source.get('operation')
+        if operation == 'inventoryItems':
+            _checked_page_variables(source, {'first', 'after', 'query'}, query_operation=True)
+        elif operation == 'locations':
+            _checked_page_variables(source, {'first', 'after'})
+        else:
+            _checked_page_variables(source, {'first', 'after', 'id'},
+                                    owner_pattern=r'gid://shopify/Location/[0-9]+')
+    if len(seals) != 1:
+        raise ValueError('Inventory manifest requires one completion seal')
+    if not response_pages:
+        counts = seals[0].get('inventory_counts')
+        if (not isinstance(counts, dict) or any(counts.get(operation) != 0 for operation in allowed)):
+            raise ValueError('Empty inventory stream requires sealed zero counts')
+    rows_by_generation = _checked_page_row_grain(rows, response_pages, contract_columns()[0])
+    for generation, payload in rows_by_generation.items():
+        source = response_pages[generation]
+        operation = source['operation']
+        if operation == 'inventoryLevels':
+            node = payload['data'].get('node')
+            owner = source['variables'].get('id')
+            if not isinstance(owner, str) or not isinstance(node, dict) or node.get('id') != owner:
+                raise ValueError('Inventory response page owner does not match its request')
+            _checked_connection(node.get('inventoryLevels'))
+        else:
+            _checked_connection(payload['data'].get(operation))
+
+
 CONTRACT = Path(__file__).resolve().parents[2] / 'warehouse/contracts/shopify_raw_v1.yaml'
 
 
@@ -296,7 +476,9 @@ def dataset_id(value):
 
 def publication_sql(dataset, stream, stage):
     dataset_id(dataset)
-    if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants', 'acceptance'):
+    if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants',
+                      'tender_transactions', 'balance_transactions', 'disputes', 'fulfillments',
+                      'inventory_items', 'inventory_levels', 'acceptance'):
         raise ValueError('Stream has no publication contract')
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
         raise ValueError('Invalid staging identifier')
@@ -430,6 +612,42 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             catalog_rows.append(row)
         _validate_catalog_page_publication(catalog_rows, files, stream)
         records = catalog_rows
+    if stream in ('tender_transactions', 'balance_transactions', 'disputes'):
+        if manifest['transport'] != 'shopify_graphql_pages':
+            raise ValueError('Payments publication requires shopify_graphql_pages transport')
+        payment_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            payment_rows.append(row)
+        _validate_payments_page_publication(payment_rows, files, stream)
+        records = payment_rows
+    if stream == 'fulfillments':
+        if manifest['transport'] != 'shopify_graphql_pages':
+            raise ValueError('Fulfillments publication requires shopify_graphql_pages transport')
+        fulfillment_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            fulfillment_rows.append(row)
+        _validate_fulfillments_page_publication(fulfillment_rows, files)
+        records = fulfillment_rows
+    if stream in ('inventory_items', 'inventory_levels'):
+        if manifest['transport'] != 'shopify_graphql_pages':
+            raise ValueError('Inventory publication requires shopify_graphql_pages transport')
+        inventory_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            inventory_rows.append(row)
+        _validate_inventory_page_publication(inventory_rows, files, stream)
+        records = inventory_rows
     stage = '_load_' + uuid.uuid4().hex
     sql = publication_sql(dataset, stream, stage)
     with tempfile.SpooledTemporaryFile(max_size=4*1024*1024, mode='r+b') as data:

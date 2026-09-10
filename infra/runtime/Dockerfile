@@ -10,6 +10,12 @@ COPY agent/warehouse /app/agent/warehouse
 COPY queries/shopify/orders_bulk.graphql /app/queries/shopify/orders_bulk.graphql
 COPY queries/shopify/order_refunds_bulk.graphql /app/queries/shopify/order_refunds_bulk.graphql
 COPY queries/shopify/return_line_items_bulk.graphql /app/queries/shopify/return_line_items_bulk.graphql
+COPY queries/shopify/tender_transactions_bulk.graphql /app/queries/shopify/tender_transactions_bulk.graphql
+COPY queries/shopify/balance_transactions_bulk.graphql /app/queries/shopify/balance_transactions_bulk.graphql
+COPY queries/shopify/disputes_bulk.graphql /app/queries/shopify/disputes_bulk.graphql
+COPY queries/shopify/fulfillments_bulk.graphql /app/queries/shopify/fulfillments_bulk.graphql
+COPY queries/shopify/inventory_items_bulk.graphql /app/queries/shopify/inventory_items_bulk.graphql
+COPY queries/shopify/inventory_levels_bulk.graphql /app/queries/shopify/inventory_levels_bulk.graphql
 COPY queries/shopify/customers_query.graphql /app/queries/shopify/customers_query.graphql
 COPY queries/shopify/products_query.graphql /app/queries/shopify/products_query.graphql
 COPY warehouse/contracts/shopify_raw_v1.yaml /app/warehouse/contracts/shopify_raw_v1.yaml

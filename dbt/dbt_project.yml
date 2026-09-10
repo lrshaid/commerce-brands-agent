@@ -51,6 +51,15 @@ models:
       products:
         +schema: analytics
         +tags: [products_staging]
+      payments:
+        +schema: analytics
+        +tags: [payments_staging]
+      fulfillments:
+        +schema: analytics
+        +tags: [fulfillments_staging]
+      inventory:
+        +schema: analytics
+        +tags: [inventory_staging]
       platform:
         +tags: [platform_smoke]
       ga4:

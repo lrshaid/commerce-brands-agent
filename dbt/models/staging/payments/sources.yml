@@ -1,0 +1,49 @@
+version: 2
+sources:
+  - name: shopify_payments
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: tender_transactions
+        description: Exact HTTP response pages for the paginated tender transaction operation.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, tender_transactions]
+      - name: balance_transactions
+        description: Exact HTTP response pages for the paginated balance transaction operation.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, balance_transactions]
+      - name: disputes
+        description: Exact HTTP response pages for the paginated disputes operation.
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, disputes]
+      - name: ingestion_runs
+models:
+  - name: stg_shopify__tender_transactions
+    description: Tender transaction observations; not payment recognition or current state.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: tender_transaction_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+  - name: stg_shopify__balance_transactions
+    description: Balance transaction observations; not payout reconciliation or current state.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: balance_transaction_gid
+        data_tests: [not_null]
+  - name: stg_shopify__disputes
+    description: Dispute observations; not chargeback loss recognition or current state.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: dispute_gid
+        data_tests: [not_null]
