@@ -101,7 +101,6 @@ vars:
   # Klaviyo metric dictionary: metric_id -> canonical event_type, maintained by
   # the deployment.  Empty by default: an unknown metric keeps event_type NULL
   # and never guesses a mapping.
-  klaviyo_metric_map: []
 models:
   commerce:
     +persist_docs: {relation: true, columns: true}
