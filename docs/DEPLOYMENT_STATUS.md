@@ -23,6 +23,39 @@ replay was not completed. The replay Dagster run succeeded and the pipeline is i
 
 ---
 
+# Klaviyo events pipeline live — 2026-09-10
+
+Image `klaviyo-p1c-2c50a5f-20260910131656` (digest `sha256:98cce20444c9fe230627089def27e98e702961c961cf91ba2fa8e1fc74ad08a9`).
+Terraform: dataset `raw_klaviyo` + worker access (3 add, 1 update), then image
+rollouts (0 add, 2 update). Secret `klaviyo-api-key` is user-managed (never
+read or echoed); injected as `KLAVIYO_API_KEY` into the worker.
+
+First ingestion `e32c9a6d-bf8f-4629-a07b-455406b40e6e` (extraction
+`klaviyo-initial-20260910-01`, 48h validation window, 66 owner-provided
+metrics ordered with received-email first as the send denominator) SUCCESS:
+raw_klaviyo.events 162 pages, 20,163 events, 37 metrics active, 1 published
+manifest. The real API envelope matched the fail-closed capture contract.
+
+First staging build discovered a live defect: stg_klaviyo__events fanned
+47,258 rows vs 20,163 distinct event keys (top duplicate 14x) — the profiles
+CTE emitted one row per (page, profile) and the event join multiplied by
+pages-a-profile-appeared-in. Fixed with a deterministic qualify; fix verified
+against real data (20,163 rows = 20,163 distinct keys = 20,163 event ids)
+before the follow-up rollout. Marts build `bfeb7f30` (extraction
+`marts-klaviyo-20260910-03`) built klaviyo_dbt SUCCESS with all tests green.
+
+Verified staging distribution (48h): received-email 10,618, opened-email
+6,530, clicked-email 1,295, bounced-email 646, bounce-suppression-added 539.
+
+Still failing every marts run until their pipelines first run:
+payments/fulfillments/inventory staging steps (raw tables absent by design;
+those pipelines are implemented but never launched).
+
+No replay/idempotency run for the Klaviyo capture yet. No BQ->Klaviyo
+writes exist (owner decision: no deletion jobs, phase 1 ingest-only).
+
+---
+
 # Catalog streams live: customers, products, variants — 2026-09-08
 
 Image `catalog-fix3-44083d5-20260908142604` (digest `sha256:3e69b40fec64fed6370f47d8fb3b83e890c3d5fd1638f01dae12a4b45f133b20`)
