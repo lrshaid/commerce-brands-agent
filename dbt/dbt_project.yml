@@ -123,16 +123,14 @@ models:
         +tags: [products_staging]
       payments:
         +schema: analytics
-        +tags: [payments_staging]
       fulfillments:
         +schema: analytics
-        +tags: [fulfillments_staging]
+      fulfillment_orders:
+        +schema: analytics
       inventory:
         +schema: analytics
-        +tags: [inventory_staging]
       klaviyo:
         +schema: analytics
-        +tags: [klaviyo_staging]
       platform:
         +tags: [platform_smoke]
       ga4:

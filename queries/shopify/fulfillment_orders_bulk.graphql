@@ -1,0 +1,26 @@
+query FulfillmentOrdersBulk {
+  fulfillmentOrders {
+    edges { node {
+      id
+      order { id }
+      status
+      requestStatus
+      createdAt
+      updatedAt
+      fulfillAt
+      fulfillBy
+      assignedLocation { location { id } }
+      destination { city province countryCode zip }
+      deliveryMethod { methodType }
+      lineItems(first: 50) {
+        edges { node {
+          id
+          inventoryItemId
+          totalQuantity
+          remainingQuantity
+          lineItem { id }
+        } }
+      }
+    } }
+  }
+}

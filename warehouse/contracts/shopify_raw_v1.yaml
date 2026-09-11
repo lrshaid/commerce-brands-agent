@@ -211,7 +211,7 @@ streams:
       - Existing selection has no exchange-line identity, original line linkage or root update cursor.
 
 not_in_scope_yet:
-  other_query_files: 31
+  other_query_files: 32
   canonical_stream_count: unapproved
   dbt_project_and_staging_sql: not_implemented
   financial_policies: require_separate_approval

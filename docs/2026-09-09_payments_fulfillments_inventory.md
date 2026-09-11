@@ -27,7 +27,24 @@ unverified against the live Admin API 2026-04.
   is interpreted as a LIST (the source mixes `first: 50` with direct fields, so
   the source file is internally inconsistent; the compiled page drops `first`
   and requires a list response, failing closed otherwise).
-  `fulfillment_orders_bulk.graphql` does NOT exist.
+  Fulfillment orders are a separate stream family because they represent the
+  work Shopify assigns to locations, while fulfillments represent shipments.
+
+## Fulfillment orders
+
+- Query: `fulfillment_orders_bulk.graphql`. The top-level `fulfillmentOrders`
+  connection is traversed newest-first with `UPDATED_AT`; capture stops after
+  crossing the explicit window start. Each in-window fulfillment order then
+  owns an independently paginated `lineItems` traversal.
+- Raw tables: `fulfillment_orders`, `fulfillment_order_line_items`.
+- Staging: `stg_shopify__fulfillment_orders`,
+  `stg_shopify__fulfillment_order_line_items`.
+- Assets: `shopify_capture/fulfillment_order_pages`,
+  `shopify/{fulfillment_orders,fulfillment_order_line_items}`.
+- Job: `shopify_fulfillment_orders_ingestion`.
+- The root API filters results according to the app's merchant-managed,
+  assigned, and third-party fulfillment-order scopes. Live scope coverage and
+  acceptance remain required before scheduling.
 - Raw table: `fulfillments` (+ `shopify_fulfillments/ingestion_runs` asset).
 - Staging: `stg_shopify__fulfillments` (macro `shopify_fulfillment_pages.sql`).
 - Assets: `shopify_capture/fulfillment_pages`, `shopify/fulfillments`.

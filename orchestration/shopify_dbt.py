@@ -50,6 +50,11 @@ def fulfillments_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "fulfillments")
 
 
+@dbt_assets(manifest=MANIFEST, select="tag:fulfillment_orders_staging")
+def fulfillment_orders_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "fulfillment_orders")
+
+
 @dbt_assets(manifest=MANIFEST, select="tag:inventory_staging")
 def inventory_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "inventory")

@@ -14,6 +14,7 @@ COPY queries/shopify/tender_transactions_bulk.graphql /app/queries/shopify/tende
 COPY queries/shopify/balance_transactions_bulk.graphql /app/queries/shopify/balance_transactions_bulk.graphql
 COPY queries/shopify/disputes_bulk.graphql /app/queries/shopify/disputes_bulk.graphql
 COPY queries/shopify/fulfillments_bulk.graphql /app/queries/shopify/fulfillments_bulk.graphql
+COPY queries/shopify/fulfillment_orders_bulk.graphql /app/queries/shopify/fulfillment_orders_bulk.graphql
 COPY queries/shopify/inventory_items_bulk.graphql /app/queries/shopify/inventory_items_bulk.graphql
 COPY queries/shopify/inventory_levels_bulk.graphql /app/queries/shopify/inventory_levels_bulk.graphql
 COPY queries/shopify/customers_query.graphql /app/queries/shopify/customers_query.graphql

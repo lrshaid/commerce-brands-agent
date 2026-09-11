@@ -2,44 +2,180 @@ query OrdersBulk ($query: String) {
   orders(query: $query) {
     edges {
       node {
+        __typename
         id
         name
+        note
+        tags
+        test
+        email
+        phone
+        number
+        confirmed
+        closedAt
+        cancelledAt
+        cancelReason
         createdAt
         updatedAt
         processedAt
-        cancelledAt
         currencyCode
+        presentmentCurrencyCode
         displayFinancialStatus
         displayFulfillmentStatus
-        email
-        note
-        tags
+        taxExempt
+        taxesIncluded
+        dutiesIncluded
+        estimatedTaxes
+        customerAcceptsMarketing
+        customerLocale
+        confirmationNumber
+        sourceName
+        sourceIdentifier
+        registeredSourceUrl
+        statusPageUrl
+        totalWeight
+        poNumber
+        clientIp
+        paymentGatewayNames
+        discountCodes
         totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
-        subtotalPriceSet { shopMoney { amount currencyCode } }
-        totalTaxSet { shopMoney { amount currencyCode } }
-        totalDiscountsSet { shopMoney { amount currencyCode } }
-        totalShippingPriceSet { shopMoney { amount currencyCode } }
-        customer { id }
-        shippingAddress { city province provinceCode country countryCodeV2 zip }
-        billingAddress { city province provinceCode country countryCodeV2 zip }
+        subtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        totalTaxSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        totalDiscountsSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        totalShippingPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        totalTipReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        currentSubtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        currentTotalTaxSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        currentTotalDiscountsSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        currentTotalAdditionalFeesSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        originalTotalAdditionalFeesSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        totalCashRoundingAdjustment {
+          paymentSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+          refundSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+        }
+        app { id name }
+        staffMember { id }
+        physicalLocation { id name }
+        merchantOfRecordApp { id }
+        merchantBusinessEntity { id }
+        customer {
+          id
+          email
+          firstName
+          lastName
+          phone
+          createdAt
+          updatedAt
+          verifiedEmail
+          tags
+          state
+          note
+          taxExempt
+          taxExemptions
+          multipassIdentifier
+          defaultEmailAddress {
+            marketingState
+            marketingOptInLevel
+            marketingUpdatedAt
+          }
+          defaultPhoneNumber {
+            marketingState
+            marketingOptInLevel
+            marketingUpdatedAt
+            marketingCollectedFrom
+          }
+          defaultAddress {
+            id address1 address2 city province provinceCode zip country
+            countryCodeV2 name firstName lastName company phone latitude longitude
+          }
+        }
+        billingAddress {
+          address1 address2 city province provinceCode zip country countryCodeV2
+          name firstName lastName company phone latitude longitude
+        }
+        shippingAddress {
+          address1 address2 city province provinceCode zip country countryCodeV2
+          name firstName lastName company phone latitude longitude
+        }
+        customerJourneySummary { lastVisit { landingPage referrerUrl } }
+        customAttributes { key value }
+        paymentTerms { id paymentTermsName }
+        taxLines {
+          title rate ratePercentage priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } channelLiable
+        }
+        fulfillments {
+          id name status displayStatus createdAt updatedAt
+          location { id name }
+          service { handle }
+          trackingInfo { company number url }
+        }
+        refunds {
+          id createdAt processedAt note
+          staffMember { id }
+          totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+          duties { amountSet { shopMoney { amount currencyCode } } }
+        }
         lineItems {
-          edges { node {
-            id
-            quantity
-            sku
-            title
-            variantTitle
-            product { id }
-            variant { id }
-            originalTotalSet { shopMoney { amount currencyCode } }
-            discountedTotalSet { shopMoney { amount currencyCode } }
-          } }
+          edges {
+            node {
+              __typename id sku name title variantTitle quantity vendor
+              requiresShipping taxable currentQuantity isGiftCard fulfillableQuantity
+              fulfillmentStatus
+              fulfillmentService { handle serviceName type }
+              originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              discountedTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              discountedUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              totalDiscountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              product { id }
+              variant { id inventoryItem { tracked } }
+              staffMember { id }
+              customAttributes { key value }
+              discountAllocations {
+                allocatedAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+                discountApplication {
+                  index targetType allocationMethod targetSelection
+                }
+              }
+              taxLines {
+                title rate ratePercentage priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } channelLiable
+              }
+            }
+          }
         }
         shippingLines {
-          edges { node { id title code originalPriceSet { shopMoney { amount currencyCode } } } }
+          edges {
+            node {
+              __typename id title code source carrierIdentifier
+              originalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              discountedPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              discountAllocations {
+                allocatedAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+                discountApplication { index }
+              }
+              taxLines {
+                title rate ratePercentage priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } channelLiable
+              }
+            }
+          }
         }
         discountApplications {
-          edges { node { allocationMethod targetSelection targetType } }
+          edges {
+            node {
+              __typename index allocationMethod targetSelection targetType
+              value {
+                __typename
+                ... on MoneyV2 { amount currencyCode }
+                ... on PricingPercentageValue { percentage }
+              }
+              ... on AutomaticDiscountApplication { title }
+              ... on DiscountCodeApplication { code }
+              ... on ManualDiscountApplication { title description }
+              ... on ScriptDiscountApplication { title }
+            }
+          }
         }
       }
     }

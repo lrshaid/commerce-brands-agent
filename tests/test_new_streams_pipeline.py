@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from orchestration.shopify_fulfillments import shopify_fulfillments
+from orchestration.shopify_fulfillment_orders import shopify_fulfillment_orders
 from orchestration.shopify_inventory import shopify_inventory
 from orchestration.shopify_payments import shopify_payments
 
@@ -39,6 +40,7 @@ class NewStreamPipelineTests(unittest.TestCase):
         from orchestration.definitions import defs
         for job, ops in (("shopify_payments_ingestion", {"shopify_capture__payment_pages", "shopify_payments_raw"}),
                          ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
+                         ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
                          ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):
             dg.validate_run_config(defs.resolve_job_def(job), {"ops": {op: {"config": CONFIG} for op in ops}})
 
@@ -47,6 +49,7 @@ class NewStreamPipelineTests(unittest.TestCase):
         config = OrdersConfig(**CONFIG)
         for module, asset, capture_name in (("shopify_payments", shopify_payments, "PaymentsCapture"),
                                             ("shopify_fulfillments", shopify_fulfillments, "FulfillmentsCapture"),
+                                            ("shopify_fulfillment_orders", shopify_fulfillment_orders, "FulfillmentOrdersCapture"),
                                             ("shopify_inventory", shopify_inventory, "InventoryCapture")):
             result, capture, page_size, shop_gid = _capture_module(module, asset, capture_name, config)
             self.assertEqual(page_size, 50)
@@ -69,6 +72,7 @@ class NewStreamPipelineTests(unittest.TestCase):
         for job, expected_ops in (
                 ("shopify_payments_ingestion", {"shopify_capture__payment_pages", "shopify_payments_raw"}),
                 ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
+                ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
                 ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):
             lookup = Mock()
             lookup.json.return_value = {"data": {"runsOrError": {"__typename": "Runs", "results": []}}}

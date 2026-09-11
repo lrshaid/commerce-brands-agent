@@ -1,0 +1,36 @@
+version: 2
+sources:
+  - name: shopify_fulfillment_orders
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify
+    tables:
+      - name: fulfillment_orders
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, fulfillment_orders]
+      - name: fulfillment_order_line_items
+        config:
+          meta:
+            dagster:
+              asset_key: [shopify, fulfillment_order_line_items]
+      - name: ingestion_runs
+models:
+  - name: stg_shopify__fulfillment_orders
+    description: Fulfillment-order observations updated inside each extraction window.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: fulfillment_order_gid
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+  - name: stg_shopify__fulfillment_order_line_items
+    description: Line observations keyed to the owning fulfillment order.
+    columns:
+      - name: observation_key
+        data_tests: [not_null, unique]
+      - name: fulfillment_order_line_item_gid
+        data_tests: [not_null]
+      - name: fulfillment_order_gid
+        data_tests: [not_null]

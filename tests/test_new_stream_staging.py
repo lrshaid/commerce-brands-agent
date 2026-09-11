@@ -9,6 +9,8 @@ MODELS = ROOT / "dbt/models/staging"
 STREAM_MODELS = {
     "payments": ["stg_shopify__tender_transactions", "stg_shopify__balance_transactions", "stg_shopify__disputes"],
     "fulfillments": ["stg_shopify__fulfillments"],
+    "fulfillment_orders": ["stg_shopify__fulfillment_orders",
+                           "stg_shopify__fulfillment_order_line_items"],
     "inventory": ["stg_shopify__inventory_items", "stg_shopify__inventory_levels"],
 }
 
@@ -20,14 +22,20 @@ class NewStreamStagingTests(unittest.TestCase):
             ("shopify_payment_pages.sql", "shopify_balance_transaction_pages", "balance_transactions", "shopify_payments"),
             ("shopify_payment_pages.sql", "shopify_dispute_pages", "disputes", "shopify_payments"),
             ("shopify_fulfillment_pages.sql", "shopify_fulfillment_pages", "fulfillments", "shopify_fulfillments"),
+            ("shopify_fulfillment_order_pages.sql", "shopify_fulfillment_order_pages", "fulfillment_orders", "shopify_fulfillment_orders"),
+            ("shopify_fulfillment_order_pages.sql", "shopify_fulfillment_order_pages", "fulfillment_order_line_items", "shopify_fulfillment_orders"),
             ("shopify_inventory_pages.sql", "shopify_inventory_item_pages", "inventory_items", "shopify_inventory"),
             ("shopify_inventory_pages.sql", "shopify_inventory_level_pages", "inventory_levels", "shopify_inventory"),
         ]
         for file_name, macro, stream, source in bindings:
             text = (MACROS / file_name).read_text()
-            self.assertIn(f"m.stream = '{stream}'", text, file_name)
+            stream_binding = (f"m.stream = '{stream}'" if "fulfillment_order_pages" not in file_name
+                              else "m.stream = '{{ stream }}'")
+            self.assertIn(stream_binding, text, file_name)
             self.assertIn("m.transport = 'shopify_graphql_pages'", text, file_name)
-            self.assertIn(f"source('{source}', '{stream}')", text, file_name)
+            source_binding = (f"source('{source}', '{stream}')" if "fulfillment_order_pages" not in file_name
+                              else "source('shopify_fulfillment_orders', stream)")
+            self.assertIn(source_binding, text, file_name)
             self.assertIn(f"macro {macro}", text, file_name)
 
     def test_models_parse_only_their_stream_paths_with_lineage(self):
@@ -37,6 +45,8 @@ class NewStreamStagingTests(unittest.TestCase):
              "$.data.shopifyPaymentsAccount.balanceTransactions.edges", "payments_staging"),
             ("payments/stg_shopify__disputes.sql", "$.data.shopifyPaymentsAccount.disputes.edges", "payments_staging"),
             ("fulfillments/stg_shopify__fulfillments.sql", "$.data.node.fulfillments", "fulfillments_staging"),
+            ("fulfillment_orders/stg_shopify__fulfillment_orders.sql", "$.data.fulfillmentOrders.edges", "fulfillment_orders_staging"),
+            ("fulfillment_orders/stg_shopify__fulfillment_order_line_items.sql", "$.data.node.lineItems.edges", "fulfillment_orders_staging"),
             ("inventory/stg_shopify__inventory_items.sql", "$.data.inventoryItems.edges", "inventory_staging"),
             ("inventory/stg_shopify__inventory_levels.sql", "$.data.node.inventoryLevels.edges", "inventory_staging"),
         ]
@@ -67,7 +77,8 @@ class NewStreamStagingTests(unittest.TestCase):
             self.assertIn(".`analytics`.", node["relation_name"], name)
             stream_tags = [tag for tag in node["config"]["tags"] if tag.endswith("_staging")]
             self.assertEqual(len(stream_tags), 1, name)
-            self.assertIn(stream_tags[0], ("payments_staging", "fulfillments_staging", "inventory_staging"), name)
+            self.assertIn(stream_tags[0], ("payments_staging", "fulfillments_staging",
+                                           "fulfillment_orders_staging", "inventory_staging"), name)
 
 
 if __name__ == "__main__":
