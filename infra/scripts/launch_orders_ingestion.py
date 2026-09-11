@@ -26,18 +26,26 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "shopify_marts_build"),
+    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
-    parser.add_argument("--expected-shop-gid", required=True)
-    parser.add_argument("--window-start", required=True)
-    parser.add_argument("--window-end", required=True)
-    parser.add_argument("--account-key", help="Klaviyo account-scoped registry key (required for klaviyo_events_ingestion)")
+    parser.add_argument("--expected-shop-gid", help="Required for Shopify jobs; unused by Klaviyo jobs")
+    parser.add_argument("--window-start", help="Required for windowed jobs; unused by klaviyo_campaigns_ingestion")
+    parser.add_argument("--window-end", help="Required for windowed jobs; unused by klaviyo_campaigns_ingestion")
+    parser.add_argument("--account-key", help="Klaviyo account-scoped registry key (required for klaviyo_events_ingestion and klaviyo_campaigns_ingestion)")
     parser.add_argument("--metric", action="append", default=[], metavar="METRIC_ID[=EVENT_TYPE]",
                         help="Ordered priority metric (repeatable; first is the send denominator); required for klaviyo_events_ingestion")
     parser.add_argument("--replay-completed-run", help="Explicitly replay this successful run's extraction")
     parser.add_argument("--retry-failed-run", help="Retry this terminal failed run after verifying its remote worker stopped")
     args = parser.parse_args()
+    windowed_jobs = ("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion",
+                     "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion",
+                     "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion",
+                     "shopify_inventory_ingestion", "klaviyo_events_ingestion")
+    if args.job in windowed_jobs and (not args.window_start or not args.window_end):
+        parser.error(f"{args.job} requires --window-start and --window-end")
+    if args.job in windowed_jobs and args.job != "klaviyo_events_ingestion" and not args.expected_shop_gid:
+        parser.error(f"{args.job} requires --expected-shop-gid")
     tag = {"key": "commerce/extraction_id", "value": args.extraction_id}
     response = requests.post(URL, json={"query": LOOKUP, "variables": {
         "filter": {"pipelineName": args.job, "tags": [tag]}}}, timeout=30)
@@ -76,6 +84,9 @@ def main():
     if args.job == "shopify_fulfillments_ingestion":
         operations = {"shopify_capture__fulfillment_pages": {"config": config},
                       "shopify_fulfillments_raw": {"config": config}}
+    if args.job == "shopify_fulfillment_orders_ingestion":
+        operations = {"shopify_capture__fulfillment_order_pages": {"config": config},
+                      "shopify_fulfillment_orders_raw": {"config": config}}
     if args.job == "shopify_inventory_ingestion":
         operations = {"shopify_capture__inventory_pages": {"config": config},
                       "shopify_inventory_raw": {"config": config}}
@@ -91,6 +102,14 @@ def main():
             for entry in args.metric]
         operations = {"klaviyo_capture__event_pages": {"config": klaviyo_config},
                       "klaviyo_events_raw": {"config": klaviyo_config}}
+    if args.job == "klaviyo_campaigns_ingestion":
+        if not args.account_key:
+            parser.error("klaviyo_campaigns_ingestion requires --account-key")
+        # Klaviyo is account-scoped and campaigns are a point-in-time snapshot:
+        # no expected_shop_gid and no extraction window.
+        campaigns_config = {"extraction_id": args.extraction_id, "account_key": args.account_key}
+        operations = {"klaviyo_capture__campaign_pages": {"config": campaigns_config},
+                      "klaviyo_campaigns_raw": {"config": campaigns_config}}
     if args.job == "shopify_refunds_ingestion":
         operations["shopify_refunds_raw"] = {"config": config}
     if args.job == "shopify_marts_build":

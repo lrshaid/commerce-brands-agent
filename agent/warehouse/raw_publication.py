@@ -23,6 +23,10 @@ _PAYMENT_STREAM_OPERATIONS = {'tender_transactions': 'tenderTransactions',
                               'disputes': 'disputes'}
 _PAYMENT_QUERY_OPERATIONS = {'tenderTransactions', 'disputes'}
 _FULFILLMENT_OPERATIONS = {'orders', 'fulfillments'}
+_FULFILLMENT_ORDER_STREAM_OPERATIONS = {
+    'fulfillment_orders': ('fulfillmentOrders',),
+    'fulfillment_order_line_items': ('lineItems',),
+}
 _INVENTORY_STREAM_OPERATIONS = {'inventory_items': ('inventoryItems',),
                                 'inventory_levels': ('locations', 'inventoryLevels')}
 _INVENTORY_QUERY_OPERATIONS = {'inventoryItems'}
@@ -465,6 +469,120 @@ def _validate_klaviyo_events_page_publication(rows, files, stream=None):
                 raise ValueError('Klaviyo event profile relationship is missing from included profiles')
 
 
+_KLAVIYO_CAMPAIGN_INCLUDED_TYPES = ('campaign-audience', 'campaign-message', 'campaign-variation')
+
+
+def _validate_klaviyo_campaigns_page_publication(rows, files, stream=None):
+    """Validate the Klaviyo campaigns snapshot page grain (JSON:API, one page per row)."""
+    if stream is not None and stream != 'campaigns':
+        raise ValueError('Unknown Klaviyo stream')
+    response_pages, seals, generations = {}, [], set()
+    for source in files:
+        if not isinstance(source, dict):
+            raise ValueError('Klaviyo manifest file must be an object')
+        generation, sha256 = source.get('generation'), source.get('sha256')
+        if (not isinstance(generation, str) or not generation.isdigit()
+                or not isinstance(sha256, str) or not _SHA256.fullmatch(sha256)
+                or not str(source.get('uri', '')).startswith('gs://')):
+            raise ValueError('Klaviyo manifest file must include GCS URI, generation and SHA256')
+        if generation in generations:
+            raise ValueError('Klaviyo manifest generations must be unique')
+        generations.add(generation)
+        if source.get('role') == 'completion_seal':
+            seals.append(source)
+            continue
+        if source.get('role') != 'response_page':
+            raise ValueError('Klaviyo manifest has an unsupported file role')
+        operation = source.get('operation')
+        if operation != 'campaigns':
+            raise ValueError('Klaviyo campaigns response page operation is invalid')
+        variables = source.get('variables')
+        if not isinstance(variables, dict) or not variables:
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        page_size = variables.get('page[size]')
+        if set(variables) == {'cursor'}:
+            cursor = variables['cursor']
+            if not isinstance(cursor, str) or not cursor.startswith('https://a.klaviyo.com/api/campaigns'):
+                raise ValueError('Klaviyo response page cursor metadata is invalid')
+        elif (set(variables) == {'page[size]', 'sort', 'include', 'filter'}
+                and isinstance(page_size, int) and not isinstance(page_size, bool)
+                and 1 <= page_size <= 100
+                and variables.get('sort') == '-updated_at'
+                and variables.get('include') == 'campaign-audiences,campaign-messages,campaign-variations'
+                and variables.get('filter') in ('equals(archived,false)', 'equals(archived,true)')):
+            pass
+        else:
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        if (not isinstance(source.get('request_sha256'), str)
+                or not _SHA256.fullmatch(source['request_sha256'])
+                or not _aware_timestamp(source.get('captured_at'))):
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        if generation in response_pages:
+            raise ValueError('Klaviyo response page generations must be unique')
+        response_pages[generation] = source
+    if len(seals) != 1:
+        raise ValueError('Klaviyo manifest requires one completion seal')
+    if not response_pages:
+        counts = seals[0].get('klaviyo_counts')
+        if not isinstance(counts, dict) or any(value != 0 for value in counts.values()):
+            raise ValueError('Empty Klaviyo campaigns stream requires a sealed zero count')
+
+    rows_by_generation = {}
+    for row in rows:
+        if (not isinstance(row, dict) or set(row) != set(contract_columns()[0])
+                or not isinstance(row.get('file_id'), str) or row.get('record_index') != 1):
+            raise ValueError('Klaviyo response pages require envelope columns and record_index=1')
+        generation = row['file_id']
+        if generation not in response_pages or generation in rows_by_generation:
+            raise ValueError('Klaviyo raw rows must map one-to-one to response pages')
+        text = row.get('record_text')
+        if not isinstance(text, str) or row.get('payload') != text:
+            raise ValueError('Klaviyo raw row must preserve original JSON text')
+        digest_value = hashlib.sha256(text.encode('utf-8')).hexdigest()
+        if row.get('record_sha256') != digest_value or response_pages[generation].get('sha256') != digest_value:
+            raise ValueError('Klaviyo raw row or response page checksum mismatch')
+        try:
+            payload = json.loads(text)
+        except (TypeError, ValueError, UnicodeError, RecursionError):
+            raise ValueError('Klaviyo response page is not valid JSON') from None
+        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), list):
+            raise ValueError('Klaviyo response page is incomplete or has errors')
+        rows_by_generation[generation] = payload
+    if set(rows_by_generation) != set(response_pages):
+        raise ValueError('Klaviyo raw rows omit a response page')
+    for payload in rows_by_generation.values():
+        included = payload.get('included', [])
+        if not isinstance(included, list):
+            raise ValueError('Klaviyo response page included collection is invalid')
+        campaigns, audiences, messages = set(), set(), set()
+        for item in included:
+            if not isinstance(item, dict) or item.get('type') not in _KLAVIYO_CAMPAIGN_INCLUDED_TYPES:
+                raise ValueError('Klaviyo response page contains an unexpected included resource')
+            if not isinstance(item.get('id'), str) or not item['id']:
+                raise ValueError('Klaviyo included resource is missing its identity')
+            if not isinstance(item.get('relationships'), dict):
+                raise ValueError('Klaviyo included resource is missing its relationships')
+            if item['type'] == 'campaign-audience':
+                audiences.add(item['id'])
+            elif item['type'] == 'campaign-message':
+                messages.add(item['id'])
+        for campaign in payload['data']:
+            if (not isinstance(campaign, dict) or campaign.get('type') != 'campaign'
+                    or not isinstance(campaign.get('id'), str) or not campaign['id']):
+                raise ValueError('Klaviyo response page contains an unidentified campaign')
+            campaigns.add(campaign['id'])
+        for item in included:
+            parent = item['relationships'].get(
+                'campaign' if item['type'] == 'campaign-audience'
+                else 'campaign-audience' if item['type'] == 'campaign-message'
+                else 'campaign-message')
+            parent_data = parent.get('data') if isinstance(parent, dict) else None
+            parents = {'campaign-audience': campaigns, 'campaign-message': audiences,
+                       'campaign-variation': messages}[item['type']]
+            if not isinstance(parent_data, dict) or parent_data.get('id') not in parents:
+                raise ValueError('Klaviyo included resource references a parent missing from the page')
+
+
 
 def _checked_connection(connection):
     if (not isinstance(connection, dict) or not isinstance(connection.get('pageInfo'), dict)
@@ -569,6 +687,38 @@ def _validate_inventory_page_publication(rows, files, stream):
             _checked_connection(payload['data'].get(operation))
 
 
+def _validate_fulfillment_orders_page_publication(rows, files, stream):
+    """Validate fulfillment-order root pages or owner-scoped line pages."""
+    allowed = _FULFILLMENT_ORDER_STREAM_OPERATIONS.get(stream)
+    if allowed is None:
+        raise ValueError('Unknown fulfillment-order stream')
+    response_pages, seals = _checked_page_files(files, set(allowed))
+    for source in response_pages.values():
+        if source['operation'] == 'fulfillmentOrders':
+            _checked_page_variables(source, {'first', 'after'})
+        else:
+            _checked_page_variables(source, {'first', 'after', 'id'},
+                                    owner_pattern=r'gid://shopify/FulfillmentOrder/[0-9]+')
+    if len(seals) != 1:
+        raise ValueError('Fulfillment-order manifest requires one completion seal')
+    if not response_pages:
+        counts = seals[0].get('fulfillment_order_counts')
+        expected = 'fulfillmentOrders' if stream == 'fulfillment_orders' else 'lineItems'
+        if not isinstance(counts, dict) or counts.get(expected) != 0:
+            raise ValueError('Empty fulfillment-order stream requires a sealed zero count')
+    rows_by_generation = _checked_page_row_grain(rows, response_pages, contract_columns()[0])
+    for generation, payload in rows_by_generation.items():
+        source = response_pages[generation]
+        if source['operation'] == 'fulfillmentOrders':
+            _checked_connection(payload['data'].get('fulfillmentOrders'))
+        else:
+            node = payload['data'].get('node')
+            owner = source['variables'].get('id')
+            if not isinstance(node, dict) or node.get('id') != owner:
+                raise ValueError('Fulfillment-order line page owner does not match its request')
+            _checked_connection(node.get('lineItems'))
+
+
 CONTRACT = Path(__file__).resolve().parents[2] / 'warehouse/contracts/shopify_raw_v1.yaml'
 
 
@@ -588,7 +738,8 @@ def publication_sql(dataset, stream, stage):
     dataset_id(dataset)
     if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants',
                       'tender_transactions', 'balance_transactions', 'disputes', 'fulfillments',
-                      'inventory_items', 'inventory_levels', 'events', 'acceptance'):
+                      'fulfillment_orders', 'fulfillment_order_line_items',
+                      'inventory_items', 'inventory_levels', 'events', 'campaigns', 'acceptance'):
         raise ValueError('Stream has no publication contract')
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
         raise ValueError('Invalid staging identifier')
@@ -746,6 +897,18 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             fulfillment_rows.append(row)
         _validate_fulfillments_page_publication(fulfillment_rows, files)
         records = fulfillment_rows
+    if stream in ('fulfillment_orders', 'fulfillment_order_line_items'):
+        if manifest['transport'] != 'shopify_graphql_pages':
+            raise ValueError('Fulfillment-order publication requires shopify_graphql_pages transport')
+        fulfillment_order_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            fulfillment_order_rows.append(row)
+        _validate_fulfillment_orders_page_publication(fulfillment_order_rows, files, stream)
+        records = fulfillment_order_rows
     if stream in ('inventory_items', 'inventory_levels'):
         if manifest['transport'] != 'shopify_graphql_pages':
             raise ValueError('Inventory publication requires shopify_graphql_pages transport')
@@ -770,6 +933,18 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             event_rows.append(row)
         _validate_klaviyo_events_page_publication(event_rows, files, stream)
         records = event_rows
+    if stream == 'campaigns':
+        if manifest['transport'] != 'klaviyo_jsonapi_pages':
+            raise ValueError('Klaviyo campaigns publication requires klaviyo_jsonapi_pages transport')
+        campaign_rows = []
+        for row in records:
+            if not isinstance(row, dict) or set(row) != set(raw):
+                raise ValueError('Raw row must match envelope columns')
+            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
+                raise ValueError('Raw row must preserve its referenced file and original JSON')
+            campaign_rows.append(row)
+        _validate_klaviyo_campaigns_page_publication(campaign_rows, files, stream)
+        records = campaign_rows
     stage = '_load_' + uuid.uuid4().hex
     sql = publication_sql(dataset, stream, stage)
     with tempfile.SpooledTemporaryFile(max_size=4*1024*1024, mode='r+b') as data:

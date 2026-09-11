@@ -16,3 +16,67 @@ models:
         data_tests: [not_null]
       - name: published_at
         data_tests: [not_null]
+  - name: stg_klaviyo__campaigns
+    columns:
+      - name: campaign_key
+        data_tests: [not_null, unique]
+      - name: campaign_id
+        data_tests: [not_null]
+      - name: name
+        data_tests: [not_null]
+      - name: send_strategy
+        data_tests: [not_null]
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: published_at
+        data_tests: [not_null]
+  - name: stg_klaviyo__campaign_audiences
+    columns:
+      - name: audience_key
+        data_tests: [not_null, unique]
+      - name: audience_id
+        data_tests: [not_null]
+      - name: campaign_id
+        data_tests: [not_null]
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: published_at
+        data_tests: [not_null]
+  - name: stg_klaviyo__campaign_messages
+    columns:
+      - name: message_key
+        data_tests: [not_null, unique]
+      - name: message_id
+        data_tests: [not_null]
+      - name: campaign_id
+        data_tests: [not_null]
+      - name: audience_id
+        data_tests: [not_null]
+      - name: status
+        data_tests: [not_null]
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: published_at
+        data_tests: [not_null]
+  - name: stg_klaviyo__campaign_variations
+    columns:
+      - name: variation_key
+        data_tests: [not_null, unique]
+      - name: variation_id
+        data_tests: [not_null]
+      - name: message_id
+        data_tests: [not_null]
+      - name: channel
+        data_tests: [not_null]
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: published_at
+        data_tests: [not_null]

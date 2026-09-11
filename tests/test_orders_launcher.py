@@ -69,6 +69,19 @@ class LauncherTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 self.invoke([], ["--job", "klaviyo_events_ingestion"] + extra)
 
+    def test_campaigns_job_maps_capture_and_raw_assets_without_window_or_gid(self):
+        calls = self.invoke([], ["--job", "klaviyo_campaigns_ingestion", "--account-key", "klaviyo-main"])
+        params = calls[1].kwargs["json"]["variables"]["params"]
+        self.assertEqual(params["selector"]["pipelineName"], "klaviyo_campaigns_ingestion")
+        self.assertEqual(set(params["runConfigData"]["ops"]),
+                         {"klaviyo_capture__campaign_pages", "klaviyo_campaigns_raw"})
+        config = params["runConfigData"]["ops"]["klaviyo_capture__campaign_pages"]["config"]
+        self.assertEqual(config, {"extraction_id": "test", "account_key": "klaviyo-main"})
+
+    def test_campaigns_job_requires_account_key(self):
+        with self.assertRaises(SystemExit):
+            self.invoke([], ["--job", "klaviyo_campaigns_ingestion"])
+
 
 if __name__ == "__main__":
     unittest.main()

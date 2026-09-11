@@ -5,4 +5,5 @@ sources:
     schema: raw_klaviyo
     tables:
       - name: events
+      - name: campaigns
       - name: ingestion_runs
