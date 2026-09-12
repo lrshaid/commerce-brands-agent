@@ -16,7 +16,7 @@ from agent.warehouse.klaviyo_campaigns_capture import KlaviyoCampaignsCapture
 class KlaviyoCampaignsConfig(dg.Config):
     extraction_id: str
     account_key: str
-    archived: bool = False
+    archived: bool | None = None
 
 
 @dg.asset(key=["klaviyo_capture", "campaign_pages"], group_name="klaviyo_capture")
