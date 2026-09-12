@@ -4,12 +4,26 @@
 -- lives in the same page's data[] (capture-validated), so children are keyed
 -- from their own page and no cross-page join exists to fan out.  Shape follows
 -- the verified live response: definition.{name, included, excluded, priority}.
-with pages as (
+with latest as (
+    -- Snapshot stream: only the most recent published extraction wins;
+    -- re-runs supersede older snapshots instead of stacking on them.
+    select shop_key, extraction_id
+    from {{ source('klaviyo_api', 'ingestion_runs') }}
+    where stream = 'campaigns' and status = 'published'
+      and transport = 'klaviyo_jsonapi_pages'
+    qualify row_number() over (
+        partition by shop_key
+        order by published_at desc, extraction_id desc
+    ) = 1
+),
+pages as (
     select
         to_hex(sha256(to_json_string(struct(r.shop_key, r.extraction_id, r.file_id, r.record_index)))) as page_key,
         r.shop_key, r.extraction_id, r.file_id, r.record_index,
         r.ingested_at, m.published_at, r.payload
     from {{ source('klaviyo_api', 'campaigns') }} r
+    join latest l
+      on r.shop_key = l.shop_key and r.extraction_id = l.extraction_id
     join {{ source('klaviyo_api', 'ingestion_runs') }} m
       on r.shop_key = m.shop_key and r.extraction_id = m.extraction_id
      and m.stream = 'campaigns' and m.status = 'published'
