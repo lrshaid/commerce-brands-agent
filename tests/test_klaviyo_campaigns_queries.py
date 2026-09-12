@@ -12,14 +12,21 @@ class KlaviyoCampaignsQueriesTests(unittest.TestCase):
         self.assertEqual(campaigns_plan.operation, CAMPAIGNS_OPERATION)
         self.assertEqual(campaigns_plan.first_params, {
             "page[size]": 100, "sort": "-updated_at",
-            "include": "campaign-audiences,campaign-messages",
-            "filter": "equals(archived,false)"})
+            "include": "campaign-audiences,campaign-messages"})
+        self.assertIsNone(campaigns_plan.archived)
         self.assertEqual(messages_plan.operation, MESSAGES_OPERATION)
         self.assertEqual(messages_plan.first_params, {
             "page[size]": 100, "sort": "-updated",
             "include": "campaign,campaign-variations"})
         self.assertEqual(campaigns_plan.request_params(), campaigns_plan.first_params)
         self.assertEqual(messages_plan.request_params(), messages_plan.first_params)
+
+    def test_archived_filter_is_explicit_when_requested(self):
+        self.assertEqual(compile_klaviyo_campaigns_plans(archived=False)[0].first_params["filter"],
+                         "equals(archived,false)")
+        self.assertEqual(compile_klaviyo_campaigns_plans(archived=True)[0].first_params["filter"],
+                         "equals(archived,true)")
+        self.assertNotIn("filter", compile_klaviyo_campaigns_plans()[0].first_params)
 
     def test_cursors_must_stay_on_their_endpoint_origin(self):
         campaigns_plan, messages_plan = compile_klaviyo_campaigns_plans()
@@ -32,10 +39,8 @@ class KlaviyoCampaignsQueriesTests(unittest.TestCase):
         with self.assertRaisesRegex(KlaviyoCampaignsRequestError, "origin"):
             messages_plan.request_params(cursor_url=CAMPAIGNS_BASE_URL + "?cursor=abc")
 
-    def test_archived_filter_accepts_only_booleans(self):
-        self.assertEqual(compile_klaviyo_campaigns_plans(archived=True)[0].first_params["filter"],
-                         "equals(archived,true)")
-        for value in ("false", 0, None):
+    def test_archived_filter_accepts_only_booleans_or_none(self):
+        for value in ("false", 0):
             with self.assertRaisesRegex(KlaviyoCampaignsRequestError, "boolean"):
                 compile_klaviyo_campaigns_plans(archived=value)
 

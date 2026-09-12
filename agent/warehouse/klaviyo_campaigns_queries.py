@@ -46,14 +46,15 @@ class KlaviyoCampaignsPlan:
         return None
 
 
-def compile_klaviyo_campaigns_list_plan(archived=False, page_size=100):
-    if not isinstance(archived, bool):
-        raise KlaviyoCampaignsRequestError("Klaviyo archived filter must be a boolean")
+def compile_klaviyo_campaigns_list_plan(archived=None, page_size=100):
+    if archived is not None and not isinstance(archived, bool):
+        raise KlaviyoCampaignsRequestError("Klaviyo archived filter must be a boolean or None")
     if (not isinstance(page_size, int) or isinstance(page_size, bool)
             or not 1 <= page_size <= 100):
         raise KlaviyoCampaignsRequestError("Klaviyo campaigns page size must be between 1 and 100")
-    params = {"page[size]": page_size, "sort": CAMPAIGNS_SORT, "include": CAMPAIGNS_INCLUDE,
-              "filter": f"equals(archived,{str(archived).lower()})"}
+    params = {"page[size]": page_size, "sort": CAMPAIGNS_SORT, "include": CAMPAIGNS_INCLUDE}
+    if archived is not None:
+        params["filter"] = f"equals(archived,{str(archived).lower()})"
     return KlaviyoCampaignsPlan(operation=CAMPAIGNS_OPERATION, base_url=CAMPAIGNS_BASE_URL,
                                 archived=archived, first_params=params)
 
@@ -67,7 +68,13 @@ def compile_klaviyo_messages_list_plan(page_size=100):
                                 archived=None, first_params=params)
 
 
-def compile_klaviyo_campaigns_plans(archived=False, page_size=100):
-    """Compile the ordered two-chain snapshot: campaigns list, then messages list."""
+def compile_klaviyo_campaigns_plans(archived=None, page_size=100):
+    """Compile the ordered two-chain snapshot: campaigns list, then messages list.
+
+    ``archived=None`` (default) captures every campaign, archived or not; the
+    messages chain is unfiltered and already carries messages of archived
+    campaigns, so their parents must be in the campaigns chain for the
+    hierarchy to resolve.
+    """
     return (compile_klaviyo_campaigns_list_plan(archived, page_size),
             compile_klaviyo_messages_list_plan(page_size))

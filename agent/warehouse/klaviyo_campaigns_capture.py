@@ -29,7 +29,7 @@ _MAX_BACKOFF_ATTEMPTS = 5
 
 
 class KlaviyoCampaignsCapture:
-    def __init__(self, *, bucket, token, account_key, extraction_id, archived=False,
+    def __init__(self, *, bucket, token, account_key, extraction_id, archived=None,
                  page_size=100, timeout_seconds=900, max_pages=2000, max_attempts=5,
                  max_bytes=256 * 1024 * 1024, max_page_bytes=8 * 1024 * 1024, read_only=False):
         if not isinstance(account_key, str) or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", account_key):

@@ -490,12 +490,14 @@ def _klaviyo_campaign_page_operation(source):
                   else 'https://a.klaviyo.com/api/campaign-messages')
         if not isinstance(cursor, str) or not cursor.startswith(origin):
             raise ValueError('Klaviyo response page cursor metadata is invalid')
-    elif operation == 'campaigns_list' and set(variables) == _KLAVIYO_CAMPAIGNS_LIST_VARIABLES:
+    elif operation == 'campaigns_list' and set(variables) in (
+            _KLAVIYO_CAMPAIGNS_LIST_VARIABLES, _KLAVIYO_CAMPAIGNS_LIST_VARIABLES - {'filter'}):
         if (isinstance(page_size, int) and not isinstance(page_size, bool)
                 and 1 <= page_size <= 100
                 and variables.get('sort') == '-updated_at'
                 and variables.get('include') == 'campaign-audiences,campaign-messages'
-                and variables.get('filter') in ('equals(archived,false)', 'equals(archived,true)')):
+                and variables.get('filter', 'equals(archived,false)')
+                in ('equals(archived,false)', 'equals(archived,true)')):
             pass
         else:
             raise ValueError('Klaviyo response page metadata is incomplete or invalid')

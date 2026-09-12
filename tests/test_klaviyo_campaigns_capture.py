@@ -103,7 +103,7 @@ class KlaviyoCampaignsCaptureTests(unittest.TestCase):
         self.assertEqual(first["page[size]"], 100)
         self.assertEqual(first["sort"], "-updated_at")
         self.assertEqual(first["include"], "campaign-audiences,campaign-messages")
-        self.assertEqual(first["filter"], "equals(archived,false)")
+        self.assertNotIn("filter", first)
         messages_first = seal["pages"][2]["variables"]
         self.assertEqual(messages_first["include"], "campaign,campaign-variations")
         self.assertNotIn("filter", messages_first)

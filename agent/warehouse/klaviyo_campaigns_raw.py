@@ -17,7 +17,7 @@ STREAM = "campaigns"
 
 
 def prepare_klaviyo_campaigns_raw(*, bucket, token, account_key, extraction_id,
-                                  archived=False, ingested_at, page_size=100):
+                                  archived=None, ingested_at, page_size=100):
     if ingested_at.utcoffset() is None:
         raise ValueError("Timezone-aware ingestion timestamp required")
     plans = compile_klaviyo_campaigns_plans(archived, page_size)
