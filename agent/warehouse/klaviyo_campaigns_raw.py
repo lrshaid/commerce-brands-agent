@@ -10,7 +10,7 @@ response page of the single campaigns snapshot chain.
 from datetime import datetime
 
 from .klaviyo_campaigns_capture import KlaviyoCampaignsCapture
-from .klaviyo_campaigns_queries import compile_klaviyo_campaigns_plan
+from .klaviyo_campaigns_queries import compile_klaviyo_campaigns_plans
 from .refund_capture import CaptureError, decode, digest, encoded
 
 STREAM = "campaigns"
@@ -20,13 +20,14 @@ def prepare_klaviyo_campaigns_raw(*, bucket, token, account_key, extraction_id,
                                   archived=False, ingested_at, page_size=100):
     if ingested_at.utcoffset() is None:
         raise ValueError("Timezone-aware ingestion timestamp required")
-    plan = compile_klaviyo_campaigns_plan(archived, page_size)
+    plans = compile_klaviyo_campaigns_plans(archived, page_size)
     capture = KlaviyoCampaignsCapture(
         bucket=bucket, token=token, account_key=account_key,
         extraction_id=extraction_id, archived=archived, page_size=page_size,
         read_only=True,
     )
-    if capture.binding["plan_sha256"] != digest(encoded(plan.first_params)):
+    if capture.binding["plan_sha256"] != digest(encoded({plan.operation: plan.first_params
+                                                         for plan in plans})):
         raise CaptureError("Configured campaigns plan does not match the capture binding")
     seal = capture.collect()
     seal_blob = bucket.get_blob(capture.prefix + "/complete.json")

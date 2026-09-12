@@ -469,7 +469,101 @@ def _validate_klaviyo_events_page_publication(rows, files, stream=None):
                 raise ValueError('Klaviyo event profile relationship is missing from included profiles')
 
 
-_KLAVIYO_CAMPAIGN_INCLUDED_TYPES = ('campaign-audience', 'campaign-message', 'campaign-variation')
+_KLAVIYO_CAMPAIGN_INCLUDED_TYPES = ('campaign', 'campaign-audience', 'campaign-message',
+                                    'campaign-variation')
+_KLAVIYO_CAMPAIGNS_LIST_VARIABLES = {'page[size]', 'sort', 'include', 'filter'}
+_KLAVIYO_MESSAGES_LIST_VARIABLES = {'page[size]', 'sort', 'include'}
+
+
+def _klaviyo_campaign_page_operation(source):
+    """Validate one response page's operation/variables metadata; return the operation."""
+    operation = source.get('operation')
+    if operation not in ('campaigns_list', 'messages_list'):
+        raise ValueError('Klaviyo campaigns response page operation is invalid')
+    variables = source.get('variables')
+    if not isinstance(variables, dict) or not variables:
+        raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+    page_size = variables.get('page[size]')
+    if set(variables) == {'cursor'}:
+        cursor = variables['cursor']
+        origin = ('https://a.klaviyo.com/api/campaigns' if operation == 'campaigns_list'
+                  else 'https://a.klaviyo.com/api/campaign-messages')
+        if not isinstance(cursor, str) or not cursor.startswith(origin):
+            raise ValueError('Klaviyo response page cursor metadata is invalid')
+    elif operation == 'campaigns_list' and set(variables) == _KLAVIYO_CAMPAIGNS_LIST_VARIABLES:
+        if (isinstance(page_size, int) and not isinstance(page_size, bool)
+                and 1 <= page_size <= 100
+                and variables.get('sort') == '-updated_at'
+                and variables.get('include') == 'campaign-audiences,campaign-messages'
+                and variables.get('filter') in ('equals(archived,false)', 'equals(archived,true)')):
+            pass
+        else:
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+    elif operation == 'messages_list' and set(variables) == _KLAVIYO_MESSAGES_LIST_VARIABLES:
+        if (isinstance(page_size, int) and not isinstance(page_size, bool)
+                and 1 <= page_size <= 100
+                and variables.get('sort') == '-updated'
+                and variables.get('include') == 'campaign,campaign-variations'):
+            pass
+        else:
+            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+    else:
+        raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+    if (not isinstance(source.get('request_sha256'), str)
+            or not _SHA256.fullmatch(source['request_sha256'])
+            or not _aware_timestamp(source.get('captured_at'))):
+        raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+    return operation
+
+
+def _klaviyo_campaign_page_hierarchy(operation, payload):
+    """Validate the resource hierarchy of one campaigns-stream page, fail closed."""
+    included = payload.get('included', [])
+    if not isinstance(included, list):
+        raise ValueError('Klaviyo response page included collection is invalid')
+    campaigns, audiences, messages, variations = set(), set(), set(), set()
+    for item in included:
+        if not isinstance(item, dict) or item.get('type') not in _KLAVIYO_CAMPAIGN_INCLUDED_TYPES:
+            raise ValueError('Klaviyo response page contains an unexpected included resource')
+        if not isinstance(item.get('id'), str) or not item['id']:
+            raise ValueError('Klaviyo included resource is missing its identity')
+        if not isinstance(item.get('relationships'), dict):
+            raise ValueError('Klaviyo included resource is missing its relationships')
+        {'campaign': campaigns, 'campaign-audience': audiences,
+         'campaign-message': messages, 'campaign-variation': variations}[item['type']].add(item['id'])
+    data_ids = set()
+    root_type = 'campaign' if operation == 'campaigns_list' else 'campaign-message'
+    for resource in payload['data']:
+        if (not isinstance(resource, dict) or resource.get('type') != root_type
+                or not isinstance(resource.get('id'), str) or not resource['id']):
+            raise ValueError('Klaviyo response page contains an unidentified resource')
+        data_ids.add(resource['id'])
+    if operation == 'campaigns_list':
+        campaigns |= data_ids
+        for item in included:
+            parent = item['relationships'].get('campaign' if item['type'] == 'campaign-audience'
+                                               else 'campaign')
+            parent_data = parent.get('data') if isinstance(parent, dict) else None
+            if not isinstance(parent_data, dict) or parent_data.get('id') not in campaigns:
+                raise ValueError('Klaviyo included resource references a parent missing from the page')
+            if item['type'] == 'campaign-message':
+                parent = item['relationships'].get('campaign-audience')
+                parent_data = parent.get('data') if isinstance(parent, dict) else None
+                if not isinstance(parent_data, dict) or parent_data.get('id') not in audiences:
+                    raise ValueError('Klaviyo message references an audience missing from the page')
+    else:
+        messages |= data_ids
+        for item in included:
+            if item['type'] == 'campaign-variation':
+                parent = item['relationships'].get('campaign-message')
+                parent_data = parent.get('data') if isinstance(parent, dict) else None
+                if not isinstance(parent_data, dict) or parent_data.get('id') not in messages:
+                    raise ValueError('Klaviyo variation references a message missing from the page')
+            elif item['type'] == 'campaign-message':
+                parent = item['relationships'].get('campaign')
+                parent_data = parent.get('data') if isinstance(parent, dict) else None
+                if not isinstance(parent_data, dict) or parent_data.get('id') not in campaigns:
+                    raise ValueError('Klaviyo message references a campaign missing from the page')
 
 
 def _validate_klaviyo_campaigns_page_publication(rows, files, stream=None):
@@ -493,30 +587,7 @@ def _validate_klaviyo_campaigns_page_publication(rows, files, stream=None):
             continue
         if source.get('role') != 'response_page':
             raise ValueError('Klaviyo manifest has an unsupported file role')
-        operation = source.get('operation')
-        if operation != 'campaigns':
-            raise ValueError('Klaviyo campaigns response page operation is invalid')
-        variables = source.get('variables')
-        if not isinstance(variables, dict) or not variables:
-            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
-        page_size = variables.get('page[size]')
-        if set(variables) == {'cursor'}:
-            cursor = variables['cursor']
-            if not isinstance(cursor, str) or not cursor.startswith('https://a.klaviyo.com/api/campaigns'):
-                raise ValueError('Klaviyo response page cursor metadata is invalid')
-        elif (set(variables) == {'page[size]', 'sort', 'include', 'filter'}
-                and isinstance(page_size, int) and not isinstance(page_size, bool)
-                and 1 <= page_size <= 100
-                and variables.get('sort') == '-updated_at'
-                and variables.get('include') == 'campaign-audiences,campaign-messages,campaign-variations'
-                and variables.get('filter') in ('equals(archived,false)', 'equals(archived,true)')):
-            pass
-        else:
-            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
-        if (not isinstance(source.get('request_sha256'), str)
-                or not _SHA256.fullmatch(source['request_sha256'])
-                or not _aware_timestamp(source.get('captured_at'))):
-            raise ValueError('Klaviyo response page metadata is incomplete or invalid')
+        operation = _klaviyo_campaign_page_operation(source)
         if generation in response_pages:
             raise ValueError('Klaviyo response page generations must be unique')
         response_pages[generation] = source
@@ -550,37 +621,9 @@ def _validate_klaviyo_campaigns_page_publication(rows, files, stream=None):
         rows_by_generation[generation] = payload
     if set(rows_by_generation) != set(response_pages):
         raise ValueError('Klaviyo raw rows omit a response page')
-    for payload in rows_by_generation.values():
-        included = payload.get('included', [])
-        if not isinstance(included, list):
-            raise ValueError('Klaviyo response page included collection is invalid')
-        campaigns, audiences, messages = set(), set(), set()
-        for item in included:
-            if not isinstance(item, dict) or item.get('type') not in _KLAVIYO_CAMPAIGN_INCLUDED_TYPES:
-                raise ValueError('Klaviyo response page contains an unexpected included resource')
-            if not isinstance(item.get('id'), str) or not item['id']:
-                raise ValueError('Klaviyo included resource is missing its identity')
-            if not isinstance(item.get('relationships'), dict):
-                raise ValueError('Klaviyo included resource is missing its relationships')
-            if item['type'] == 'campaign-audience':
-                audiences.add(item['id'])
-            elif item['type'] == 'campaign-message':
-                messages.add(item['id'])
-        for campaign in payload['data']:
-            if (not isinstance(campaign, dict) or campaign.get('type') != 'campaign'
-                    or not isinstance(campaign.get('id'), str) or not campaign['id']):
-                raise ValueError('Klaviyo response page contains an unidentified campaign')
-            campaigns.add(campaign['id'])
-        for item in included:
-            parent = item['relationships'].get(
-                'campaign' if item['type'] == 'campaign-audience'
-                else 'campaign-audience' if item['type'] == 'campaign-message'
-                else 'campaign-message')
-            parent_data = parent.get('data') if isinstance(parent, dict) else None
-            parents = {'campaign-audience': campaigns, 'campaign-message': audiences,
-                       'campaign-variation': messages}[item['type']]
-            if not isinstance(parent_data, dict) or parent_data.get('id') not in parents:
-                raise ValueError('Klaviyo included resource references a parent missing from the page')
+    for generation, payload in rows_by_generation.items():
+        _klaviyo_campaign_page_hierarchy(response_pages[generation].get('operation'),
+                                         payload)
 
 
 
@@ -737,7 +780,7 @@ def dataset_id(value):
 def publication_sql(dataset, stream, stage):
     dataset_id(dataset)
     if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants',
-                      'tender_transactions', 'balance_transactions', 'disputes', 'fulfillments',
+                      'tender_transactions', 'balance_transactions', 'order_transactions', 'disputes', 'fulfillments',
                       'fulfillment_orders', 'fulfillment_order_line_items',
                       'inventory_items', 'inventory_levels', 'events', 'campaigns', 'acceptance'):
         raise ValueError('Stream has no publication contract')
@@ -837,6 +880,10 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
                 or not re.fullmatch('[0-9a-f]{64}', str(source.get('sha256', '')))):
             raise ValueError('Source file must include GCS URI, generation and SHA256')
         file_ids.add(str(source['generation']))
+    if stream == 'order_refunds' and manifest['transport'] == 'shopify_bulk_and_graphql_pages_v2':
+        from .refund_publication_v2 import validate_refund_publication_v2
+        records = list(records)
+        validate_refund_publication_v2(records, files)
     if stream == 'order_refunds' and manifest['transport'] == 'shopify_graphql_pages':
         # Materialize and validate this small page-grain stream before creating a
         # staging table. Orders/Bulk keeps its existing streaming behavior.

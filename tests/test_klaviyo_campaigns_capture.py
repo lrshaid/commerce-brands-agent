@@ -7,8 +7,10 @@ from agent.warehouse.klaviyo_campaigns_capture import KlaviyoCampaignsCapture
 from agent.warehouse.refund_capture import CaptureError
 from tests.test_catalog_capture import Blob, Bucket
 
-BASE = "https://a.klaviyo.com/api/campaigns"
-NEXT = BASE + "?page%5Bsize%5D=100&cursor=def"
+CAMPAIGNS = "https://a.klaviyo.com/api/campaigns"
+MESSAGES = "https://a.klaviyo.com/api/campaign-messages"
+CAMPAIGNS_NEXT = CAMPAIGNS + "?page%5Bsize%5D=100&cursor=c2"
+MESSAGES_NEXT = MESSAGES + "?page%5Bsize%5D=100&cursor=m2"
 
 
 def campaign(cid="C1", name="Summer Sale"):
@@ -23,19 +25,22 @@ def campaign(cid="C1", name="Summer Sale"):
 
 def audience(aid="A1", campaign_id="C1"):
     return {"type": "campaign-audience", "id": aid,
-            "attributes": {"audience_name": "Audience 1", "priority": 0,
-                           "has_non_draft_messages": False,
-                           "included": ["LIST1"], "excluded": []},
+            "attributes": {"definition": {"name": "Audience 1", "priority": 0,
+                                          "included": ["LIST1"], "excluded": []},
+                           "created": "2026-09-01T00:00:00+00:00",
+                           "updated": "2026-09-02T00:00:00+00:00"},
             "relationships": {"campaign": {"data": {"type": "campaign", "id": campaign_id}}}}
 
 
-def message(mid="M1", campaign_id="C1", audience_id="A1"):
+def message(mid="M1", campaign_id="C1", audience_id="A1", status="sent"):
     return {"type": "campaign-message", "id": mid,
-            "attributes": {"name": "Summer email", "status": "SENT"},
+            "attributes": {"definition": {"name": "Summer email", "status": status,
+                                          "send_options": {"send_time": None}},
+                           "created": "2026-09-01T00:00:00+00:00",
+                           "updated": "2026-09-02T00:00:00+00:00"},
             "relationships": {"campaign": {"data": {"type": "campaign", "id": campaign_id}},
                               "campaign-audience": {"data": {"type": "campaign-audience",
                                                              "id": audience_id}}}}
-
 
 def variation(vid="V1", message_id="M1"):
     return {"type": "campaign-variation", "id": vid,
@@ -45,8 +50,8 @@ def variation(vid="V1", message_id="M1"):
                                                             "id": message_id}}}}
 
 
-def page(campaigns, next_url=None, included=None):
-    payload = {"data": campaigns, "links": {"next": next_url} if next_url else {}}
+def page(resources, next_url=None, included=None):
+    payload = {"data": resources, "links": {"next": next_url} if next_url else {}}
     if included is not None:
         payload["included"] = included
     return json.dumps(payload, separators=(",", ":")).encode()
@@ -54,9 +59,13 @@ def page(campaigns, next_url=None, included=None):
 
 def default_pages():
     return {
-        None: page([campaign("C1")], next_url=NEXT,
-                   included=[audience(), message(), variation()]),
-        NEXT: page([campaign("C2")], included=[audience("A2", "C2")]),
+        (CAMPAIGNS, None): page([campaign("C1")], next_url=CAMPAIGNS_NEXT,
+                                included=[audience(), message()]),
+        (CAMPAIGNS, CAMPAIGNS_NEXT): page([campaign("C2")], included=[audience("A2", "C2")]),
+        (MESSAGES, None): page([message("M1")], next_url=MESSAGES_NEXT,
+                                included=[campaign("C1"), variation()]),
+        (MESSAGES, MESSAGES_NEXT): page([message("M2", "C1")],
+                                        included=[campaign("C1"), variation("V2", "M2")]),
     }
 
 
@@ -68,8 +77,9 @@ class Harness(KlaviyoCampaignsCapture):
 
     def _http(self, url, params):
         key = None if params is not None else url
+        base = CAMPAIGNS if url.startswith(CAMPAIGNS) else MESSAGES
         self.http_calls.append((key, dict(params) if params is not None else None))
-        body = self.responses.get(key)
+        body = self.responses.get((base, key))
         if body is None:
             raise CaptureError("unexpected request in simulated capture")
         return body
@@ -83,58 +93,74 @@ def make(bucket=None, pages=None, **overrides):
 
 
 class KlaviyoCampaignsCaptureTests(unittest.TestCase):
-    def test_cursor_pagination_and_seal(self):
+    def test_two_chain_pagination_and_seal(self):
         capture = make()
         seal = capture.collect()
-        self.assertEqual(seal["counts"], {"campaigns": 2})
-        self.assertEqual([p["operation"] for p in seal["pages"]], ["campaigns", "campaigns"])
+        self.assertEqual(seal["counts"], {"campaigns_list": 2, "messages_list": 2})
+        self.assertEqual([p["operation"] for p in seal["pages"]],
+                         ["campaigns_list", "campaigns_list", "messages_list", "messages_list"])
         first = seal["pages"][0]["variables"]
         self.assertEqual(first["page[size]"], 100)
         self.assertEqual(first["sort"], "-updated_at")
-        self.assertEqual(first["include"], "campaign-audiences,campaign-messages,campaign-variations")
+        self.assertEqual(first["include"], "campaign-audiences,campaign-messages")
         self.assertEqual(first["filter"], "equals(archived,false)")
-        self.assertEqual(seal["pages"][1]["variables"], {"cursor": NEXT})
+        messages_first = seal["pages"][2]["variables"]
+        self.assertEqual(messages_first["include"], "campaign,campaign-variations")
+        self.assertNotIn("filter", messages_first)
+        self.assertEqual(seal["pages"][1]["variables"], {"cursor": CAMPAIGNS_NEXT})
+        self.assertEqual(seal["pages"][3]["variables"], {"cursor": MESSAGES_NEXT})
         self.assertEqual(seal["consistency"], "multi_request_observations_not_transactional_snapshot")
 
     def test_params_are_only_sent_on_the_first_request(self):
         capture = make()
         capture.collect()
-        self.assertEqual([params is not None for _, params in capture.http_calls], [True, False])
+        self.assertEqual([params is not None for _, params in capture.http_calls],
+                         [True, False, True, False])
 
-    def test_unexpected_included_type_fails_closed(self):
+    def test_campaigns_page_unexpected_included_type_fails_closed(self):
         pages = default_pages()
-        pages[NEXT] = page([campaign("C2")], included=[audience("A2", "C2"), {"type": "profile", "id": "P1"}])
+        pages[(CAMPAIGNS, CAMPAIGNS_NEXT)] = page([campaign("C2")],
+                                                  included=[audience("A2", "C2"), {"type": "profile", "id": "P1"}])
         with self.assertRaisesRegex(CaptureError, "unexpected included resource"):
             make(pages=pages).collect()
 
-    def test_audience_missing_parent_campaign_fails_closed(self):
+    def test_campaigns_page_audience_missing_parent_campaign_fails_closed(self):
         pages = default_pages()
-        pages[NEXT] = page([campaign("C2")], included=[audience("A2", "C9")])
-        with self.assertRaisesRegex(CaptureError, "campaign missing from the page"):
+        pages[(CAMPAIGNS, CAMPAIGNS_NEXT)] = page([campaign("C2")], included=[audience("A2", "C9")])
+        with self.assertRaisesRegex(CaptureError, "audience references a parent missing"):
             make(pages=pages).collect()
 
-    def test_message_missing_parent_audience_fails_closed(self):
+    def test_campaigns_page_message_missing_parent_audience_fails_closed(self):
         pages = default_pages()
-        pages[NEXT] = page([campaign("C2")], included=[audience("A2", "C2"), message("M2", "C2", "A9")])
-        with self.assertRaisesRegex(CaptureError, "audience missing from the page"):
+        pages[(CAMPAIGNS, CAMPAIGNS_NEXT)] = page([campaign("C2")],
+                                                  included=[audience("A2", "C2"), message("M2", "C2", "A9")])
+        with self.assertRaisesRegex(CaptureError, "message references a parent missing"):
             make(pages=pages).collect()
 
-    def test_variation_missing_parent_message_fails_closed(self):
+    def test_messages_page_variation_missing_parent_message_fails_closed(self):
         pages = default_pages()
-        pages[NEXT] = page([campaign("C2")], included=[audience("A2", "C2"), variation("V2", "M9")])
-        with self.assertRaisesRegex(CaptureError, "message missing from the page"):
+        pages[(MESSAGES, MESSAGES_NEXT)] = page([message("M2", "C1")],
+                                                included=[campaign("C1"), variation("V2", "M9")])
+        with self.assertRaisesRegex(CaptureError, "variation references a parent missing"):
+            make(pages=pages).collect()
+
+    def test_messages_page_missing_parent_campaign_fails_closed(self):
+        pages = default_pages()
+        pages[(MESSAGES, MESSAGES_NEXT)] = page([message("M2", "C9")],
+                                                included=[variation("V2", "M2")])
+        with self.assertRaisesRegex(CaptureError, "message references a parent missing"):
             make(pages=pages).collect()
 
     def test_empty_page_with_next_cursor_fails_closed(self):
         pages = default_pages()
-        pages[NEXT] = page([], next_url=BASE + "?cursor=next2", included=[])
+        pages[(MESSAGES, MESSAGES_NEXT)] = page([], next_url=MESSAGES + "?cursor=next2", included=[])
         with self.assertRaisesRegex(CaptureError, "Nonadvancing"):
             make(pages=pages).collect()
 
-    def test_duplicate_campaign_across_pages_fails_closed(self):
+    def test_duplicate_resource_across_pages_fails_closed(self):
         pages = default_pages()
-        pages[NEXT] = page([campaign("C1")], included=[audience("A2", "C1")])
-        with self.assertRaisesRegex(CaptureError, "Duplicate Klaviyo campaign"):
+        pages[(CAMPAIGNS, CAMPAIGNS_NEXT)] = page([campaign("C1")], included=[audience("A2", "C1")])
+        with self.assertRaisesRegex(CaptureError, "Duplicate Klaviyo resource"):
             make(pages=pages).collect()
 
     def test_page_limit_guard(self):
@@ -211,15 +237,16 @@ class TransportTests(unittest.TestCase):
             FakeResponse(429, {"Retry-After": "7"}),
             FakeResponse(429, {"Retry-After": "2"}),
             FakeResponse(200, body=body),
+            FakeResponse(200, body=body),
         ])
         sleeps = []
         with patch("agent.warehouse.klaviyo_campaigns_capture.requests.Session", return_value=session), \
                 patch("agent.warehouse.klaviyo_campaigns_capture.time.sleep", side_effect=sleeps.append):
             capture = self.make_capture()
             seal = capture.collect()
-        self.assertEqual(seal["counts"], {"campaigns": 0})
+        self.assertEqual(seal["counts"], {"campaigns_list": 0, "messages_list": 0})
         self.assertEqual(sleeps, [7, 2])
-        self.assertEqual(len(session.calls), 3)
+        self.assertEqual(len(session.calls), 4)
         _, _, headers = session.calls[0]
         self.assertEqual(headers["revision"], "2026-07-15.pre")
         self.assertEqual(headers["accept"], "application/vnd.api+json")
@@ -227,7 +254,8 @@ class TransportTests(unittest.TestCase):
 
     def test_429_without_retry_after_fails_closed(self):
         body = page([], included=[])
-        session = FakeSession([FakeResponse(429), FakeResponse(200, body=body)])
+        session = FakeSession([FakeResponse(429), FakeResponse(200, body=body),
+                               FakeResponse(200, body=body)])
         with patch("agent.warehouse.klaviyo_campaigns_capture.requests.Session", return_value=session), \
                 patch("agent.warehouse.klaviyo_campaigns_capture.time.sleep"):
             with self.assertRaisesRegex(CaptureError, "Retry-After"):
@@ -235,12 +263,13 @@ class TransportTests(unittest.TestCase):
 
     def test_5xx_backoff_then_success(self):
         body = page([campaign("C1")], included=[audience()])
-        session = FakeSession([FakeResponse(503), FakeResponse(200, body=body)])
+        session = FakeSession([FakeResponse(503), FakeResponse(200, body=body),
+                               FakeResponse(200, body=page([], included=[]))])
         sleeps = []
         with patch("agent.warehouse.klaviyo_campaigns_capture.requests.Session", return_value=session), \
                 patch("agent.warehouse.klaviyo_campaigns_capture.time.sleep", side_effect=sleeps.append):
             seal = self.make_capture().collect()
-        self.assertEqual(seal["counts"], {"campaigns": 1})
+        self.assertEqual(seal["counts"], {"campaigns_list": 1, "messages_list": 0})
         self.assertEqual(sleeps, [10])
 
     def test_other_client_status_fails_closed(self):
@@ -251,8 +280,9 @@ class TransportTests(unittest.TestCase):
 
     def test_cursor_origin_is_pinned(self):
         pages = default_pages()
-        pages[NEXT] = page([campaign("C2")], next_url="https://evil.example/api/campaigns?cursor=x",
-                           included=[audience("A2", "C2")])
+        pages[(CAMPAIGNS, CAMPAIGNS_NEXT)] = page([campaign("C2")],
+                                                  next_url="https://evil.example/api/campaigns?cursor=x",
+                                                  included=[audience("A2", "C2")])
         with self.assertRaisesRegex(CaptureError, "origin"):
             make(pages=pages).collect()
 

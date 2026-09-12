@@ -1,7 +1,8 @@
 {{ config(tags=['klaviyo_staging']) }}
--- One row per campaign variation projected from the included[] resources of the
--- exact captured pages.  Channel-specific content fields coalesce to NULL
--- outside their channel; a message targets exactly one channel.
+-- One row per campaign variation projected from the included[] resources of
+-- the messages chain pages (the only chain carrying variations).  Channel-
+-- specific content fields coalesce to NULL outside their channel; a message
+-- targets exactly one channel.
 with pages as (
     select
         to_hex(sha256(to_json_string(struct(r.shop_key, r.extraction_id, r.file_id, r.record_index)))) as page_key,
@@ -14,6 +15,7 @@ with pages as (
      and m.transport = 'klaviyo_jsonapi_pages'
     cross join unnest(json_query_array(m.files)) f
     where json_value(f, '$.role') = 'response_page'
+      and json_value(f, '$.operation') = 'messages_list'
       and json_value(f, '$.generation') = r.file_id
       and json_value(f, '$.sha256') = r.record_sha256
 )

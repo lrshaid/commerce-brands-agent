@@ -33,6 +33,16 @@ class KlaviyoCampaignsStagingContractTests(unittest.TestCase):
             self.assertIn("m.stream = 'campaigns'", sql, path)
             self.assertIn("m.transport = 'klaviyo_jsonapi_pages'", sql, path)
             self.assertIn("json_value(f, '$.sha256') = r.record_sha256", sql, path)
+            self.assertIn("json_value(f, '$.operation')", sql, path)
+
+    def test_chain_assignment_follows_the_two_chain_snapshot(self):
+        # campaigns and audiences come from the campaigns chain; messages and
+        # variations from the messages chain (the only include carrying
+        # variations, verified live 2026-09-11).
+        self.assertIn("'campaigns_list'", CAMPAIGNS_MODEL.read_text())
+        self.assertIn("'campaigns_list'", AUDIENCES_MODEL.read_text())
+        self.assertIn("'messages_list'", MESSAGES_MODEL.read_text())
+        self.assertIn("'messages_list'", VARIATIONS_MODEL.read_text())
 
     def test_campaign_model_projects_the_definition(self):
         sql = CAMPAIGNS_MODEL.read_text()
@@ -46,11 +56,22 @@ class KlaviyoCampaignsStagingContractTests(unittest.TestCase):
                              (VARIATIONS_MODEL, "campaign-message")):
             sql = path.read_text()
             self.assertIn(f"$.relationships.{parent}.data.id", sql, path)
-            self.assertIn("$.included", sql, path)
             self.assertNotIn("join profiles", sql, path)
         self.assertIn("$.type') = 'campaign-audience'", AUDIENCES_MODEL.read_text())
         self.assertIn("$.type') = 'campaign-message'", MESSAGES_MODEL.read_text())
         self.assertIn("$.type') = 'campaign-variation'", VARIATIONS_MODEL.read_text())
+
+    def test_messages_project_from_the_messages_chain_root(self):
+        sql = MESSAGES_MODEL.read_text()
+        self.assertIn("$.data", sql)
+        self.assertIn("definition.status", sql)
+        self.assertIn("definition.send_options", sql)
+
+    def test_audiences_project_the_verified_definition_shape(self):
+        sql = AUDIENCES_MODEL.read_text()
+        self.assertIn("$.attributes.definition.name", sql)
+        self.assertIn("$.attributes.definition.included", sql)
+        self.assertNotIn("has_non_draft_messages", sql)
 
     def test_scheduling_details_stay_unprojected_until_verified(self):
         sql = MESSAGES_MODEL.read_text()

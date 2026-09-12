@@ -2,12 +2,13 @@
 
 Mirrors the events capture contract exactly: GET-only, no Klaviyo writes or
 deletions, generation+checksum pinned GCS pages, a create-only binding and a
-completion seal written once the single cursor chain finished.  Campaigns are
-account-scoped configuration objects, so the capture is a full snapshot of the
-archived-filtered list (no time window); the account is pinned by
-``api_key_sha256`` inside the binding.  The four-level resource hierarchy
-(campaign -> audience -> message -> variation) is validated fail-closed per
-page: every included child must reference a parent present on the same page.
+completion seal written once every configured chain finished, in priority
+order.  Campaigns are account-scoped configuration objects, so the capture is
+a full two-chain snapshot (campaigns list, then messages list — see
+klaviyo_campaigns_queries); the account is pinned by ``api_key_sha256`` inside
+the binding.  The resource hierarchy is validated fail-closed per page:
+campaign -> audience -> message on the campaigns chain, campaign -> message ->
+variation on the messages chain, every parent present on the same page.
 """
 from datetime import datetime, timezone
 import email.utils
@@ -18,13 +19,13 @@ import requests
 from google.api_core.exceptions import PreconditionFailed
 
 from .refund_capture import CaptureError, decode, digest, encoded
-from .klaviyo_campaigns_queries import (API_REVISION, CAMPAIGNS_BASE_URL,
+from .klaviyo_campaigns_queries import (API_REVISION, CAMPAIGNS_BASE_URL, MESSAGES_BASE_URL,
+                                        CAMPAIGNS_OPERATION, MESSAGES_OPERATION,
                                         KlaviyoCampaignsRequestError,
-                                        compile_klaviyo_campaigns_plan)
+                                        compile_klaviyo_campaigns_plans)
 
 _BACKOFF_CAP_SECONDS = 120
 _MAX_BACKOFF_ATTEMPTS = 5
-_INCLUDED_TYPES = ("campaign-audience", "campaign-message", "campaign-variation")
 
 
 class KlaviyoCampaignsCapture:
@@ -40,17 +41,17 @@ class KlaviyoCampaignsCapture:
                 or not 64 * 1024 <= max_page_bytes <= 32 * 1024 * 1024
                 or not 1 <= max_bytes <= 256 * 1024 * 1024):
             raise CaptureError("Invalid capture bounds")
-        plan = compile_klaviyo_campaigns_plan(archived, page_size)
+        plans = compile_klaviyo_campaigns_plans(archived, page_size)
         self.bucket, self._token = bucket, token.strip()
         self.account_key, self.page_size = account_key, page_size
-        self.plan = plan
+        self.plans = plans
         self.binding = {
             "format_version": 1, "stream": "campaigns", "account_key": account_key,
             "revision": API_REVISION, "extraction_id": extraction_id,
             "api_key_sha256": digest(self._token.encode()),
-            "archived": plan.archived,
-            "plan_sha256": digest(encoded(plan.first_params)),
-            "scope_sha256": digest(encoded({"archived": plan.archived, "page[size]": page_size})),
+            "archived": plans[0].archived,
+            "plan_sha256": digest(encoded({plan.operation: plan.first_params for plan in plans})),
+            "scope_sha256": digest(encoded({"archived": plans[0].archived, "page[size]": page_size})),
         }
         key = digest(encoded([account_key, extraction_id, "campaigns"]))
         self.prefix = f"pages/v1/klaviyo_campaigns/{key}"
@@ -60,7 +61,7 @@ class KlaviyoCampaignsCapture:
         self.max_attempts = max_attempts
         self.max_page_bytes = max_page_bytes
         self.pages, self.bytes, self._request_keys, self._finished = [], 0, set(), False
-        self._page_counts = {"campaigns": 0}
+        self._page_counts = {plan.operation: 0 for plan in plans}
         self._bind()
 
     def _bind(self):
@@ -104,8 +105,9 @@ class KlaviyoCampaignsCapture:
     def _http(self, url, params):
         if self.read_only:
             raise CaptureError("Read-only capture cannot call Klaviyo")
-        if not isinstance(url, str) or not url.startswith(CAMPAIGNS_BASE_URL):
-            raise CaptureError("Klaviyo cursor left the Campaigns API origin")
+        if not isinstance(url, str) or not (url.startswith(CAMPAIGNS_BASE_URL)
+                                            or url.startswith(MESSAGES_BASE_URL)):
+            raise CaptureError("Klaviyo cursor left its endpoint origin")
         backoff = 0
         while True:
             if time.monotonic() >= self.deadline:
@@ -147,17 +149,20 @@ class KlaviyoCampaignsCapture:
     def _request_variables(self, params, url):
         return dict(params) if params is not None else {"cursor": url}
 
-    def _request_hash(self, params, url):
-        return digest(encoded(self._request_variables(params, url)))
+    def _request_hash(self, operation, params, url):
+        return digest(encoded({"operation": operation,
+                               **self._request_variables(params, url)}))
 
-    def fetch(self, url, params):
+    def fetch(self, plan, url, params):
         if self._finished:
             raise CaptureError("Capture is already sealed")
-        if self._page_counts["campaigns"] >= self.max_pages:
+        if plan.operation not in self._page_counts:
+            raise CaptureError("Unknown Klaviyo campaigns chain")
+        if self._page_counts[plan.operation] >= self.max_pages:
             raise CaptureError("Klaviyo capture page limit reached")
         if time.monotonic() >= self.deadline:
             raise CaptureError("Klaviyo capture deadline reached")
-        request_hash = self._request_hash(params, url)
+        request_hash = self._request_hash(plan.operation, params, url)
         if request_hash in self._request_keys:
             raise CaptureError("Duplicate Klaviyo page request within traversal")
         name = f"{self.prefix}/{request_hash}.json"
@@ -199,96 +204,118 @@ class KlaviyoCampaignsCapture:
             raise CaptureError("Invalid Klaviyo pagination response")
         reference = {"uri": f"gs://{self.bucket.name}/{name}", "generation": str(existing.generation),
                      "sha256": digest(body), "request_sha256": request_hash,
-                     "operation": "campaigns", "variables": self._request_variables(params, url),
+                     "operation": plan.operation, "variables": self._request_variables(params, url),
                      "captured_at": metadata.get("captured_at")}
         self.pages.append(reference)
         self._request_keys.add(request_hash)
-        self._page_counts["campaigns"] += 1
+        self._page_counts[plan.operation] += 1
         return reference, data
 
-    def _page_campaigns(self, payload):
-        """Validate one JSON:API page of the campaign hierarchy, fail closed."""
+    def _relationships_of(self, resource):
+        relationships = resource.get("relationships")
+        if not isinstance(relationships, dict):
+            raise CaptureError("Klaviyo resource is missing its relationships")
+        return relationships
+
+    def _parent_id(self, resource, relationship, parents, label):
+        parent = self._relationships_of(resource).get(relationship)
+        parent_data = parent.get("data") if isinstance(parent, dict) else None
+        if not isinstance(parent_data, dict) or parent_data.get("id") not in parents:
+            raise CaptureError(f"Klaviyo {label} references a parent missing from the page")
+        return parent_data["id"]
+
+    def _page_resources(self, plan, payload):
+        """Validate one JSON:API page of the chain, fail closed, return (data, included)."""
         included = payload.get("included", [])
         if not isinstance(included, list):
             raise CaptureError("Invalid Klaviyo included collection")
-        campaigns, audiences, messages = {}, {}, {}
+        campaigns, audiences, messages, variations = {}, {}, {}, {}
         for item in included:
-            if not isinstance(item, dict) or item.get("type") not in _INCLUDED_TYPES:
-                raise CaptureError("Klaviyo page contains an unexpected included resource")
-            if not isinstance(item.get("id"), str) or not item["id"]:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
                 raise CaptureError("Klaviyo included resource is missing its identity")
-            if not isinstance(item.get("relationships"), dict):
-                raise CaptureError("Klaviyo included resource is missing its relationships")
-            if item["type"] == "campaign-audience":
+            if item.get("type") == "campaign":
+                campaigns[item["id"]] = item
+            elif item.get("type") == "campaign-audience":
                 audiences[item["id"]] = item
-            elif item["type"] == "campaign-message":
+            elif item.get("type") == "campaign-message":
                 messages[item["id"]] = item
-        for campaign in payload["data"]:
-            if not isinstance(campaign, dict) or campaign.get("type") != "campaign" \
-                    or not isinstance(campaign.get("id"), str) or not campaign["id"]:
-                raise CaptureError("Invalid Klaviyo campaign identity")
-            if not isinstance(campaign.get("attributes"), dict):
-                raise CaptureError("Klaviyo campaign is missing its attributes")
-            campaigns[campaign["id"]] = campaign
-        for audience in audiences.values():
-            parent = audience["relationships"].get("campaign")
-            parent_data = parent.get("data") if isinstance(parent, dict) else None
-            if not isinstance(parent_data, dict) or parent_data.get("id") not in campaigns:
-                raise CaptureError("Klaviyo audience references a campaign missing from the page")
-        for message in messages.values():
-            parent = message["relationships"].get("campaign-audience")
-            parent_data = parent.get("data") if isinstance(parent, dict) else None
-            if not isinstance(parent_data, dict) or parent_data.get("id") not in audiences:
-                raise CaptureError("Klaviyo message references an audience missing from the page")
-            parent = message["relationships"].get("campaign")
-            parent_data = parent.get("data") if isinstance(parent, dict) else None
-            if not isinstance(parent_data, dict) or parent_data.get("id") not in campaigns:
-                raise CaptureError("Klaviyo message references a campaign missing from the page")
-        for item in included:
-            if item["type"] != "campaign-variation":
-                continue
-            parent = item["relationships"].get("campaign-message")
-            parent_data = parent.get("data") if isinstance(parent, dict) else None
-            if not isinstance(parent_data, dict) or parent_data.get("id") not in messages:
-                raise CaptureError("Klaviyo variation references a message missing from the page")
-        return list(campaigns.values()), included
+            elif item.get("type") == "campaign-variation":
+                variations[item["id"]] = item
+            else:
+                raise CaptureError("Klaviyo page contains an unexpected included resource")
+            if not isinstance(item.get("attributes"), dict):
+                raise CaptureError("Klaviyo included resource is missing its attributes")
+        data = []
+        if plan.operation == CAMPAIGNS_OPERATION:
+            for campaign in payload["data"]:
+                if (not isinstance(campaign, dict) or campaign.get("type") != "campaign"
+                        or not isinstance(campaign.get("id"), str) or not campaign["id"]):
+                    raise CaptureError("Invalid Klaviyo campaign identity")
+                if not isinstance(campaign.get("attributes"), dict):
+                    raise CaptureError("Klaviyo campaign is missing its attributes")
+                data.append(campaign)
+                campaigns[campaign["id"]] = campaign
+            for audience in audiences.values():
+                self._parent_id(audience, "campaign", campaigns, "audience")
+            for message in messages.values():
+                self._parent_id(message, "campaign", campaigns, "message")
+                self._parent_id(message, "campaign-audience", audiences, "message")
+        elif plan.operation == MESSAGES_OPERATION:
+            for message in payload["data"]:
+                if (not isinstance(message, dict) or message.get("type") != "campaign-message"
+                        or not isinstance(message.get("id"), str) or not message["id"]):
+                    raise CaptureError("Invalid Klaviyo message identity")
+                if not isinstance(message.get("attributes"), dict):
+                    raise CaptureError("Klaviyo message is missing its attributes")
+                data.append(message)
+                messages[message["id"]] = message
+            for variation in variations.values():
+                self._parent_id(variation, "campaign-message", messages, "variation")
+            for message in messages.values():
+                self._parent_id(message, "campaign", campaigns, "message")
+        else:
+            raise CaptureError("Unknown Klaviyo campaigns chain plan")
+        return data, included
 
-    def walk(self):
-        """Yield one (campaign, included) pair per campaign, in page order."""
-        url, params, cursors, identifiers = CAMPAIGNS_BASE_URL, self.plan.first_params, set(), set()
+    def walk(self, plan):
+        """Yield one (resource, included) pair per root resource, in page order."""
+        url, params, cursors, identifiers = plan.base_url, plan.first_params, set(), set()
         while True:
-            reference, data = self.fetch(url, params)
-            campaigns, included = self._page_campaigns(data)
+            reference, data = self.fetch(plan, url, params)
+            resources, included = self._page_resources(plan, data)
             next_url = (data.get("links") or {}).get("next")
             if not isinstance(next_url, (str, type(None))):
                 raise CaptureError("Invalid Klaviyo pagination cursor")
-            if not campaigns:
+            if not resources:
                 if next_url:
                     raise CaptureError("Nonadvancing Klaviyo pagination cursor")
                 return
-            for campaign in campaigns:
-                if campaign["id"] in identifiers:
-                    raise CaptureError("Duplicate Klaviyo campaign across pages")
-                identifiers.add(campaign["id"])
-                yield campaign, included
+            for resource in resources:
+                if resource["id"] in identifiers:
+                    raise CaptureError("Duplicate Klaviyo resource across pages")
+                identifiers.add(resource["id"])
+                yield resource, included
             if next_url is None:
                 return
             if next_url in cursors:
                 raise CaptureError("Nonadvancing Klaviyo pagination cursor")
             # Cursor chains keep following links.next; params go only on the
-            # first request and the cursor must stay on the Campaigns API origin.
+            # first request and the cursor must stay on its endpoint origin.
             try:
-                self.plan.request_params(cursor_url=next_url)
+                plan.request_params(cursor_url=next_url)
             except KlaviyoCampaignsRequestError:
-                raise CaptureError("Klaviyo cursor left the Campaigns API origin") from None
+                raise CaptureError("Klaviyo cursor left its endpoint origin") from None
             url, params = next_url, None
 
     def collect(self):
-        count = 0
-        for _ in self.walk():
-            count += 1
+        counts = {}
+        for plan in self.plans:
+            count = 0
+            for _ in self.walk(plan):
+                count += 1
+            counts[plan.operation] = count
         seal = {"binding": self.binding, "status": "captured", "pages": self.pages,
-                "counts": {"campaigns": count}, "response_bytes": self.bytes,
+                "counts": counts, "response_bytes": self.bytes,
                 "consistency": "multi_request_observations_not_transactional_snapshot"}
         content = encoded(seal)
         blob = self.bucket.blob(f"{self.prefix}/complete.json")

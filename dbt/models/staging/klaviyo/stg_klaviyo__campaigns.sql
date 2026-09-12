@@ -15,6 +15,7 @@ with pages as (
      and m.transport = 'klaviyo_jsonapi_pages'
     cross join unnest(json_query_array(m.files)) f
     where json_value(f, '$.role') = 'response_page'
+      and json_value(f, '$.operation') = 'campaigns_list'
       and json_value(f, '$.generation') = r.file_id
       and json_value(f, '$.sha256') = r.record_sha256
 )
