@@ -1,3 +1,52 @@
+# Klaviyo campaigns pipeline live — 2026-09-12
+
+Read-only snapshot of the Klaviyo Campaigns API (revision `2026-07-15.pre`,
+beta). Two ordered cursor chains per run, no time window: campaigns list
+(`include=campaign-audiences,campaign-messages`) and campaign-messages list
+(`include=campaign,campaign-variations`). Hierarchy validated fail-closed
+per page (campaign→audience→message on chain A; campaign→message→variation
+on chain B); audiences are not listable (405). No archived filter: the
+messages chain is unfiltered and carries messages of archived campaigns, so
+their parents must be captured too. Message `status` lives inside
+`definition` (lowercase); `throttle_percentage` is absent from
+`send_settings` despite the beta docs. `scheduling_info` stays unprojected
+until its live shape is verified.
+
+Live-verified API constraints that shaped the design (first run `d5d5c6c6`
+failed fail-closed): the campaigns list endpoint rejects
+`include=campaign-variations` (400), so variations only come via the
+messages chain.
+
+Images: `klaviyo-campaigns-…` through `klaviyo-campaigns5-9db34ef-20260912190105`
+(digest `sha256:4d246bd683cbdea596e831a6579a631c715e28ea9de489477d48053dc4e10d8d`),
+pinned in `deployment.auto.tfvars`, rollouts confirmed on Cloud Run job and VM
+containers. Also pinned `hbny-shopify-admin-access-token` to `latest` after a
+mid-flight rotation disabled version 1 (job had gone to Ready=False; fixed via
+Terraform, one worker update).
+
+Ingestion run `11cfbc9f`→superseded; final run `28c76dfa` (extraction
+`klaviyo-campaigns-20260912-04`) SUCCESS: raw_klaviyo.campaigns 26 pages
+(13 campaigns_list + 13 messages_list), 1,280 campaigns (25 archived),
+1,279 messages, 1 published manifest. Counts match an independent API walk.
+
+Staging (marts run `122d2310`, extraction `marts-campaigns-20260912-05`):
+`stg_klaviyo__campaigns` 1,280 rows = 1,280 ids (25 archived),
+`stg_klaviyo__campaign_audiences` 1,279 (one campaign has no audience),
+`stg_klaviyo__campaign_messages` 1,279 (1,171 sent / 68 draft / 39 cancelled /
+1 sending), `stg_klaviyo__campaign_variations` 1,524 (1,289 email / 235 sms).
+Zero orphan messages. 161 dbt checks passed. Defect found and fixed during
+acceptance: multiple published snapshot extractions stacked in staging (3x
+fan-out, 3,790 rows / 1,280 ids); fixed with latest-extraction-wins in the
+pages CTE (commit `9db34ef`) and verified against real data.
+
+The marts run itself is FAILURE on `fulfillment_orders_staging` /
+`fulfillments_staging` only — those streams' raw tables were never created
+(documented below); every klaviyo step materialized with tests green.
+No replay/idempotency run for the campaigns capture yet. No BQ→Klaviyo
+writes exist (phase 1 ingest-only, read-only).
+
+---
+
 # Typed Shopify business-grain layer — 2026-09-07
 
 Image `typed-78a8ab4-20260907025727` (digest `sha256:40e820f0648bdcf0f4939bb753102c385b1a70b379749d62faab97647d963a3d`)
@@ -287,7 +336,7 @@ No commit or push performed. Existing user worktree edits are preserved.
   authorization and Billing export setup remain pending user input; no credentials
   were read or copied from the interactive Shopify connection.
 - Shopify credential blocker resolved on 2026-09-04: user-created secret
-  `shopify-admin-access-token` version 1 is enabled. Added secret-scoped accessor
+  `hbny-shopify-admin-access-token` version 1 is enabled. Added secret-scoped accessor
   for dagster-worker via Terraform and injected `SHOPIFY_ADMIN_ACCESS_TOKEN`,
   domain `sobrecodigo.myshopify.com` and API version `2026-04` into the Cloud Run job.
   Apply: one IAM member added, one worker updated, no destruction or VM changes.

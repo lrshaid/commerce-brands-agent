@@ -100,8 +100,8 @@ resource "google_cloud_run_v2_job" "worker" {
           name = "SHOPIFY_ADMIN_ACCESS_TOKEN"
           value_source {
             secret_key_ref {
-              secret  = "shopify-admin-access-token"
-              version = "1"
+              secret  = "hbny-shopify-admin-access-token"
+              version = "latest"
             }
           }
         }
