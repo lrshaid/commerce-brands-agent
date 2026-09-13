@@ -790,7 +790,12 @@ def publication_sql(dataset, stream, stage):
         raise ValueError('Invalid staging identifier')
     raw, manifest = contract_columns()
     raw_fields = ', '.join(raw)
-    normalized = ', '.join(f'PARSE_JSON({k}) AS {k}' if t == 'JSON' else k for k, t in raw.items())
+    # wide_number_mode='round': provider JSON may carry decimal literals that exceed
+    # float64 round-trip precision (e.g. geolocation -117.12157500000001). The parsed
+    # JSON column is a query convenience; record_text stays the authoritative original.
+    normalized = ', '.join(
+        f"PARSE_JSON({k}, wide_number_mode=>'round') AS {k}" if t == 'JSON' else k
+        for k, t in raw.items())
     compare = ' OR '.join(f't.{k} IS DISTINCT FROM s.{k}' for k in raw if k not in ('payload', 'ingested_at'))
     key_match = ' AND '.join(f't.{k} = s.{k}' for k in ('shop_key', 'extraction_id', 'file_id', 'record_index'))
     manifest_values = ', '.join(f'PARSE_JSON(@m_{k})' if t == 'JSON' else f'@m_{k}' for k, t in manifest.items())

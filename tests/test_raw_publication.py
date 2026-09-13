@@ -97,7 +97,7 @@ class RawPublicationTests(unittest.TestCase):
         self.assertLess(sql.index('Conflicting replay record'), sql.index('INSERT INTO'))
         self.assertTrue(sql.strip().endswith('COMMIT TRANSACTION;'))
         self.assertNotIn('DELETE FROM', sql)
-        self.assertIn('PARSE_JSON(payload)', sql)
+        self.assertIn("PARSE_JSON(payload, wide_number_mode=>'round')", sql)
 
     def test_invalid_identifiers_and_blocked_exchange_rejected(self):
         for dataset, stream, stage in [('x`;DROP', 'orders', '_load_'+'a'*32),

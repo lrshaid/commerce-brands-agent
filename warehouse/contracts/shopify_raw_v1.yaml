@@ -94,7 +94,7 @@ validation_evidence:
 streams:
   orders:
     query_file: queries/shopify/orders_bulk.graphql
-    query_sha256: 8ca266991d36ee81544f2bc3c26cc662a41582ffbaae94b11851f05ee159b4a0
+    query_sha256: 134dfea6aae9d5bc1b020e1f2190a99f310653ba34d7d4309ff0fdec16c8eff3
     raw_table: orders
     graphql_schema_validation: passed
     transport: bulk_query_live_verified_for_available_fixture
