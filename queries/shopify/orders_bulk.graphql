@@ -56,7 +56,6 @@ query OrdersBulk ($query: String) {
           refundSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
         }
         app { id name }
-        staffMember { id }
         physicalLocation { id name }
         merchantOfRecordApp { id }
         merchantBusinessEntity { id }
@@ -101,7 +100,6 @@ query OrdersBulk ($query: String) {
         }
         customerJourneySummary { lastVisit { landingPage referrerUrl } }
         customAttributes { key value }
-        paymentTerms { id paymentTermsName }
         taxLines {
           title rate ratePercentage priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } channelLiable
         }
@@ -113,8 +111,7 @@ query OrdersBulk ($query: String) {
         }
         refunds {
           id createdAt processedAt note
-          staffMember { id }
-          totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+            totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
           duties { amountSet { shopMoney { amount currencyCode } } }
         }
         lineItems {
@@ -131,8 +128,7 @@ query OrdersBulk ($query: String) {
               totalDiscountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
               product { id }
               variant { id inventoryItem { tracked } }
-              staffMember { id }
-              customAttributes { key value }
+                    customAttributes { key value }
               discountAllocations {
                 allocatedAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
                 discountApplication {
