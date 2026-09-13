@@ -44,12 +44,14 @@ models:
         data_tests: [not_null, unique]
   - name: stg_shopify__order_discount_allocations
     description: >
-      Discount allocation observations per order line. The active
-      orders_bulk.graphql query does not request discountAllocations, so this
-      view currently returns zero rows; retained for forward-compatibility.
+      Discount allocation observations per order line. Grain is one row per
+      (raw record, allocation): a line with multiple allocations repeats its
+      observation_key by design, so uniqueness binds to the composite key.
     columns:
       - name: observation_key
-        data_tests: [not_null, unique]
+        data_tests: [not_null]
+      - name: discount_application_index
+        data_tests: [not_null]
       - name: line_item_gid
         data_tests: [not_null]
       - name: order_gid
