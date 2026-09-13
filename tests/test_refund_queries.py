@@ -5,7 +5,7 @@ from graphql import parse, print_ast
 
 from agent.warehouse.refund_queries import RefundProjectionError, compile_refund_queries, _field, _node
 
-SOURCE = (Path(__file__).resolve().parents[1] / "queries/shopify/order_refunds_bulk.graphql").read_text()
+SOURCE = (Path(__file__).resolve().parents[1] / "queries/shopify/order_refunds_v1.graphql").read_text()
 
 
 class RefundQueryTests(unittest.TestCase):

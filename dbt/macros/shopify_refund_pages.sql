@@ -16,6 +16,7 @@
     r.record_text,
     r.ingested_at,
     json_value(f, '$.operation') as operation,
+    json_value(f, '$.role') as file_role,
     json_value(f, '$.variables.id') as refund_gid,
     json_value(f, '$.variables.after') as after_cursor,
     cast(json_value(f, '$.captured_at') as timestamp) as captured_at,
@@ -27,10 +28,10 @@
     and r.extraction_id = m.extraction_id
     and m.stream = 'order_refunds'
     and m.status = 'published'
-    and m.transport = 'shopify_graphql_pages'
+    and m.transport in ('shopify_graphql_pages', 'shopify_bulk_and_graphql_pages_v2')
   cross join unnest(json_query_array(m.files)) f
-  where json_value(f, '$.role') = 'response_page'
+  where json_value(f, '$.role') in ('response_page', 'bulk_headers')
     and json_value(f, '$.generation') = r.file_id
-    and json_value(f, '$.sha256') = r.record_sha256
+    and (json_value(f, '$.role') = 'bulk_headers' or json_value(f, '$.sha256') = r.record_sha256)
 )
 {% endmacro %}

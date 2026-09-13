@@ -4,7 +4,12 @@ The Cloud Run job `dagster-worker` receives:
 
 - `SHOPIFY_SHOP_DOMAIN=sobrecodigo.myshopify.com`
 - `SHOPIFY_API_VERSION=2026-04`
-- `SHOPIFY_ADMIN_ACCESS_TOKEN` from Secret Manager `shopify-admin-access-token`, version `1`.
+- `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` from Secret Manager
+  `hbny-shopify-client-id` / `hbny-shopify-client-secret`, version `latest`.
+  The worker exchanges them for a short-lived Admin API access token via the
+  client credentials grant (`POST /admin/oauth/access_token`, `expires_in`
+  86399s) and caches it in-process until shortly before expiry. The legacy
+  static `SHOPIFY_ADMIN_ACCESS_TOKEN` is honored as a local/dev fallback.
 
 Only `dagster-worker@commerce-agents-dev.iam.gserviceaccount.com` is granted the new
 secret-scoped accessor binding. Secret contents remain user-managed and are never

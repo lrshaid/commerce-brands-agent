@@ -7,6 +7,7 @@ from google.cloud import storage
 
 from agent.warehouse.returns_capture import ReturnsCapture
 from agent.warehouse.shopify_bulk import BulkClient
+from agent.warehouse.shopify_token import shopify_access_token
 from orchestration.shopify_orders import OrdersConfig, extraction_window
 
 QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/return_line_items_bulk.graphql"
@@ -16,13 +17,13 @@ QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/return_line_
 def shopify_returns(context: dg.AssetExecutionContext, config: OrdersConfig):
     _, _, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
-    client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], os.environ["SHOPIFY_ADMIN_ACCESS_TOKEN"],
+    client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], shopify_access_token,
                         os.environ["SHOPIFY_API_VERSION"])
     shop_gid = client.verify_shop(config.expected_shop_gid)
     bucket = storage.Client(project=project).bucket(project + "-landing")
     capture = ReturnsCapture(
         bucket=bucket, domain=os.environ["SHOPIFY_SHOP_DOMAIN"],
-        token=os.environ["SHOPIFY_ADMIN_ACCESS_TOKEN"], api_version=client.api_version,
+        token=shopify_access_token(), api_version=client.api_version,
         shop_gid=shop_gid, extraction_id=config.extraction_id,
         query_source=QUERY_PATH.read_text(), search_filter=search_filter, page_size=50,
     )

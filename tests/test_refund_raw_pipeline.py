@@ -26,7 +26,7 @@ class RefundRawPipelineTests(unittest.TestCase):
                 patch("orchestration.shopify_refunds_raw.publish_records", return_value={"publication_job_id": "job"}) as publish:
             self.assertEqual(len(list(shopify_refunds_raw.op.compute_fn.decorated_fn(context, config))), 2)
             manifest = publish.call_args.args[4]
-            self.assertEqual(manifest["transport"], "shopify_graphql_pages")
+            self.assertEqual(manifest["transport"], "shopify_bulk_and_graphql_pages_v2")
             self.assertIsNone(manifest["provider_object_count"])
             self.assertTrue(publish.call_args.kwargs["transport_validated"])
             initialize.reset_mock()

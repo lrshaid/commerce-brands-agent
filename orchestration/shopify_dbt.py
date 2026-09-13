@@ -109,3 +109,7 @@ def run_dbt(context, dbt, artifact_group):
             context.log.exception("Shopify dbt artifact archival failed")
             if not failed:
                 raise
+
+@dbt_assets(manifest=MANIFEST, select="tag:order_transactions_staging")
+def order_transactions_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "order_transactions")

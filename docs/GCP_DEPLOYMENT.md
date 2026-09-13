@@ -45,7 +45,8 @@ export PROJECT_ID=commerce-agents-dev
 export REGION=us-central1
 export ZONE=us-central1-a
 gcloud config set project "$PROJECT_ID"
-gcloud secrets describe shopify-admin-access-token --project="$PROJECT_ID"
+gcloud secrets describe hbny-shopify-client-id --project="$PROJECT_ID"
+gcloud secrets describe hbny-shopify-client-secret --project="$PROJECT_ID"
 ```
 
 The Shopify credential is pre-existing in Secret Manager and injected by the

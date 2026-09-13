@@ -1,0 +1,3 @@
+# Optional local SQL fixture execution; no BigQuery writes or credentials.
+duckdb>=1.4,<2
+sqlglot>=28,<31

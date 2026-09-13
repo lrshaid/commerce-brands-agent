@@ -1,19 +1,36 @@
-query OrderRefundsBulk ($query: String) {
-  orders(query: $query) {
-    edges { node {
-      id
-      name
-      updatedAt
-      refunds {
-        id
-        note
-        createdAt
-        updatedAt
-        totalRefundedSet { shopMoney { amount currencyCode } }
-        refundLineItems(first: 50) { edges { node { id quantity restockType lineItem { id } subtotalSet { shopMoney { amount } } totalTaxSet { shopMoney { amount } } } } }
-        transactions(first: 10) { edges { node { id kind status amountSet { shopMoney { amount } } } } }
-        orderAdjustments(first: 10) { edges { node { id amountSet { shopMoney { amount } } } } }
-      }
-    } }
-  }
+query OrderRefundsBulk($query: String) {
+orders(query: $query) { edges { node {
+id name updatedAt sourceName currencyCode presentmentCurrencyCode
+refunds {
+id createdAt updatedAt processedAt note staffMember { id firstName lastName }
+totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+duties { amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalDuty { id harmonizedSystemCode countryCodeOfOrigin } }
+refundLineItems(first: 50) { pageInfo { hasNextPage endCursor } nodes { id quantity restockType restocked location { id name } priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } subtotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalTaxSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } lineItem { id name title variantTitle sku vendor quantity currentQuantity refundableQuantity
+requiresShipping taxable isGiftCard fulfillmentStatus
+staffMember { id firstName lastName } customAttributes { key value }
+totalDiscountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+discountAllocations { allocatedAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
+taxLines { rate title channelLiable priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
+product { id } variant { id inventoryItem { tracked measurement { weight { value unit } } } } } } }
+transactions(first: 50) { pageInfo { hasNextPage endCursor } nodes { id kind gateway formattedGateway status test processedAt createdAt errorCode paymentId receiptJson
+amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } settlementCurrency settlementCurrencyRate multiCapturable manuallyCapturable
+maximumRefundableV2 { amount currencyCode } location { id name } user { id } device { id }
+parentTransaction { id }
+paymentDetails {
+ __typename
+ ... on CardPaymentDetails { avsResultCode bin company cvvResultCode expirationMonth expirationYear name number paymentMethodName wallet }
+ ... on ShopPayInstallmentsPaymentDetails { paymentMethodName }
+ ... on LocalPaymentMethodsPaymentDetails { paymentMethodName }
+ ... on PaypalWalletPaymentDetails { paymentMethodName }
+}
+fees { id amount { amount currencyCode } flatFee { amount currencyCode } flatFeeName rate rateName taxAmount { amount currencyCode } type }
+shopifyPaymentsSet { refundSet { acquirerReferenceNumber } } } }
+orderAdjustments(first: 50) { pageInfo { hasNextPage endCursor } nodes { id reason amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } taxAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } }
+refundShippingLines(first: 50) { pageInfo { hasNextPage endCursor } nodes { id shippingLine { id title } subtotalAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } taxAmountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } }
+return { id name status createdAt closedAt totalQuantity staffMember { id firstName lastName }
+returnLineItems(first: 50) { pageInfo { hasNextPage endCursor } nodes { __typename id quantity ... on ReturnLineItem { refundableQuantity refundedQuantity processedQuantity processableQuantity unprocessedQuantity returnReason returnReasonNote customerNote fulfillmentLineItem { id lineItem { id } } } } }
+exchangeLineItems(first: 50, includeRemovedItems: true) { pageInfo { hasNextPage endCursor } nodes { id quantity processedQuantity processableQuantity unprocessedQuantity variantId lineItems { id } } }
+}
+}
+} } }
 }

@@ -94,7 +94,7 @@ validation_evidence:
 streams:
   orders:
     query_file: queries/shopify/orders_bulk.graphql
-    query_sha256: dfd59bd1b49b53d706e101635061eda239a2e59db06746e92c67f2e2face9d36
+    query_sha256: 8ca266991d36ee81544f2bc3c26cc662a41582ffbaae94b11851f05ee159b4a0
     raw_table: orders
     graphql_schema_validation: passed
     transport: bulk_query_live_verified_for_available_fixture
@@ -147,7 +147,7 @@ streams:
       - Child-only update cursor coverage, quarantine retention and recovery after signed URL expiry remain unverified or incomplete.
 
   order_refunds:
-    query_file: queries/shopify/order_refunds_bulk.graphql
+    query_file: queries/shopify/order_refunds_v1.graphql
     query_sha256: c6e20f13cb36c3f7287f0807f565dcbd525ba261058543dbea9ed3de0569d98e
     raw_table: order_refunds
     graphql_schema_validation: passed
@@ -211,7 +211,7 @@ streams:
       - Existing selection has no exchange-line identity, original line linkage or root update cursor.
 
 not_in_scope_yet:
-  other_query_files: 32
+  other_query_files: 34
   canonical_stream_count: unapproved
   dbt_project_and_staging_sql: not_implemented
   financial_policies: require_separate_approval

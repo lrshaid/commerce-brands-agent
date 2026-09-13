@@ -16,6 +16,21 @@ def verify(bucket, prefix):
     seal = json.loads(seal_blob.download_as_bytes(if_generation_match=int(seal_blob.generation)))
     if seal["status"] != "captured":
         raise RuntimeError("Capture is not complete")
+    if seal.get("binding", {}).get("format_version") == 2:
+        from pathlib import Path
+        from agent.warehouse.refund_capture_v2 import RefundCaptureV2
+        binding = seal["binding"]
+        source = (Path(__file__).resolve().parents[2] / "queries/shopify/order_refunds_bulk.graphql").read_text()
+        capture = RefundCaptureV2(bucket=bucket, domain=binding["domain"], token="",
+            api_version=binding["api_version"], shop_gid=binding["shop_gid"],
+            extraction_id=binding["extraction_id"], query_source=source,
+            search_filter=binding["search_filter"], read_only=True)
+        if capture.prefix != prefix:
+            raise RuntimeError("Capture prefix does not match binding")
+        replay = capture.collect()
+        return dict(verified=True, counts=replay["counts"], pages=len(replay["pages"]),
+            bulk_records=int(replay["bulk"]["record_count"]), response_bytes=replay["response_bytes"],
+            seal_generation=str(seal_blob.generation), warehouse_published=False)
     counts = dict.fromkeys(("orders", "refunds", "refundLineItems", "transactions", "orderAdjustments"), 0)
     chains, refunds, requests_seen = {}, set(), set()
     page_counts, edge_counts = Counter(), {}

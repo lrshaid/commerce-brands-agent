@@ -26,9 +26,10 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
+    parser.add_argument("--job", choices=("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
+    parser.add_argument("--refund-capture-version", type=int, choices=(1, 2), default=2)
     parser.add_argument("--expected-shop-gid", help="Required for Shopify jobs; unused by Klaviyo jobs")
     parser.add_argument("--window-start", help="Required for windowed jobs; unused by klaviyo_campaigns_ingestion")
     parser.add_argument("--window-end", help="Required for windowed jobs; unused by klaviyo_campaigns_ingestion")
@@ -38,7 +39,7 @@ def main():
     parser.add_argument("--replay-completed-run", help="Explicitly replay this successful run's extraction")
     parser.add_argument("--retry-failed-run", help="Retry this terminal failed run after verifying its remote worker stopped")
     args = parser.parse_args()
-    windowed_jobs = ("shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion",
+    windowed_jobs = ("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion",
                      "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion",
                      "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion",
                      "shopify_inventory_ingestion", "klaviyo_events_ingestion")
@@ -72,6 +73,10 @@ def main():
     config = {k: getattr(args, k) for k in ("extraction_id", "expected_shop_gid", "window_start", "window_end")}
     operations = {"shopify_orders": {"config": config}} if args.job == "shopify_orders_ingestion" else {
         "shopify_capture__refund_pages": {"config": config}}
+    if args.job in ("shopify_refunds_capture", "shopify_refunds_ingestion"):
+        config["capture_version"] = args.refund_capture_version
+    if args.job == "shopify_order_transactions_ingestion":
+        operations = {"shopify_order_transactions": {"config": config}}
     if args.job == "shopify_returns_ingestion":
         operations = {"shopify_capture__return_pages": {"config": config},
                       "shopify_returns_raw": {"config": config}}

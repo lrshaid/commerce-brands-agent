@@ -10,12 +10,15 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
+from typing import Callable
 
 import requests
 from google.api_core.exceptions import PreconditionFailed
 from graphql import parse, print_ast, visit, Visitor
 from graphql.language.ast import OperationDefinitionNode, StringValueNode
 from graphql.language import OperationType
+
+from agent.warehouse.shopify_token import invalidate_shopify_token
 
 START_EXPORT = """mutation StartOrdersExport($document: String!) {
   bulkOperationRunQuery(query: $document) {
@@ -36,6 +39,10 @@ SHOP_IDENTITY = """query ExportShopIdentity { shop { id myshopifyDomain } }"""
 
 class BulkError(RuntimeError):
     """Sanitized error: never include response bodies, tokens or signed URLs."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class SubmissionUncertain(BulkError):
@@ -80,7 +87,7 @@ def _operation_id(value):
 @dataclass(repr=False)
 class BulkClient:
     shop_domain: str
-    token: str = field(repr=False)
+    token: str | Callable[[], str] = field(repr=False)
     api_version: str = "2026-04"
 
     def __post_init__(self):
@@ -88,21 +95,33 @@ class BulkClient:
             raise BulkError("Invalid shop domain")
         if not re.fullmatch(r"20[0-9]{2}-(01|04|07|10)", self.api_version):
             raise BulkError("Invalid API version")
-        self.token = self.token.strip()
-        if not self.token:
-            raise BulkError("Missing Shopify credential")
+        if callable(self.token):
+            # Provider-backed credential; resolved per request.
+            self._resolve_token = self.token  # type: ignore[method-assign]
+        else:
+            static = self.token.strip()
+            if not static:
+                raise BulkError("Missing Shopify credential")
+            self._resolve_token = lambda: static  # type: ignore[method-assign]
 
     def _request(self, operation, variables):
+        return self._request_once(operation, variables, self._resolve_token(), retried=False)
+
+    def _request_once(self, operation, variables, token, retried):
         try:
             response = requests.post(
                 f"https://{self.shop_domain}/admin/api/{self.api_version}/graphql.json",
-                headers={"X-Shopify-Access-Token": self.token},
+                headers={"X-Shopify-Access-Token": token},
                 json={"query": operation, "variables": variables},
                 timeout=(10, 30), allow_redirects=False,
             )
             with response:
+                if response.status_code == 401 and callable(self.token) and not retried:
+                    # Expiring token retired mid-run: refresh once and retry.
+                    invalidate_shopify_token()
+                    return self._request_once(operation, variables, self._resolve_token(), retried=True)
                 if response.status_code != 200:
-                    raise BulkError("Shopify HTTP request failed")
+                    raise BulkError("Shopify HTTP request failed", status=response.status_code)
                 if response.headers.get("X-Shopify-API-Version") != self.api_version:
                     raise BulkError("Shopify API version mismatch")
                 body = response.json()

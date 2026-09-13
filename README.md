@@ -72,3 +72,9 @@ has not been created. See `config/README.md` and `warehouse/BUILD_STATUS.md` for
 inputs, current implementation boundaries, decisions, and validation status. Existing
 revenue SQL remains unvalidated historical templates; the semantic catalog does not mark
 GMV/RMV as implemented. No warehouse SQL is executed by the new command.
+
+## Refunds v2 and order transactions
+
+The local implementation now includes two-pass refund capture and a dedicated
+all-order-transactions stream. See [capture, compatibility and validation](docs/SHOPIFY_REFUNDS_TRANSACTIONS.md).
+Live nonempty acceptance and deployment remain pending.

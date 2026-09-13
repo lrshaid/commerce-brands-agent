@@ -7,6 +7,7 @@ from google.cloud import storage
 
 from agent.warehouse.inventory_capture import InventoryCapture
 from agent.warehouse.shopify_bulk import BulkClient
+from agent.warehouse.shopify_token import shopify_access_token
 from orchestration.shopify_orders import extraction_window
 
 ITEMS_QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/inventory_items_bulk.graphql"
@@ -24,13 +25,13 @@ class InventoryConfig(dg.Config):
 def shopify_inventory(context: dg.AssetExecutionContext, config: InventoryConfig):
     _, _, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
-    client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], os.environ["SHOPIFY_ADMIN_ACCESS_TOKEN"],
+    client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], shopify_access_token,
                         os.environ["SHOPIFY_API_VERSION"])
     shop_gid = client.verify_shop(config.expected_shop_gid)
     bucket = storage.Client(project=project).bucket(project + "-landing")
     capture = InventoryCapture(
         bucket=bucket, domain=os.environ["SHOPIFY_SHOP_DOMAIN"],
-        token=os.environ["SHOPIFY_ADMIN_ACCESS_TOKEN"], api_version=client.api_version,
+        token=shopify_access_token(), api_version=client.api_version,
         shop_gid=shop_gid, extraction_id=config.extraction_id,
         items_source=ITEMS_QUERY_PATH.read_text(), levels_source=LEVELS_QUERY_PATH.read_text(),
         search_filter=search_filter, page_size=50,

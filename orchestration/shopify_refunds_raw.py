@@ -1,3 +1,5 @@
+from orchestration.shopify_refunds import RefundsConfig, refund_version
+from agent.warehouse.refund_raw import prepare_refund_raw as prepare_legacy_refund_raw
 """Publish only an exhaustively revalidated refund capture; no Shopify reads."""
 from datetime import datetime, timezone
 import os
@@ -6,7 +8,7 @@ from pathlib import Path
 import dagster as dg
 from google.cloud import bigquery, storage
 
-from agent.warehouse.refund_raw import prepare_refund_raw
+from agent.warehouse.refund_raw_v2 import prepare_refund_raw_v2 as prepare_refund_raw
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from orchestration.shopify_orders import OrdersConfig, extraction_window
 
@@ -17,21 +19,24 @@ QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/order_refund
     dg.AssetSpec(key=["shopify", "order_refunds"], deps=[["shopify_capture", "refund_pages"]], group_name="shopify_raw"),
     dg.AssetSpec(key=["shopify_refunds", "ingestion_runs"], deps=[["shopify_capture", "refund_pages"]], group_name="shopify_raw"),
 ])
-def shopify_refunds_raw(context: dg.AssetExecutionContext, config: OrdersConfig):
+def shopify_refunds_raw(context: dg.AssetExecutionContext, config: RefundsConfig):
     start, end, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     now = datetime.now(timezone.utc)
-    prepared = prepare_refund_raw(
+    version = refund_version(config)
+    prepare = prepare_refund_raw if version == 2 else prepare_legacy_refund_raw
+    query_path = QUERY_PATH if version == 2 else QUERY_PATH.with_name("order_refunds_v1.graphql")
+    prepared = prepare(
         bucket=storage.Client(project=project).bucket(project + "-landing"),
         domain=os.environ["SHOPIFY_SHOP_DOMAIN"], api_version=os.environ["SHOPIFY_API_VERSION"],
         shop_gid=config.expected_shop_gid, extraction_id=config.extraction_id,
-        query_source=QUERY_PATH.read_text(), search_filter=search_filter, ingested_at=now)
+        query_source=query_path.read_text(), search_filter=search_filter, ingested_at=now)
     _, fields = contract_columns()
     manifest = dict.fromkeys(fields)
     manifest.update(shop_key=config.expected_shop_gid, stream="order_refunds", extraction_id=config.extraction_id,
         contract_version=1, query_sha256=prepared["query_sha256"], request_sha256=prepared["request_sha256"],
         requested_api_version=os.environ["SHOPIFY_API_VERSION"], actual_api_version=os.environ["SHOPIFY_API_VERSION"],
-        transport="shopify_graphql_pages", window_start=start, window_end=end,
+        transport="shopify_bulk_and_graphql_pages_v2" if version == 2 else "shopify_graphql_pages", window_start=start, window_end=end,
         started_at=prepared["started_at"], completed_at=prepared["completed_at"], published_at=now,
         status="published", raw_record_count=prepared["raw_record_count"],
         provider_object_count=None, root_object_count=prepared["counts"]["orders"], files=prepared["files"],

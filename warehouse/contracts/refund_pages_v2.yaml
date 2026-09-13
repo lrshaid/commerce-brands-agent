@@ -1,0 +1,39 @@
+version: 2
+status: implemented_offline_validation_only
+stream: order_refunds
+api_version: '2026-04'
+projection: queries/shopify/order_refunds_bulk.graphql
+transport: shopify_bulk_and_graphql_pages_v2
+envelope: shopify_raw_v1.record_envelope
+manifest_contract_version: 1
+raw_table: order_refunds
+scope: parent_order_updated_at_half_open_interval
+refund_date_filter: none
+pass_1:
+  transport: bulk
+  grain: original_order_jsonl_record_with_refund_header_list
+  connections_under_refunds: forbidden
+pass_2:
+  transport: synchronous_graphql
+  batch_size: 5
+  initial_page_size: 50
+  cost_limit_page_sizes: [50, 25, 12, 6, 3, 1]
+  refund_connections: [refundLineItems, transactions, orderAdjustments, refundShippingLines]
+  return_connections: [returnLineItems, exchangeLineItems]
+  include_removed_exchange_items: true
+  return_children_grain: once_per_return_per_extraction
+  topup: independent_owner_and_connection_cursor_until_hasNextPage_false
+  missing_nodes_or_partial_graphql_errors: fail_without_completion_seal
+publication:
+  gate: exhaustive_read_only_replay_and_exact_seal_match
+  file_roles: [bulk_headers, response_page, completion_seal]
+  bulk_grain: one_original_jsonl_line
+  http_grain: one_exact_decoded_utf8_response_body
+  synthetic_adjustments: dbt_only_never_raw
+  money: preserve_shop_and_presentment_amounts_and_currencies
+legacy:
+  capture_version: 1
+  projection: queries/shopify/order_refunds_v1.graphql
+  prefix: pages/v1/order_refunds
+  reuse_extraction_id_across_versions: forbidden_use_new_identity_for_v2
+live_acceptance: pending_nonempty_refund_fixture

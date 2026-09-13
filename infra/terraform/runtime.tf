@@ -97,10 +97,19 @@ resource "google_cloud_run_v2_job" "worker" {
           }
         }
         env {
-          name = "SHOPIFY_ADMIN_ACCESS_TOKEN"
+          name = "SHOPIFY_CLIENT_ID"
           value_source {
             secret_key_ref {
-              secret  = "hbny-shopify-admin-access-token"
+              secret  = "hbny-shopify-client-id"
+              version = "latest"
+            }
+          }
+        }
+        env {
+          name = "SHOPIFY_CLIENT_SECRET"
+          value_source {
+            secret_key_ref {
+              secret  = "hbny-shopify-client-secret"
               version = "latest"
             }
           }
@@ -134,7 +143,7 @@ resource "google_cloud_run_v2_job" "worker" {
       }
     }
   }
-  depends_on = [google_secret_manager_secret_iam_member.postgres, google_secret_manager_secret_iam_member.shopify_worker, google_secret_manager_secret_iam_member.klaviyo_worker]
+  depends_on = [google_secret_manager_secret_iam_member.postgres, google_secret_manager_secret_iam_member.shopify_worker_client_id, google_secret_manager_secret_iam_member.shopify_worker_client_secret, google_secret_manager_secret_iam_member.klaviyo_worker]
 }
 
 resource "google_cloud_run_v2_job_iam_member" "control" {

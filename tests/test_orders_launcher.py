@@ -19,6 +19,19 @@ class LauncherTests(unittest.TestCase):
             runpy.run_path(str(SCRIPT), run_name="__main__")
             return request.call_args_list
 
+    def test_order_transactions_job_and_legacy_refund_config(self):
+        import dagster as dg
+        from orchestration.definitions import defs
+        for job, extra in [
+            ("shopify_order_transactions_ingestion", []),
+            ("shopify_refunds_ingestion", ["--refund-capture-version", "1"]),
+        ]:
+            calls = self.invoke([], ["--job", job, *extra])
+            config = calls[1].kwargs["json"]["variables"]["params"]["runConfigData"]
+            dg.validate_run_config(defs.resolve_job_def(job), config)
+            if job == "shopify_refunds_ingestion":
+                self.assertEqual(config["ops"]["shopify_refunds_raw"]["config"]["capture_version"], 1)
+
     def test_existing_run_is_not_relaunched_by_default(self):
         self.assertEqual(len(self.invoke([{"runId": "old", "status": "SUCCESS"}])), 1)
 

@@ -13,6 +13,7 @@ from agent.warehouse.raw_publication import contract_columns, initialize_tables,
 from agent.warehouse.raw_records import ExtractionIdentity, iter_raw_records
 from agent.warehouse.shopify_bulk import BulkClient, bind_orders_query
 from agent.warehouse.shopify_export import download_export, validate_orders_file, wait_for_export
+from agent.warehouse.shopify_token import shopify_access_token
 
 QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/orders_bulk.graphql"
 
@@ -47,7 +48,7 @@ def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
     start, end, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     region = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
-    client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], os.environ["SHOPIFY_ADMIN_ACCESS_TOKEN"],
+    client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], shopify_access_token,
                         os.environ["SHOPIFY_API_VERSION"])
     shop_key = client.verify_shop(config.expected_shop_gid)
     query_source = QUERY_PATH.read_text()

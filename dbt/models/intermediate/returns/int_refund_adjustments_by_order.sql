@@ -1,16 +1,8 @@
 {{ config(tags=['intermediate_view']) }}
--- Aggregate refund order adjustments (shipping refunds + discrepancies) to order grain.
--- Source is the typed refund model at line grain; adjustments are nested and
--- repeated per line, so deduplicate by adjustment_gid before aggregating.
+-- Read the flat adjustment grain so shipping-only refunds survive without line items.
 with adjustment_rows as (
-    select distinct
-        shop_key,
-        extraction_id,
-        order_gid,
-        adj.adjustment_gid,
-        adj.amount
-    from {{ ref('int_shopify__refunds') }}
-    cross join unnest(adjustments) as adj
+    select shop_key, extraction_id, order_gid, adjustment_gid, amount
+    from {{ ref('stg_shopify__refund_adjustments') }}
 )
 select
     shop_key,

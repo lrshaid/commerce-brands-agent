@@ -4,6 +4,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
+from agent.warehouse.shopify_token import invalidate_shopify_token
 from infra.scripts.check_shopify_connection import main
 
 
@@ -14,6 +15,7 @@ class ShopifyConnectionCheckTests(unittest.TestCase):
                         'SHOPIFY_API_VERSION': '2026-04', 'SHOPIFY_ADMIN_ACCESS_TOKEN': 'synthetic-secret'}), \
                 patch('infra.scripts.check_shopify_connection.requests.post', return_value=response) as post, \
                 contextlib.redirect_stdout(output):
+            invalidate_shopify_token()
             status = main()
         self.assertNotIn('synthetic-secret', output.getvalue())
         self.assertFalse(post.call_args.kwargs['allow_redirects'])

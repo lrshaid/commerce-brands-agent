@@ -8,7 +8,7 @@ from google.api_core.exceptions import PreconditionFailed
 
 from agent.warehouse.refund_capture import CaptureError, RefundCapture
 
-SOURCE = (Path(__file__).resolve().parents[1] / "queries/shopify/order_refunds_bulk.graphql").read_text()
+SOURCE = (Path(__file__).resolve().parents[1] / "queries/shopify/order_refunds_v1.graphql").read_text()
 ORDER = "gid://shopify/Order/1"
 REFUND = "gid://shopify/Refund/2"
 

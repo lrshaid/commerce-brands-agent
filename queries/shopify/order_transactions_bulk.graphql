@@ -1,0 +1,104 @@
+query OrderTransactionsBulk($query: String) {
+  orders(query: $query) {
+    edges {
+      node {
+        id
+        updatedAt
+        currencyCode
+        presentmentCurrencyCode
+        transactions {
+          id
+          kind
+          gateway
+          formattedGateway
+          status
+          test
+          processedAt
+          createdAt
+          errorCode
+          paymentId
+          receiptJson
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          settlementCurrency
+          settlementCurrencyRate
+          multiCapturable
+          manuallyCapturable
+          maximumRefundableV2 {
+            amount
+            currencyCode
+          }
+          location {
+            id
+            name
+          }
+          user {
+            id
+          }
+          device {
+            id
+          }
+          parentTransaction {
+            id
+          }
+          paymentDetails {
+            __typename
+            ... on CardPaymentDetails {
+              avsResultCode
+              bin
+              company
+              cvvResultCode
+              expirationMonth
+              expirationYear
+              name
+              number
+              paymentMethodName
+              wallet
+            }
+            ... on ShopPayInstallmentsPaymentDetails {
+              paymentMethodName
+            }
+            ... on LocalPaymentMethodsPaymentDetails {
+              paymentMethodName
+            }
+            ... on PaypalWalletPaymentDetails {
+              paymentMethodName
+            }
+          }
+          fees {
+            id
+            amount {
+              amount
+              currencyCode
+            }
+            flatFee {
+              amount
+              currencyCode
+            }
+            flatFeeName
+            rate
+            rateName
+            taxAmount {
+              amount
+              currencyCode
+            }
+            type
+          }
+          shopifyPaymentsSet {
+            refundSet {
+              acquirerReferenceNumber
+            }
+          }
+        }
+      }
+    }
+  }
+}

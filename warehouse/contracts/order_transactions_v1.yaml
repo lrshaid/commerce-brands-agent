@@ -1,0 +1,17 @@
+version: 1
+status: implemented_offline_validation_only
+stream: order_transactions
+api_version: '2026-04'
+projection: queries/shopify/order_transactions_bulk.graphql
+transport: shopify_bulk_query
+envelope: shopify_raw_v1.record_envelope
+scope: parent_order_updated_at_half_open_interval
+raw_grain: original_order_jsonl_record_with_complete_transactions_list
+transaction_limit: none
+staging_grain: transaction_observation_per_extraction
+current_state_key: [shop_key, transaction_gid]
+money: separate_shop_and_presentment_amounts_and_currencies
+receipt: original_receiptJson
+location: separate_id_and_name
+refund_transactions: included_do_not_union_additively_with_refund_transaction_stream
+live_acceptance: pending

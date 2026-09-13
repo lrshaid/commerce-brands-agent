@@ -1,3 +1,5 @@
+from orchestration.shopify_order_transactions import shopify_order_transactions
+from orchestration.shopify_dbt import order_transactions_dbt
 import json
 import os
 import time
@@ -146,7 +148,7 @@ marts_job = dg.define_asset_job(
     executor_def=dg.in_process_executor)
 
 defs = dg.Definitions(
-    assets=[probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_dbt, customers_dbt, products_dbt,
+    assets=[shopify_order_transactions, order_transactions_dbt, probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_dbt, customers_dbt, products_dbt,
             shopify_refunds, shopify_refunds_raw, refund_dbt, shopify_returns, shopify_returns_raw, returns_dbt,
             shopify_catalog, shopify_catalog_raw, payments_dbt, fulfillments_dbt, inventory_dbt,
             fulfillment_orders_dbt,
@@ -155,7 +157,11 @@ defs = dg.Definitions(
             shopify_inventory, shopify_inventory_raw, intermediate_dbt, marts_dbt,
             klaviyo_events, klaviyo_events_raw, klaviyo_dbt,
             klaviyo_campaigns, klaviyo_campaigns_raw],
-    jobs=[smoke_job, orders_job, refunds_job, dg.define_asset_job(
+    jobs=[dg.define_asset_job(
+        "shopify_order_transactions_ingestion",
+        selection=dg.AssetSelection.assets(shopify_order_transactions, order_transactions_dbt),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_order_transactions"},
+        executor_def=dg.in_process_executor), smoke_job, orders_job, refunds_job, dg.define_asset_job(
         "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw, refund_dbt),
         tags={"dagster/max_retries": "0", "purpose": "shopify_refunds_ingestion"},
         executor_def=dg.in_process_executor), returns_job, dg.define_asset_job(

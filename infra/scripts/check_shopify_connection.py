@@ -6,6 +6,9 @@ import sys
 
 import requests
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from agent.warehouse.shopify_token import fetch_shopify_access_token
+
 QUERY = '''query WorkerConnectionCheck {
   shop { id name myshopifyDomain }
   currentAppInstallation { accessScopes { handle } }
@@ -15,11 +18,15 @@ QUERY = '''query WorkerConnectionCheck {
 def main():
     domain = os.environ.get('SHOPIFY_SHOP_DOMAIN', '')
     version = os.environ.get('SHOPIFY_API_VERSION', '')
-    token = os.environ.get('SHOPIFY_ADMIN_ACCESS_TOKEN', '').strip()
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]*\.myshopify\.com', domain):
         raise ValueError('Invalid configured shop domain')
-    if not re.fullmatch(r'20[0-9]{2}-(01|04|07|10)', version) or not token:
-        raise ValueError('Missing API version or secret')
+    if not re.fullmatch(r'20[0-9]{2}-(01|04|07|10)', version):
+        raise ValueError('Missing API version')
+    try:
+        token = fetch_shopify_access_token()['token']
+    except Exception as error:
+        print(json.dumps({'ok': False, 'error_type': type(error).__name__}))
+        return 1
     response = requests.post(f'https://{domain}/admin/api/{version}/graphql.json',
         headers={'X-Shopify-Access-Token': token}, json={'query': QUERY},
         timeout=(10, 30), allow_redirects=False)

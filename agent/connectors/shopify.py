@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .base import read_only_request, required_env
+from agent.warehouse.shopify_token import shopify_access_token
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,7 +29,7 @@ def shopify_graphql(
 ) -> Dict[str, Any]:
     try:
         assert_read_only(query)
-        env = required_env("SHOPIFY_SHOP_DOMAIN", "SHOPIFY_ADMIN_ACCESS_TOKEN")
+        env = required_env("SHOPIFY_SHOP_DOMAIN")
         version = __import__("os").getenv("SHOPIFY_API_VERSION", "2026-04")
         url = (
             f"https://{env['SHOPIFY_SHOP_DOMAIN']}/admin/api/{version}/graphql.json"
@@ -37,7 +38,7 @@ def shopify_graphql(
             "POST",
             url,
             headers={
-                "X-Shopify-Access-Token": env["SHOPIFY_ADMIN_ACCESS_TOKEN"],
+                "X-Shopify-Access-Token": shopify_access_token(),
                 "Content-Type": "application/json",
             },
             json_body={"query": query, "variables": variables or {}},
