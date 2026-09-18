@@ -242,6 +242,8 @@ entries about entries.
   target `extracted_at` continues to capture the actual BigQuery MERGE time.
 - `tests/test_shopify_orders_pipeline.py` — verifies the entity pipeline receives
   the stable provider completion timestamp rather than a per-attempt wall clock.
+- `infra/terraform/deployment.auto.tfvars` — pinned the rebuilt runtime carrying
+  the deterministic entity retry fix by immutable digest.
 
 ## Validation ledger
 
@@ -282,3 +284,6 @@ entries about entries.
   conflict guard. No shadow table remained after the pre-run cleanup.
 - 2026-09-18: after the stable retry timestamp fix, the full Python suite passed
   with 413 tests, 1 skipped and 27 subtests; `git diff --check` also passed.
+- 2026-09-18: Cloud Build `e87d32af-f420-4a48-a1fc-75da15dc30f5`
+  completed `SUCCESS` for commit `04b11f4`, producing digest
+  `sha256:052cf74f4924ca7bdb40f578376637b8c449455272cfb18a60a61c120185213e`.
