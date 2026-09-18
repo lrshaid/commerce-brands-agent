@@ -235,6 +235,14 @@ entries about entries.
 - `infra/terraform/deployment.auto.tfvars` — pinned the rebuilt runtime carrying
   the schema alias fix by immutable digest.
 
+### 2026-09-18 — deterministic entity retry timestamp
+
+- `orchestration/shopify_orders.py` — binds immutable entity artifacts and
+  `source_published_at` to Shopify's stable Bulk operation completion timestamp;
+  target `extracted_at` continues to capture the actual BigQuery MERGE time.
+- `tests/test_shopify_orders_pipeline.py` — verifies the entity pipeline receives
+  the stable provider completion timestamp rather than a per-attempt wall clock.
+
 ## Validation ledger
 
 - 2026-09-17: `git diff --check` passed for the design changes before
@@ -268,3 +276,9 @@ entries about entries.
 - 2026-09-18: Cloud Build `3192c83c-25f1-4a31-98ae-e77cb7cfd41b`
   completed `SUCCESS` for commit `776f48a`, producing digest
   `sha256:f09fda8873803241f774cd603ccf0b0234b62725f8dcbbf241cddaab09aa2995`.
+- 2026-09-18: run `1948ec28-8ebf-4099-91d5-a0484722e5f2` failed before entity
+  publication because its retry regenerated Parquet with a new wall-clock
+  `source_published_at`, correctly triggering the immutable GCS artifact
+  conflict guard. No shadow table remained after the pre-run cleanup.
+- 2026-09-18: after the stable retry timestamp fix, the full Python suite passed
+  with 413 tests, 1 skipped and 27 subtests; `git diff --check` also passed.

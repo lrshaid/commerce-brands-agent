@@ -45,6 +45,7 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(dataset, "commerce-agents-dev.raw_shopify_shadow")
             self.assertEqual(identity.extraction_id, "stable-extraction")
             self.assertEqual(kwargs["source_file"]["generation"], "123")
+            self.assertEqual(kwargs["published_at"], export.completed_at)
             return {
                 "manifest": {"manifest": {"uri": "gs://test/entity-manifest.json"}},
                 "publication": SimpleNamespace(

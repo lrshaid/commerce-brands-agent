@@ -99,7 +99,11 @@ def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
         entity_shadow = publish_orders_entity_shadow(
             source, bucket, bq, project + ".raw_shopify_shadow", identity,
             source_file=landed, window_start=start, window_end=end,
-            published_at=published_at,
+            # Entity artifacts are immutable by extraction ID. Bind their
+            # source publication lineage to Shopify's stable operation
+            # completion time so an exact retry produces identical Parquet.
+            # The target's extracted_at still records the actual MERGE time.
+            published_at=export.completed_at,
         )
     metadata = {
             "bulk_operation_id": operation_id, "root_count": export.root_count,
