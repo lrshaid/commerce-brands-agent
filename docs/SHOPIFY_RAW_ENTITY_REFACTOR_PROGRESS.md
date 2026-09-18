@@ -232,6 +232,8 @@ entries about entries.
   `STRUCT`/`RECORD`) before comparing an existing target to the contract.
 - `tests/test_entity_publication.py` — added a regression test covering scalar
   and nested alias normalization.
+- `infra/terraform/deployment.auto.tfvars` — pinned the rebuilt runtime carrying
+  the schema alias fix by immutable digest.
 
 ## Validation ledger
 
@@ -263,3 +265,6 @@ entries about entries.
   it produced no entity materializations and exposed the alias-comparison bug.
 - 2026-09-18: after the BigQuery alias fix, the full Python suite passed with
   413 tests, 1 skipped and 27 subtests; `git diff --check` also passed.
+- 2026-09-18: Cloud Build `3192c83c-25f1-4a31-98ae-e77cb7cfd41b`
+  completed `SUCCESS` for commit `776f48a`, producing digest
+  `sha256:f09fda8873803241f774cd603ccf0b0234b62725f8dcbbf241cddaab09aa2995`.
