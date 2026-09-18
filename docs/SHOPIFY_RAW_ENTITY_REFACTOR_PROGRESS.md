@@ -264,6 +264,8 @@ entries about entries.
   insert to the valid BigQuery scalar-row form.
 - `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — recorded the failed live run
   diagnosis and this SQL-generation correction.
+- `infra/terraform/deployment.auto.tfvars` — pinned the successful runtime build
+  containing the manifest SQL correction by immutable image digest.
 
 ## Validation ledger
 
@@ -323,3 +325,6 @@ entries about entries.
 - 2026-09-18: after correcting the conditional manifest insert, the focused
   entity-publication tests passed `7/7`; the full Python suite passed with 413
   tests, 1 skipped and 27 subtests, and `git diff --check` passed.
+- 2026-09-18: Cloud Build `046f01e5-7395-48d7-9875-c62119c92d1b`
+  completed `SUCCESS` for commit `b90d8ec`, producing digest
+  `sha256:d6d1d7167b3d3353cece15d87deee8a8e6c1daadd965f795f2cf250ffff5e741`.
