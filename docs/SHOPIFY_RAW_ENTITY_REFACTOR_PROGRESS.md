@@ -245,6 +245,14 @@ entries about entries.
 - `infra/terraform/deployment.auto.tfvars` — pinned the rebuilt runtime carrying
   the deterministic entity retry fix by immutable digest.
 
+### 2026-09-18 — BigQuery Parquet list inference
+
+- `agent/warehouse/entity_publication.py` — enables BigQuery Parquet LIST
+  inference on every entity staging load so Arrow `list<struct>` discount
+  columns map to repeated BigQuery records.
+- `tests/test_entity_publication.py` — requires LIST inference in every Parquet
+  load job configuration.
+
 ## Validation ledger
 
 - 2026-09-17: `git diff --check` passed for the design changes before
@@ -287,3 +295,8 @@ entries about entries.
 - 2026-09-18: Cloud Build `e87d32af-f420-4a48-a1fc-75da15dc30f5`
   completed `SUCCESS` for commit `04b11f4`, producing digest
   `sha256:052cf74f4924ca7bdb40f578376637b8c449455272cfb18a60a61c120185213e`.
+- 2026-09-18: new-extraction run `1c509c1b-5088-404d-a439-63799e8ef8d9`
+  reached the first Parquet stage load but BigQuery rejected the nested discount
+  LIST because list inference was disabled; no entity MERGE or dbt step ran.
+- 2026-09-18: after enabling Parquet LIST inference, the full Python suite passed
+  with 413 tests, 1 skipped and 27 subtests; `git diff --check` also passed.

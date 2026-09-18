@@ -133,6 +133,8 @@ def test_publication_loads_every_exact_uri_merges_then_cleans_stages():
     assert [call[1] for call in client.calls if call[0] == "load"] == [
         f"gs://bucket/{entity}.parquet" for entity in contracts.entities
     ]
+    assert all(call[3].parquet_options.enable_list_inference is True
+               for call in client.calls if call[0] == "load")
     assert len([call for call in client.calls if call[0] == "query"]) == 1
     assert len([call for call in client.calls if call[0] == "delete"]) == 3
     query_config = [call[2] for call in client.calls if call[0] == "query"][0]

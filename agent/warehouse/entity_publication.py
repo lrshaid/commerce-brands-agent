@@ -181,11 +181,14 @@ def publish_entity_batch(client, dataset, manifest, contracts: EntityContractSet
                 hours=contracts.temporary_table_ttl_hours
             )
             client.create_table(table)
+            parquet_options = bigquery.ParquetOptions()
+            parquet_options.enable_list_inference = True
             job = client.load_table_from_uri(
                 files[entity]["uri"], table.reference,
                 job_config=bigquery.LoadJobConfig(
                     source_format=bigquery.SourceFormat.PARQUET,
                     schema=table.schema,
+                    parquet_options=parquet_options,
                     write_disposition=bigquery.WriteDisposition.WRITE_EMPTY,
                     labels={"purpose": "entity_stage", "entity": entity},
                 ),
