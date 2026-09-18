@@ -13,7 +13,7 @@ entries about entries.
 ## Execution sequence
 
 - [x] Phase 1: contracts, entity manifests, streaming Parquet and BigQuery MERGE
-- [ ] Phase 2: orders pilot in shadow tables (implementation complete; live gate pending)
+- [x] Phase 2: orders pilot in shadow tables
 - [ ] Phase 3: refunds and returns
 - [ ] Phase 4: remaining Shopify families
 - [ ] Phase 5: dbt cutover, reconciliation and rollback proof
@@ -328,3 +328,17 @@ entries about entries.
 - 2026-09-18: Cloud Build `046f01e5-7395-48d7-9875-c62119c92d1b`
   completed `SUCCESS` for commit `b90d8ec`, producing digest
   `sha256:d6d1d7167b3d3353cece15d87deee8a8e6c1daadd965f795f2cf250ffff5e741`.
+- 2026-09-18: Orders retry `33c093c0-4a93-4aeb-b899-4d83c5e5ec97`
+  completed `SUCCESS` for extraction `orders-entity-2d-20260918-02`, with 17
+  materializations, 66 successful checks and no logged errors. This closes the
+  Phase 2 live gate for the three canonical Orders shadow entities.
+- 2026-09-18: queued non-overlapping two-day acceptance runs for refunds
+  (`05311438-493d-4663-8e3d-ea61ca8e68e1`), returns
+  (`0672eb7d-f56e-4914-9f69-9b4421aa8ecd`), catalog
+  (`7e5b6c5a-b293-4794-9278-905b97f45af5`), payments
+  (`56ff09b1-35be-46d5-a2f2-68f4c4582cd7`), fulfillments
+  (`6e72cc5a-ff10-4903-a172-5a2c9bb34e00`), fulfillment orders
+  (`38e630f4-0a3a-4b67-aa9a-02cbbc0be4c6`), inventory
+  (`e28a5ca7-2adb-4b91-974b-4004bbceae1a`) and order transactions
+  (`b78b36ac-b76d-490a-9850-36992e351383`). Dagster's configured maximum of
+  one concurrent run keeps the Shopify jobs sequential.
