@@ -252,6 +252,8 @@ entries about entries.
   columns map to repeated BigQuery records.
 - `tests/test_entity_publication.py` — requires LIST inference in every Parquet
   load job configuration.
+- `infra/terraform/deployment.auto.tfvars` — pinned the runtime carrying the
+  Parquet LIST inference fix by immutable digest.
 
 ## Validation ledger
 
@@ -300,3 +302,6 @@ entries about entries.
   LIST because list inference was disabled; no entity MERGE or dbt step ran.
 - 2026-09-18: after enabling Parquet LIST inference, the full Python suite passed
   with 413 tests, 1 skipped and 27 subtests; `git diff --check` also passed.
+- 2026-09-18: Cloud Build `175f0f8c-905d-4ee5-912f-c97cf6acde8f`
+  completed `SUCCESS` for commit `82896cb`, producing digest
+  `sha256:8d3bee21ce3e49df22493928e5e7ff235067a941681d28605447f2bcd35bd6e9`.
