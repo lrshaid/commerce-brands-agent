@@ -172,7 +172,7 @@ streams:
 
   returns:
     query_file: queries/shopify/return_line_items_bulk.graphql
-    query_sha256: ef78e4ca94fbddcefd72781d49982e7e6e31b8e6f3756a71bf0102fde92bf5b4
+    query_sha256: aa17624b86c76374bc1e17272c966d1c920a03905aec8dcff45082cbd7bd6911
     raw_table: returns
     graphql_schema_validation: passed
     transport: bulk_candidate_not_runtime_verified
@@ -185,12 +185,13 @@ streams:
       - {path: returns.edges.node.returnLineItems.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__return_line_items}
       - {path: returns.edges.node.refunds.edges.node, kind: connection, key_selected: id, proposed_stg: stg_shopify__return_refunds}
     selected_return_fields: [id, name, status, totalQuantity, closedAt, requestApprovedAt]
-    selected_return_line_fields: [id, quantity, lineItem, subtotalSet, totalTaxSet]
+    selected_return_line_fields: [id, quantity, customerNote, returnReasonNote, "ReturnLineItem.fulfillmentLineItem.lineItem.id"]
     blockers:
       - Return reasons and createdAt are absent; use concrete-type fragments when the schema requires them.
       - Return-to-refund ids define an object-level relationship, not a line allocation policy.
       - Order.updatedAt coverage for child-only changes must be tested before using it as a complete incremental cursor.
-      - Return line id, quantity, lineItem.id, subtotalSet and totalTaxSet are now selected for order-line grain RMV.
+      - API 2026-04 removed ReturnLineItem.lineItem/subtotalSet/totalTaxSet; the original-line link comes from
+        fulfillmentLineItem.lineItem and return-side amounts are NULL (refund side is the value source).
 
   exchanges:
     query_file: queries/shopify/exchanges_bulk.graphql

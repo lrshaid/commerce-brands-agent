@@ -22,6 +22,12 @@ class PlatformConfigurationTests(unittest.TestCase):
         self.assertIn('startup-script', runtime)
         self.assertNotIn('metadata_startup_script =', runtime)
 
+    def test_image_rollout_recreates_runtime_services_without_postgres(self):
+        bootstrap = (ROOT / 'infra/runtime/bootstrap.sh.tftpl').read_text()
+        command = 'up -d --force-recreate code-location webserver daemon'
+        self.assertIn(command, bootstrap)
+        self.assertNotIn('up -d --force-recreate postgres', bootstrap)
+
     def test_runtime_requirements_are_pins_not_command_output(self):
         for line in (ROOT / "infra/runtime/requirements.txt").read_text().splitlines():
             self.assertRegex(line, r"^[A-Za-z0-9_.-]+==[^\s]+$")

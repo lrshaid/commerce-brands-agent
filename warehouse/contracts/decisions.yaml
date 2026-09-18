@@ -145,9 +145,35 @@ decisions:
   exchanges:
     affects: [commercial, returns]
     question: Supply added-item exchange linkage and original-order resolution scoped by shop; do not detect arbitrary display names containing -E as exchanges.
-  daily_fx:
-    affects: [fx]
-    question: Provide the daily rate table contract when fx.rule=daily; cfg_fx_rates currently has month_dt grain only.
+  extraction_identity_shared_across_streams:
+    affects: [orders, returns, marts]
+    status: decided_2026_09_13
+    decision: >
+      Orders, order_refunds and order_transactions were published under the
+      SAME extraction identity (hbny-orders-2025-v2-20260913T053517Z for
+      habibi-parfums). extraction_id means one coherent extraction batch
+      across streams, not one stream: the marts join fct_returns to
+      int_shopify__orders on (shop_key, extraction_id, order_gid), so a
+      refunds capture under a different id would silently drop RMV. The
+      first refunds-v2 attempt was bound to the superseded projection (with
+      staffMember/user, denied by read_users); its never-published GCS
+      artifacts (intent/bulk/orders.jsonl + the control receipt) were
+      quarantined under *-quarantine-old-plan-20260913/ and the identity
+      rebound to the approved plan. If a stream must rebind a published
+      identity or mix v1/v2 of the same stream, that stays forbidden; new
+      streams that do not share the orders window still need their own
+      decision before publishing.
+  fx_deferred_single_currency:
+    affects: [commercial, returns, payment, product]
+    status: decided_2026_09_13
+    decision: >
+      Multi-currency conversion (FX) is removed from the config-first build
+      scope for now: habibi-parfums orders are USD-only (verified in
+      raw_shopify.orders, 14,976/14,976 USD), so every mart reads shopMoney
+      only and cfg_fx_rates / xf_fx_rates / the fx scope are dropped from the
+      prerequisite inventory. Reintroducing FX (source, rule, cfg_fx_rates)
+      requires a decision when a non-shopMoney currency tenant appears; shop
+      and presentment amounts stay separate in raw/staging until then.
   mapping_scope:
     affects: [retail, product]
     question: Specify shop scoping, rule priority and ties for location/channel/taxonomy mappings; the prescribed schemas omit these columns.

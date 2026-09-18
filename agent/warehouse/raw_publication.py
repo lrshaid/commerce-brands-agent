@@ -779,25 +779,61 @@ def dataset_id(value):
     return value
 
 
-def publication_sql(dataset, stream, stage):
+def _publication_contract(dataset, stream):
     dataset_id(dataset)
     if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants',
                       'tender_transactions', 'balance_transactions', 'order_transactions', 'disputes', 'fulfillments',
                       'fulfillment_orders', 'fulfillment_order_line_items',
                       'inventory_items', 'inventory_levels', 'events', 'campaigns', 'acceptance'):
         raise ValueError('Stream has no publication contract')
+    return contract_columns()
+
+
+def publication_rows_sql(dataset, stream, stage):
+    """Standalone bulk row INSERT; runs outside the publication transaction.
+
+    A DML statement inside a multi-statement transaction is subject to a ~16 MiB
+    per-statement bytes-billed cap, while an INSERT bills the full size of the
+    partitions it modifies. Raw consumers only see rows after the manifest is
+    published by publication_sql, so this phase is invisible on its own and
+    idempotent on replay.
+    """
+    raw, _ = _publication_contract(dataset, stream)
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
         raise ValueError('Invalid staging identifier')
-    raw, manifest = contract_columns()
+    fields = ', '.join(raw)
+    select = ', '.join(
+        f"PARSE_JSON(s.{k}, wide_number_mode=>'round')" if t == 'JSON' else f's.{k}'
+        for k, t in raw.items())
+    return f'''
+INSERT INTO `{dataset}.{stream}` ({fields})
+SELECT {select} FROM `{dataset}.{stage}` s
+WHERE s.shop_key = @m_shop_key AND s.extraction_id = @m_extraction_id
+  AND NOT EXISTS(SELECT 1 FROM `{dataset}.{stream}` t
+    WHERE t.shop_key = @m_shop_key AND t.extraction_id = @m_extraction_id
+      AND t.file_id = s.file_id AND t.record_index = s.record_index);
+'''
+
+
+def publication_sql(dataset, stream, stage):
+    raw, manifest = _publication_contract(dataset, stream)
+    if not re.fullmatch('_load_[0-9a-f]{32}', stage):
+        raise ValueError('Invalid staging identifier')
     raw_fields = ', '.join(raw)
     # wide_number_mode='round': provider JSON may carry decimal literals that exceed
     # float64 round-trip precision (e.g. geolocation -117.12157500000001). The parsed
     # JSON column is a query convenience; record_text stays the authoritative original.
-    normalized = ', '.join(
-        f"PARSE_JSON({k}, wide_number_mode=>'round') AS {k}" if t == 'JSON' else k
-        for k, t in raw.items())
-    compare = ' OR '.join(f't.{k} IS DISTINCT FROM s.{k}' for k in raw if k not in ('payload', 'ingested_at'))
-    key_match = ' AND '.join(f't.{k} = s.{k}' for k in ('shop_key', 'extraction_id', 'file_id', 'record_index'))
+    # The transaction only holds and compares SMALL columns: record_text and
+    # payload are megabytes per record, so materializing them in the candidate
+    # temp table and comparing record_text made every transaction statement
+    # bill a full ~490 MiB stage scan, overrunning the transaction's cumulative
+    # bytes-billed budget. record_text content is bound to record_sha256 by the
+    # raw envelope (validated before publication), so comparing record_sha256
+    # is an equivalent conflict check. The bulk row INSERT (which must read the
+    # heavy columns) runs outside the transaction as publication_rows_sql.
+    compare = ' OR '.join(f't.{k} IS DISTINCT FROM s.{k}'
+                          for k in raw if k not in ('payload', 'record_text', 'ingested_at'))
+    small = ', '.join(k for k in raw if k not in ('payload', 'record_text'))
     manifest_values = ', '.join(f'PARSE_JSON(@m_{k})' if t == 'JSON' else f'@m_{k}' for k, t in manifest.items())
     return f'''
 BEGIN TRANSACTION;
@@ -805,7 +841,7 @@ BEGIN TRANSACTION;
 -- conflict/abort instead of both inserting an absent key under snapshot isolation.
 UPDATE `{dataset}._publication_guard` SET epoch = epoch + 1 WHERE TRUE;
 ASSERT @@row_count = 1 AS 'Publication guard must contain exactly one row';
-CREATE TEMP TABLE candidate AS SELECT {normalized} FROM `{dataset}.{stage}`;
+CREATE TEMP TABLE candidate AS SELECT {small} FROM `{dataset}.{stage}`;
 ASSERT (SELECT COUNT(*) FROM candidate) = @m_raw_record_count AS 'Raw count mismatch';
 ASSERT NOT EXISTS(SELECT 1 FROM candidate WHERE shop_key != @m_shop_key
   OR extraction_id != @m_extraction_id OR query_sha256 != @m_query_sha256
@@ -813,8 +849,18 @@ ASSERT NOT EXISTS(SELECT 1 FROM candidate WHERE shop_key != @m_shop_key
   AS 'Record/manifest identity mismatch';
 ASSERT NOT EXISTS(SELECT 1 FROM candidate GROUP BY shop_key, extraction_id,
   file_id, record_index HAVING COUNT(*) > 1) AS 'Duplicate candidate key';
-ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.{stream}` t JOIN candidate s ON {key_match}
-  WHERE {compare}) AS 'Conflicting replay record';
+-- Existence/conflict checks against the target are written with static
+-- @m_shop_key/@m_extraction_id predicates: the identity assert above already
+-- guarantees every candidate row shares that identity, so this is semantically
+-- identical to joining on the candidate columns — and it lets BigQuery prune
+-- by (shop_key, extraction_id) clustering. The unprunable join-vs-candidate
+-- form scanned the whole growing raw table per publication and failed on the
+-- per-statement bytes-billed cap once the table passed ~340 MiB (2026-09-13,
+--   habibi 2022-2024 backfill window A).
+ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.{stream}` t JOIN candidate s
+  ON t.file_id = s.file_id AND t.record_index = s.record_index
+  WHERE t.shop_key = @m_shop_key AND t.extraction_id = @m_extraction_id
+    AND {compare}) AS 'Conflicting replay record';
 ASSERT (SELECT COUNT(*) FROM `{dataset}.ingestion_runs` WHERE shop_key = @m_shop_key
   AND stream = @m_stream AND extraction_id = @m_extraction_id) <= 1 AS 'Duplicate manifest key';
 ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.ingestion_runs`
@@ -825,9 +871,14 @@ ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.ingestion_runs`
       OR raw_record_count IS DISTINCT FROM @m_raw_record_count
       OR TO_JSON_STRING(files) != TO_JSON_STRING(PARSE_JSON(@m_files))))
   AS 'Conflicting replay manifest';
-INSERT INTO `{dataset}.{stream}` ({raw_fields})
-SELECT {', '.join('s.' + k for k in raw)} FROM candidate s
-WHERE NOT EXISTS(SELECT 1 FROM `{dataset}.{stream}` t WHERE {key_match});
+-- The bulk row INSERT deliberately lives OUTSIDE this transaction (it runs as
+-- its own standalone DML job before this one): a DML statement inside a
+-- multi-statement transaction is subject to a ~16 MiB per-statement bytes
+-- billed cap, while an INSERT bills the full size of the partitions it
+-- modifies — the same-day partition of raw_shopify.orders passed 340 MiB after
+-- the 2025/2026-YTD extractions (2026-09-13). Consumers only see rows once the
+-- manifest is published here, so a crash between the two phases leaves rows
+-- invisible and a retry is idempotent.
 ASSERT (SELECT COUNT(*) FROM `{dataset}.{stream}` WHERE shop_key = @m_shop_key
   AND extraction_id = @m_extraction_id) = @m_raw_record_count AS 'Extraction has unexpected rows';
 INSERT INTO `{dataset}.ingestion_runs` ({', '.join(manifest)})
@@ -1029,6 +1080,14 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             load.result(timeout=300)
     params = [bigquery.ScalarQueryParameter('m_' + k, 'STRING' if t == 'JSON' else t,
                json.dumps(manifest[k]) if t == 'JSON' else manifest[k]) for k, t in fields.items()]
+    if count:
+        rows_sql = publication_rows_sql(dataset, stream, stage)
+        rows_params = [p for p in params if p.name in ('m_shop_key', 'm_extraction_id')]
+        rows_job = client.query(rows_sql, job_config=bigquery.QueryJobConfig(
+            query_parameters=rows_params, maximum_bytes_billed=1073741824,
+            labels={'purpose': 'raw_publication'}))
+        print(json.dumps({'event': 'raw_rows_submitted', 'job_id': rows_job.job_id}), flush=True)
+        rows_job.result(timeout=300)
     job = client.query(sql, job_config=bigquery.QueryJobConfig(
         query_parameters=params, maximum_bytes_billed=1073741824,
         labels={'purpose': 'raw_publication'}))

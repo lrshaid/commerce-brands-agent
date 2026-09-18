@@ -130,3 +130,30 @@ models:
         data_tests: [not_null]
       - name: purchase_sessions
         data_tests: [not_null]
+
+  - name: fct_order_sale_line
+    description: >-
+      Order sale line fact: one row per order line (sale side), versioned per
+      extraction. Post-promotion shop amounts; cancelled orders flagged (not
+      filtered); gift-card lines flagged for merchandise-only reporting.
+    columns:
+      - name: shop_key
+        data_tests: [not_null]
+      - name: extraction_id
+        data_tests: [not_null]
+      - name: order_gid
+        data_tests: [not_null]
+      - name: order_line_item_id
+        data_tests:
+          - not_null
+          - unique
+      - name: metric_date
+        data_tests: [not_null]
+      - name: metric_year
+        data_tests: [not_null]
+      - name: is_cancelled_order
+        data_tests: [not_null]
+      - name: is_gift_card
+        data_tests: [not_null]
+      - name: discounted_total_shop_amount
+        data_tests: [not_null]

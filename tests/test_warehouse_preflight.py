@@ -70,10 +70,10 @@ class ConfigTests(unittest.TestCase):
 
     def test_invalid_types_enums_timezone_and_bounds(self):
         doc = {"warehouse": {"timezone": "not/a/timezone", "reporting_currency": "usd"},
-               "returns": {"window_days_web": True}, "fx": {"rule": "guess"},
+               "returns": {"window_days_web": True},
                "margin": {"min_cost_coverage": 2}, "revenue": {"merchandise_only": False}}
         _, issues, _ = validate_scalars(doc, self.schema)
-        self.assertEqual(sum(i.code == "INVALID_CONFIG" for i in issues), 6)
+        self.assertEqual(sum(i.code == "INVALID_CONFIG" for i in issues), 5)
 
     def test_partial_holiday_config_is_missing_not_defaulted(self):
         _, issues, _ = validate_scalars({"returns": {"holiday_extension": {"start_month": 11}}}, self.schema)
@@ -92,7 +92,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_table_absence_is_not_remote_absence_claim(self):
         issues = validate_tables({}, self.tables)
-        self.assertEqual(sum(i.code == "MISSING_CONFIG" for i in issues), 10)
+        self.assertEqual(sum(i.code == "MISSING_CONFIG" for i in issues), 9)
         self.assertEqual(sum(i.code == "MISSING_SCHEMA" for i in issues), 6)
         self.assertTrue(all("NOT_CHECKED" in i.detail for i in issues if i.code == "MISSING_CONFIG"))
 
@@ -174,12 +174,14 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(report["counts"]["missing_raw_contracts"], 46)
         self.assertFalse(report["warehouse_complete"])
 
-    def test_daily_fx_block_is_conditional(self):
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder)
-            (path / "warehouse.yaml").write_text("fx:\n  rule: daily\n")
-            report = preflight(path)
-        self.assertIn("BLOCKED_DECISION:daily_fx", [i["token"] for i in report["issues"]])
+    def test_fx_removed_from_scope(self):
+        inventory = load_mapping(ROOT / "semantic/warehouse_models.yaml")
+        self.assertNotIn("fx", inventory["scopes"])
+        self.assertNotIn("core.xf_fx_rates", inventory["models"])
+        schema = load_mapping(ROOT / "config/schema.yaml")
+        self.assertNotIn("fx.rule", schema["fields"])
+        tables = load_mapping(ROOT / "config/tables.schema.yaml")
+        self.assertNotIn("cfg_fx_rates", tables["tables"])
 
     def test_inventory_rejects_native_addon_dependency_and_cycles(self):
         manifest = load_mapping(ROOT / "semantic/warehouse_models.yaml")

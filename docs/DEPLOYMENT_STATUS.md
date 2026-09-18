@@ -1,3 +1,50 @@
+# Current handoff — 2026-09-17
+
+Resume point: **returns and the consolidated Shopify marts build are live and
+green; post-build business-total reconciliation and recurring schedules remain**.
+
+This section supersedes the September 16 handoff below it. Evidence here comes
+from fresh Cloud Run, Dagster and BigQuery inspection on September 16–17.
+
+## Accepted deployment and runs
+
+- Runtime image:
+  `us-central1-docker.pkg.dev/commerce-agents-dev/commerce/runtime@sha256:610b8a820c21343b2242f54e45a8e667c5beeeee671e0a21b0785ac38986fff0`.
+  The Cloud Run worker and VM containers were confirmed healthy on this digest.
+  The worker timeout is 3600 seconds.
+- Cloud Build `5682aa4b-0f3c-49c5-afaa-2372c574ac1c` completed **SUCCESS**.
+- Returns run `0237b7f9-016c-46b6-8378-5fa06490b8bd` / Cloud Run execution
+  `dagster-worker-mwl55` completed **SUCCESS** in 29m40s. It published 15,546
+  return pages and materialized 135 returns, 166 return lines and 57 linked
+  return refunds in staging.
+- Consolidated `shopify_marts_build` run
+  `15b00056-61e1-4c2c-984a-4039941eb3d6` / execution
+  `dagster-worker-bgkpg`, extraction `marts-returns-20260917-01`, completed
+  **SUCCESS**. Its deterministic status flag reported 51/51 materializations,
+  241/241 evaluated checks, 12 successful steps, zero failed checks and zero
+  execution errors.
+
+The rollout now forces recreation of the Dagster code-location, webserver and
+daemon containers after migration while preserving PostgreSQL. This prevents a
+new image from being configured without actually replacing the running control
+plane containers.
+
+## Remaining work
+
+1. Record a fresh business-total reconciliation for `fct_returns` and
+   `metric_revenue_daily` across the published historical windows.
+2. Complete the semantic serving API and recurring production schedules.
+3. No configuration drift remediation is pending. The September 17
+   `terraform plan -refresh-only` completed after ADC renewal and reported only
+   expected Cloud Run operational metadata: execution count 107 → 110 and
+   latest execution `dagster-worker-bgkpg`. No remote changes were applied.
+
+Local verification on 2026-09-16/17:
+`.venv-platform/bin/python -m unittest discover -s tests` ran 398 tests, OK
+(1 skipped).
+
+---
+
 # Klaviyo campaigns pipeline live — 2026-09-12
 
 Read-only snapshot of the Klaviyo Campaigns API (revision `2026-07-15.pre`,
@@ -651,3 +698,134 @@ agregado al launcher).
   de desarrollo). Replay sin duplicados: mismos conteos y totales tras el replay.
 - `semantic/metrics.yaml`: `gmv`, `rmv`, `nmv` marcadas `implemented: true`.
 - No se habilitaron schedules ni se hizo push a origin.
+
+---
+
+# First live nonempty refunds v2 + order transactions + marts on real store data — 2026-09-13
+
+Shop `gid://shopify/Shop/12345794` (habibi-parfums.myshopify.com). All three
+published streams share the same extraction identity
+`hbny-orders-2025-v2-20260913T053517Z`, window
+`[2025-01-01T00:00:00Z, 2026-01-01T00:00:00Z)` — deliberately, so the marts
+can join `fct_returns`↔`int_shopify__orders` on
+`(shop_key, extraction_id, order_gid)`.
+
+**Refunds v2 projection fix.** First capture attempt (run
+`fb46889c-8949-4b4a-9577-501ecd494556`) FAILED: the v2 refund projection
+requested staffMember/user fields that require the `read_users` access scope
+(denied — the client-credentials app is not a finance embedded app on
+Plus/Advanced). Fix: those fields were dropped from
+`queries/shopify/order_refunds_bulk.graphql` (refund header,
+`refundLineItems.lineItem`, `transactions.user`, `return.staffMember`) and
+from `order_transactions_bulk.graphql` (`user`); the v2 compiler whitelist
+(`agent/warehouse/refund_queries_v2.py`) was updated accordingly and
+`queries/shopify/MANIFEST.json` was regenerated (`build_query_manifest.py`).
+Same precedent as the orders projection fix `a58fbab`.
+
+**Quarantine of old-plan capture artifacts.** The bound GCS artifacts
+(`intent.json`/`bulk.json`/`orders.jsonl` under
+`pages/v2/order_refunds/<digest>` and the control receipt
+`control/shopify/orders/<digest>.json`) were bound to the old projection's
+query hash. They were copied to `<prefix>-quarantine-old-plan-20260913/`
+and `control/shopify/orders/quarantine-old-plan-20260913/` respectively and
+deleted from their original paths, so the same extraction identity could
+rebind to the new plan. Nothing had been published to BigQuery at that point.
+
+**Successful capture** (run `f7ae3101-7908-4095-a6be-8d544ae9e87e`): bulk
+14,976 orders + 93 top-up pages. Counts: refunds 465, refundLineItems 631,
+transactions 400, orderAdjustments 259, refundShippingLines 105,
+returnLineItems 80, exchangeLineItems 3. Completion seal `captured`.
+
+**Ingestion** (run `0e178ff2-3678-49a9-9423-bf439288a6c5`): capture SUCCESS,
+raw publication SUCCESS — `raw_shopify.order_refunds` now holds 15,069 raw
+records (14,976 bulk headers + 93 pages + 1 seal). The refund_dbt step FAILED
+on a single test, `refund_transaction_consistency`, which references
+`analytics.int_shopify__order_transactions` — that stream had never run.
+9 refund staging views and 43/44 tests passed.
+
+**Order transactions.** First attempt failed on
+`FileNotFoundError /app/queries/shopify/order_transactions_bulk.graphql`: the
+Dockerfile COPY allowlist never included that file (the stream had never been
+run remotely). Fix: added the COPY line to `infra/runtime/Dockerfile`.
+Second attempt (run `781288d8-f2d9-41e8-bc8e-e9cd3738a1c0`) SUCCESS:
+`raw_shopify.order_transactions` published with 14,976 records (one per
+order), stream `order_transactions`.
+
+**Image rollouts.** Worker was `sha256:2928cacf` (`9d09d1f`) at session
+start; rebuilt twice — `sha256:4d060d20` (refunds-staffmember fix), then
+`sha256:87986584` (otx-copy, adds the Dockerfile COPY). Cloud Run job
+`dagster-worker` was rolled out via `gcloud run jobs update` with each
+digest. `infra/terraform/deployment.auto.tfvars` is pinned to
+`sha256:87986584`, BUT terraform was NOT applied: `gcloud auth
+application-default login` needs interactive reauth (`invalid_grant`). The
+next terraform apply is pending and should be a no-op-level drift correction.
+
+**Marts on real data.** `shopify_marts_build` attempt 1 (run
+`82d4f376-db63-45f4-9354-c4937b982f26`): shopify_dbt, customers, products,
+refund, returns, klaviyo, intermediate and marts steps SUCCESS;
+fulfillment_orders_dbt, fulfillments_dbt, inventory_dbt and payments_dbt
+FAILED with Database Error "Table ... raw_shopify.<name> not found" — those
+observation streams have never published. Fix: created the eight empty raw
+tables with the exact raw envelope contract (`contract_columns()`),
+time-partitioned by `ingested_at`, clustered by `(shop_key, extraction_id)`:
+fulfillments, fulfillment_orders, fulfillment_order_line_items,
+inventory_items, inventory_levels, tender_transactions,
+balance_transactions, disputes. Attempt 2 (run
+`55ac2056-6e22-4e3c-b7aa-65790ff197aa`) was in progress at the time of
+writing — run id recorded as pending verification.
+
+**Verified mart state** (attempt 1, reconciled): `metric_revenue_daily` 461
+rows, grain (shop, extraction, day), 2025 window processed dates
+2018-03-31→2025-12-31. GMV 1,472,562.97 USD = line-level post-promotion GMV
+1,492,649.51 minus 20,086.54 belonging to 192 orders that carry
+`cancelled_at` (displayFinancialStatus is NOT 'CANCELLED' for any order —
+the cancellation exclusion is exercised through `cancelled_at`, a real-data
+finding). RMV recognized −24,500.68 = total refund-side −37,542.22 (631
+order lines, all `match_status refund_no_return`) minus 13,041.54 refunds
+belonging to the 192 cancelled orders (331 lines), excluded per
+decisions.yaml `exclusions_mart_level`. NMV 1,448,062.29 = GMV + EMV(0) +
+RMV. Orders 14,784, gross units 41,769. EMV remains NULL/0 (no exchange
+contract). `int_shopify__refunds` 631 rows (refund line grain);
+`fct_returns` 631 rows.
+
+Also today: FX was removed from the config-first build (`fx` scope,
+`xf_fx_rates`, `cfg_fx_rates`, `fx.source`/`fx.rule`, `daily_fx` decision
+dropped); `decisions.yaml` records `fx_deferred_single_currency` — habibi
+orders are 14,976/14,976 USD so marts read shopMoney only; shop vs
+presentment stay separate in raw/staging. Local suite: 392 tests OK. Raw
+payload typenames/vendor inventory for this extraction live in
+`docs/TAXONOMY_INVENTORY.md`; pipeline time-series mechanics in
+`docs/PIPELINE_TIME_SERIES.md` (referenced, not duplicated here).
+
+## Final verification — 2026-09-13 (run 55ac2056)
+
+Post-run verification of the real habibi store rebuild (shop_key
+gid://shopify/Shop/12345794, extraction
+hbny-orders-2025-v2-20260913T053517Z), all checks via read-only SELECT.
+
+1. `analytics.metric_revenue_daily` — PASS. 461 rows / 1 shop / 1
+   extraction / metric_date 2018-03-31→2025-12-31 / GMV 1,472,562.97 /
+   RMV −24,500.68 / NMV 1,448,062.29 / 14,784 orders / 41,769 units /
+   max(computed_at) 2026-09-13 20:45:47. Matches the reference numbers
+   from the previous rebuild exactly on every metric.
+2. NMV identity (nmv = gmv + ifnull(emv,0) + rmv per row) — PASS.
+   0 violations across 461 rows.
+3. `analytics.fct_returns` — PASS. 631 rows, all `match_status =
+   refund_no_return`, sum(rmv_merchandise_amount) −37,542.22,
+   0 rows with rmv_recognition_ts_utc null.
+4. Transactions pipeline — PASS. `analytics.int_shopify__refunds` 631
+   rows. `analytics.int_shopify__order_transactions` 26,645 rows =
+   26,645 distinct transaction_gid (dedup qualifies latest-per-id, no
+   duplicates present). `stg_shopify__order_transactions` 26,645 rows
+   (26,645 distinct gids) — note: the view is materialized in dataset
+   `platform_smoke` (staging schema), not `analytics`; the int view
+   resolves it there.
+5. Newly-initialized raw tables — PASS. All 8 empty (0 rows):
+   fulfillments, fulfillment_orders, fulfillment_order_line_items,
+   inventory_items, inventory_levels, tender_transactions,
+   balance_transactions, disputes.
+6. `raw_shopify.ingestion_runs` — 3 rows, all status `published` for
+   extraction hbny-orders-2025-v2-20260913T053517Z: orders 73,796 /
+   order_refunds 15,069 / order_transactions 14,976.
+
+Summary: 6/6 checks PASS, no discrepancies vs reference.

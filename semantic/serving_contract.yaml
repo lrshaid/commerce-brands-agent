@@ -1,0 +1,136 @@
+# Serving contract (semantic API) — Option B, Phase 1.
+#
+# Maps catalog metrics (semantic/metrics.yaml, the immutable reconstructed
+# snapshot) to the PHYSICAL dbt marts that the semantic API queries. This is the
+# separately-reviewed serving/publication layer (GAPS.md #14); it never edits the
+# catalog and never encodes business formulas. Business math (NMV=GMV+EMV+RMV,
+# stored-negative RMV, cancelled exclusion, refund fan-out fix) lives in the
+# marts. This file only routes a metric to a mart column and declares how the API
+# may roll it up.
+#
+# Only metrics whose value is materialized in a mart are servable. `base` metrics
+# read one mart column; `derived` metrics are a numerator/denominator over other
+# contract metrics at the same grain (no inline SQL). `blocked` metrics have a
+# column but it is NULL/0 by design and must not be quoted as a business result.
+version: 1
+
+defaults:
+  tenant_column: shop_key
+  extraction_column: extraction_id
+
+# Physical marts the API is allowed to read. Dataset is deployment config; the
+# API resolves the fully-qualified name at runtime, never hard-coded in metrics.
+marts:
+  metric_revenue_daily:
+    dataset: analytics
+    time_column: metric_date
+    grain: day
+    dimensions: [sales_channel]
+
+# NOTE on "sales_revenue": intentionally NOT aliased to any single metric. It is
+# ambiguous (gross-booked vs gmv vs nmv); the API must force a basis choice
+# rather than guess (GAPS.md #12).
+metrics:
+  gmv:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: gmv_amount
+    aggregation: sum
+    basis: gmv
+    aliases: [merchandise_revenue]
+    # Verified on the real 2025 store extraction (run 55ac2056, 2026-09-13).
+    implementation_status: target_validated
+
+  nmv:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: nmv_amount
+    aggregation: sum
+    basis: nmv
+    aliases: [net_merchandise_value]
+    # NMV identity (nmv = gmv + ifnull(emv,0) + rmv) verified per-row on real
+    # data (run 55ac2056, 2026-09-13). EMV is still 0 by design.
+    implementation_status: target_validated
+    honesty_flags:
+      - "NMV assumes EMV=0 (exchange contract exchangeV2s invalid)"
+
+  rmv:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: rmv_amount
+    aggregation: sum
+    basis: nmv
+    sign_convention: stored_negative
+    # Now real: refund-side reconciled on real store data (run 55ac2056,
+    # 2026-09-13), fct_returns 631 rows. No longer 0-by-absence.
+    implementation_status: target_validated
+    honesty_flags:
+      - "RMV stored negative; do not subtract twice"
+      - "recognized on refund created date; all matched rows are refund_no_return (no formal returns matched yet)"
+
+  emv:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: emv_amount
+    aggregation: sum
+    implementation_status: blocked
+    blocked_reason: "exchange line contract (exchangeV2s) invalid; column is NULL by design"
+
+  order_count:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: orders
+    aggregation: sum
+    implementation_status: target_validated
+    honesty_flags:
+      - "orders is daily-distinct at the mart grain; summing across days is a period total, not a distinct-customer count"
+
+  gross_units:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: gross_units
+    aggregation: sum
+    implementation_status: target_validated
+
+  # NOTE: the mart also exposes a `returned_units` column, but the immutable
+  # catalog does not define it as a metric, so it is not served here. `net_units`
+  # is the catalog metric that reflects returns.
+  net_units:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: net_units
+    aggregation: sum
+    implementation_status: target_validated
+    honesty_flags:
+      - "net_units = gross + exchange - returned; exchange units are 0 (EMV blocked); returned units are now real"
+
+  traffic:
+    kind: base
+    source_mart: metric_revenue_daily
+    value_column: traffic
+    aggregation: sum
+    implementation_status: blocked
+    blocked_reason: "no GA4 export configured for this shop; traffic is NULL in the mart"
+
+  # Derived example: ratio over two base metrics at the same grain. The API
+  # compiles numerator/denominator separately and divides; both must reference
+  # contract metrics, so no business formula is hidden in code.
+  aov:
+    kind: derived
+    numerator: gmv
+    denominator: order_count
+    implementation_status: sql_template
+    honesty_flags:
+      - "AOV basis follows its numerator (GMV); state the basis when quoting"
+
+  upt:
+    kind: derived
+    numerator: gross_units
+    denominator: order_count
+    implementation_status: sql_template
+
+  app:
+    kind: derived
+    numerator: gmv
+    denominator: gross_units
+    implementation_status: sql_template

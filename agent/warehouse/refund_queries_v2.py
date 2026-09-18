@@ -28,7 +28,10 @@ def compile_refund_queries_v2(source):
     refund = _field(root.selection_set, "refunds")
     returned = _field(refund.selection_set, "return")
     # No unrecognized connections may survive in Bulk or escape pagination.
-    expected = {"id", "createdAt", "updatedAt", "processedAt", "note", "staffMember",
+    # staffMember/user are intentionally absent: they require read_users
+    # (Plus/Advanced or finance-embedded apps only), which the client-credentials
+    # app does not have (same precedent as the orders projection fix a58fbab).
+    expected = {"id", "createdAt", "updatedAt", "processedAt", "note",
                 "totalRefundedSet", "duties", "return", *REFUND_CONNECTIONS}
     if {f.name.value for f in refund.selection_set.selections} != expected:
         raise RefundProjectionError("Refund v2 projection changed; review traversal")

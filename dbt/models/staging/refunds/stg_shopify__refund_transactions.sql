@@ -1,4 +1,4 @@
-{{ config(tags=['refund_staging']) }}
+{{ config(tags=['refund_staging'], materialized='table') }}
 with children as {{ shopify_refund_child_nodes('transactions') }}
 select
     c.observation_key, c.shop_key, c.extraction_id, c.page_key, c.captured_at, c.published_at,

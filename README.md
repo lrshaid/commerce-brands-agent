@@ -1,3 +1,22 @@
+# Current project status — 2026-09-16
+
+The warehouse is deployed on Dagster + Cloud Run + dbt + BigQuery, with real
+orders/refunds/transactions and reconciled 2025 revenue marts. OpenCode later
+reported 2022–2024 raw backfill and returns raw publication; final returns
+staging and consolidated marts acceptance remain pending.
+
+**Resume point:** the Dagster launcher timeout fix was built, but the worker
+update command timed out without confirming the rollout. Verify the worker
+and VM launcher state, then finish returns → staging → marts reconciliation.
+See [current handoff and evidence](docs/DEPLOYMENT_STATUS.md).
+
+Local tests on September 16: 397 tests, OK (1 skipped). Semantic API delivery
+and recurring schedules are unfinished. The original overview below predates
+these deployments; its foundation-only and pending-refunds statements are
+historical, not the current status.
+
+---
+
 # Commerce Brands Agent
 
 Local, read-only reconstruction of the Shopify-native ecommerce analytics agent described in `BLUEPRINT.md`.

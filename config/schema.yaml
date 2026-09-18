@@ -7,8 +7,6 @@ fields:
   warehouse.allow_defaults: {type: bool}
   fiscal.source: {type: string, enum: [cfg_fiscal_calendar]}
   fiscal.comp_ly_days: {type: int, min: 1, default: 364}
-  fx.source: {type: string, enum: [cfg_fx_rates]}
-  fx.rule: {type: string, enum: [prior_month_end, same_month_end, daily]}
   revenue.exclude_cancelled: {type: bool}
   revenue.reporting_exclusion_tags: {type: string_list}
   revenue.zero_dollar_orders: {type: string, enum: [include, exclude, exclude_unless_allowlisted]}

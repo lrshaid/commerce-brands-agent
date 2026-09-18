@@ -35,7 +35,10 @@ for i in $(seq 1 30); do
   sleep 2
 done
 docker-compose -f compose.yaml run --rm --no-deps code-location dagster instance migrate
-docker-compose -f compose.yaml up -d
+# A digest-only image update does not always make Compose v1 recreate services
+# whose displayed image name is unchanged. Force the runtime services onto the
+# image pinned in RUNTIME_IMAGE while preserving the PostgreSQL container/data.
+docker-compose -f compose.yaml up -d --force-recreate code-location webserver daemon
 printf '%s' '${backup_base64}' | base64 -d > /opt/commerce/backup.sh
 chmod 700 /opt/commerce/backup.sh
 printf '%s' '${backup_service_base64}' | base64 -d > /etc/systemd/system/commerce-backup.service

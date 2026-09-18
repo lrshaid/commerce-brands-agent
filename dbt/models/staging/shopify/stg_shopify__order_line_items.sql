@@ -7,6 +7,7 @@ select
     json_value(payload, '$.variantTitle') as variant_title,
     json_value(payload, '$.product.id') as product_gid,
     json_value(payload, '$.variant.id') as variant_gid,
+    cast(json_value(payload, '$.isGiftCard') as bool) as is_gift_card,
     cast(json_value(payload, '$.originalTotalSet.shopMoney.amount') as numeric) as original_total_shop_amount,
     json_value(payload, '$.originalTotalSet.shopMoney.currencyCode') as original_total_shop_currency,
     cast(json_value(payload, '$.discountedTotalSet.shopMoney.amount') as numeric) as discounted_total_shop_amount,

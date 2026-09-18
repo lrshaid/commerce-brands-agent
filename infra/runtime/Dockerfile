@@ -9,6 +9,7 @@ COPY agent/__init__.py /app/agent/__init__.py
 COPY agent/warehouse /app/agent/warehouse
 COPY queries/shopify/orders_bulk.graphql /app/queries/shopify/orders_bulk.graphql
 COPY queries/shopify/order_refunds_bulk.graphql /app/queries/shopify/order_refunds_bulk.graphql
+COPY queries/shopify/order_transactions_bulk.graphql /app/queries/shopify/order_transactions_bulk.graphql
 COPY queries/shopify/return_line_items_bulk.graphql /app/queries/shopify/return_line_items_bulk.graphql
 COPY queries/shopify/tender_transactions_bulk.graphql /app/queries/shopify/tender_transactions_bulk.graphql
 COPY queries/shopify/balance_transactions_bulk.graphql /app/queries/shopify/balance_transactions_bulk.graphql

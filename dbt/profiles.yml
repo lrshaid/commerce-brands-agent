@@ -8,7 +8,7 @@ commerce:
       dataset: "{{ env_var('DBT_DATASET', 'platform_smoke') }}"
       location: "{{ env_var('GOOGLE_CLOUD_REGION', 'us-central1') }}"
       threads: 2
-      job_execution_timeout_seconds: 300
+      job_execution_timeout_seconds: 900
       job_retries: 1
       maximum_bytes_billed: 1073741824
       priority: interactive

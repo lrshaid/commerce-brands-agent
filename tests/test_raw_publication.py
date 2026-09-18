@@ -6,6 +6,7 @@ import unittest
 from agent.warehouse.raw_publication import (
     _validate_refund_page_publication,
     contract_columns,
+    publication_rows_sql,
     publication_sql,
     publish_records,
 )
@@ -97,7 +98,12 @@ class RawPublicationTests(unittest.TestCase):
         self.assertLess(sql.index('Conflicting replay record'), sql.index('INSERT INTO'))
         self.assertTrue(sql.strip().endswith('COMMIT TRANSACTION;'))
         self.assertNotIn('DELETE FROM', sql)
-        self.assertIn("PARSE_JSON(payload, wide_number_mode=>'round')", sql)
+        # The transaction carries only small columns: record_text/payload stay in
+        # the stage and are inserted by the standalone rows DML (publication_rows_sql).
+        self.assertNotIn('record_text', sql.split('CREATE TEMP TABLE')[1].split(';')[0])
+        rows_sql = publication_rows_sql('commerce-agents-dev.platform_smoke', 'acceptance', '_load_' + 'a'*32)
+        self.assertIn("PARSE_JSON(s.payload, wide_number_mode=>'round')", rows_sql)
+        self.assertIn('NOT EXISTS', rows_sql)
 
     def test_invalid_identifiers_and_blocked_exchange_rejected(self):
         for dataset, stream, stage in [('x`;DROP', 'orders', '_load_'+'a'*32),
@@ -121,8 +127,8 @@ class RawPublicationTests(unittest.TestCase):
         publish_records(client, 'commerce-agents-dev.raw_shopify', 'order_refunds',
                         list(reversed(rows)), manifest, transport_validated=True)
         self.assertEqual([call[0] for call in client.calls],
-                         ['create_table', 'load_table_from_file', 'query',
-                          'create_table', 'load_table_from_file', 'query'])
+                         ['create_table', 'load_table_from_file', 'query', 'query',
+                          'create_table', 'load_table_from_file', 'query', 'query'])
 
     def test_refund_page_preflight_rejects_duplicate_generation_and_omitted_page(self):
         rows, manifest = _refund_fixture()

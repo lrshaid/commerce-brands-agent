@@ -1,4 +1,4 @@
-{{ config(tags=['returns_staging']) }}
+{{ config(tags=['returns_staging'], materialized='table') }}
 -- Refunds linked to a return, one row per return-refund pair.
 with pages as (
     select * from {{ shopify_return_pages() }}

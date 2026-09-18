@@ -62,9 +62,10 @@ class ReturnsRawTests(unittest.TestCase):
         args, capture, seal, _ = self.fixture()
         page_name = seal["pages"][1]["uri"].removeprefix("gs://capture-test/")
         del args["bucket"].objects[page_name]
-        with patch.object(ReturnsCapture, "_http", side_effect=AssertionError("No HTTP")), \
-                self.assertRaises(CaptureError):
-            prepare_returns_raw(**args, ingested_at=datetime.now(timezone.utc))
+        with patch.object(ReturnsCapture, "_http", side_effect=AssertionError("No HTTP")):
+            prepared = prepare_returns_raw(**args, ingested_at=datetime.now(timezone.utc))
+            with self.assertRaises(CaptureError):
+                list(prepared["records"])
 
 
 if __name__ == "__main__":

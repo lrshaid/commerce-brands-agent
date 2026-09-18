@@ -2,6 +2,7 @@ import hashlib
 import json
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from agent.warehouse.returns_capture import ReturnsCapture, CaptureError
 
@@ -19,6 +20,8 @@ class Blob:
         if if_generation_match == 0 and self.body:
             from google.api_core.exceptions import PreconditionFailed
             raise PreconditionFailed("exists")
+        if body is not self.body:
+            self.generation = self.generation + 1
         self.body, self.size = body, len(body)
 
     def download_as_bytes(self, if_generation_match=None):
@@ -38,7 +41,11 @@ class Bucket:
         self.writes = 0
 
     def blob(self, name):
-        return self.objects.setdefault(name, Blob(name))
+        blob = self.objects.get(name)
+        if blob is None:
+            blob = self.objects.setdefault(name, Blob(name, generation=self.writes + 1))
+            self.writes += 1
+        return blob
 
     def get_blob(self, name):
         return self.objects.get(name)
@@ -131,8 +138,18 @@ class ReturnsCaptureTests(unittest.TestCase):
     def test_corrupt_sha_and_scope_mismatch_replay_rejected_without_http(self):
         capture = make(); seal = capture.collect()
         page = next(p for p in seal["pages"] if p["operation"] == "orders")
-        capture.bucket.objects[page["uri"].split("fixture/", 1)[1]].metadata["response_sha256"] = "bad"
-        with self.assertRaises(CaptureError): make(capture.responses, bucket=capture.bucket, read_only=True).collect()
+        # The read-only collect consumes the stored seal; a tampered page body is
+        # rejected by the per-page checksum validation inside prepare_returns_raw.
+        capture.bucket.objects[page["uri"].split("fixture/", 1)[1]].body = b'{"data":{"tampered":true}}'
+        from agent.warehouse.returns_raw import prepare_returns_raw
+        replay = make(capture.responses, bucket=capture.bucket, token="", read_only=True)
+        args = dict(bucket=replay.bucket, domain=replay.domain, api_version=replay.api_version,
+                    shop_gid="gid://shopify/Shop/1", extraction_id="returns-test",
+                    query_source=SOURCE, search_filter="updated_at:>=2026-01-01", page_size=50)
+        with patch.object(ReturnsCapture, "_http", side_effect=AssertionError("No HTTP")):
+            prepared = prepare_returns_raw(**args, ingested_at=datetime.now(timezone.utc))
+            with self.assertRaises(CaptureError):
+                list(prepared["records"])
 
     def test_read_only_requires_exact_binding_and_no_http(self):
         capture = make(); seal = capture.collect()

@@ -21,7 +21,10 @@ run_launcher:
     region: {env: GOOGLE_CLOUD_REGION}
     job_name_by_code_location:
       commerce: dagster-worker
-    run_timeout: 1800
+    # 3600s: the launcher overrides the task timeout on each execution, so the
+    # returns stream fits (seal replay ~27 min + dbt staging ~10 min); 1800s
+    # killed the run mid-dbt even with the job-level timeout raised.
+    run_timeout: 3600
 run_monitoring:
   enabled: true
   start_timeout_seconds: 600

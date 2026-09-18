@@ -26,6 +26,11 @@ def shopify_returns(context: dg.AssetExecutionContext, config: OrdersConfig):
         token=shopify_access_token(), api_version=client.api_version,
         shop_gid=shop_gid, extraction_id=config.extraction_id,
         query_source=QUERY_PATH.read_text(), search_filter=search_filter, page_size=50,
+        # One returns page per order in the window; habibi has ~15k orders, so the
+        # 2000-page default would seal every run. 10000 is the validated maximum
+        # for requests-per-run and 1200s the validated capture deadline; the
+        # checkpointed capture is resumable, so later runs skip completed orders.
+        max_pages=10000, timeout_seconds=1200,
     )
     seal = capture.collect()
     return dg.MaterializeResult(metadata={**seal["counts"], "pages": len(seal["pages"]),

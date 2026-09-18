@@ -40,9 +40,6 @@ query OrderTransactionsBulk($query: String) {
             id
             name
           }
-          user {
-            id
-          }
           device {
             id
           }

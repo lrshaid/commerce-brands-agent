@@ -1,8 +1,8 @@
 {{ config(tags=['shopify_staging']) }}
 -- Intermediate order-line grain: one row per order line, with nested discount allocations.
--- IMPORTANT: discountAllocations is NOT requested by the active orders_bulk.graphql
--- query (it is not merely uncaptured: it is not asked for). To populate this struct
--- the query must be extended and orders re-extracted.
+-- discountAllocations IS requested by the active orders_bulk.graphql query; the
+-- nesting came live with the first real habibi extraction (18,193 allocations).
+-- Obsolete "not requested" comment corrected 2026-09-13.
 with line_discounts as (
     select
         shop_key,
@@ -34,6 +34,7 @@ select
     l.variant_title,
     l.product_gid,
     l.variant_gid,
+    l.is_gift_card,
     l.original_total_shop_amount,
     l.original_total_shop_currency,
     l.discounted_total_shop_amount,

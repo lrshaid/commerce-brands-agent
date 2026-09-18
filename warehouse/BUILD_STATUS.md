@@ -1,3 +1,31 @@
+# Current build status — 2026-09-17
+
+**Working warehouse with accepted real-data returns staging and a successful
+consolidated Shopify marts rebuild.**
+
+The foundation-only status below is historical and superseded by
+[the current deployment handoff](../docs/DEPLOYMENT_STATUS.md).
+Dagster + Cloud Run + dbt + BigQuery are deployed on runtime digest
+`sha256:610b8a820c21343b2242f54e45a8e667c5beeeee671e0a21b0785ac38986fff0`.
+
+Returns run `0237b7f9-016c-46b6-8378-5fa06490b8bd` completed **SUCCESS** and
+materialized 135 returns, 166 return lines and 57 return-refund links from
+15,546 published return pages. Consolidated marts run
+`15b00056-61e1-4c2c-984a-4039941eb3d6` completed **SUCCESS** with 51/51 asset
+materializations and 241/241 dbt checks evaluated; zero checks or execution
+steps failed. A deterministic one-shot checker produced the terminal `PASS`
+flag instead of relying on manual log inspection.
+
+Local suite: 398 tests, OK (1 skipped). Remaining warehouse acceptance work is
+a fresh business-total reconciliation of `fct_returns` and
+`metric_revenue_daily` across the historical windows. Semantic serving,
+exchanges, GA4, observation-stream ingestion and recurring operation remain
+incomplete. The September 17 Terraform refresh-only drift inspection completed
+after ADC renewal and found only expected Cloud Run execution metadata changes;
+no infrastructure configuration remediation is pending.
+
+## Historical foundation snapshot (superseded)
+
 # Warehouse build status
 
 Status: **foundation implemented; warehouse incomplete and blocked on target inputs**.

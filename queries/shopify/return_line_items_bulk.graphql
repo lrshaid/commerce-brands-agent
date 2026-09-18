@@ -11,7 +11,7 @@ query ReturnLineItemsBulk ($query: String) {
           totalQuantity
           closedAt
           requestApprovedAt
-          returnLineItems(first: 50) { edges { node { id quantity lineItem { id } subtotalSet { shopMoney { amount } } totalTaxSet { shopMoney { amount } } } } }
+          returnLineItems(first: 50) { edges { node { id quantity customerNote returnReasonNote ... on ReturnLineItem { fulfillmentLineItem { id lineItem { id } } } } } }
           refunds(first: 10) { edges { node { id } } }
         } }
       }

@@ -7,9 +7,6 @@ warehouse:
 fiscal:
   source: null
   comp_ly_days: null
-fx:
-  source: null
-  rule: null
 revenue:
   exclude_cancelled: null
   reporting_exclusion_tags: null

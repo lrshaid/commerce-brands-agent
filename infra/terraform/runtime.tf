@@ -77,7 +77,9 @@ resource "google_cloud_run_v2_job" "worker" {
     parallelism = 1
     template {
       service_account = google_service_account.runtime["dagster-worker"].email
-      timeout         = "1800s"
+      # 3600s: the returns stream publishes ~15k checksum-verified pages
+      # (~27 min) before dbt staging; 1800s killed the run mid-dbt.
+      timeout         = "3600s"
       max_retries     = 0
       containers {
         image = var.runtime_image

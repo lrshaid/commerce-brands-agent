@@ -43,6 +43,7 @@ class ReturnsCapture:
         self.api_version, self.search_filter, self.page_size = api_version, search_filter, page_size
         self.deadline, self.max_pages, self.max_bytes = time.monotonic() + timeout_seconds, max_pages, max_bytes
         self.pages, self.bytes, self._request_keys, self._finished = [], 0, set(), False
+        self._fresh_pages = 0
         self._bind()
 
     def _bind(self):
@@ -85,13 +86,20 @@ class ReturnsCapture:
             raise CaptureError("Shopify page transport failed; response details suppressed") from None
 
     def fetch(self, operation, variables):
-        if self._finished or time.monotonic() >= self.deadline or len(self.pages) >= self.max_pages:
+        # max_pages bounds fresh Shopify requests per run, not cumulative stored
+        # pages: a resumed run re-reads the previous immutable capture without
+        # consuming this run's budget and continues past the cap.
+        if self._finished or time.monotonic() >= self.deadline or self._fresh_pages >= self.max_pages:
             raise CaptureError("Capture deadline, page limit, or sealed capture reached")
         request_hash = digest(encoded({"query": self.operations[operation], "variables": variables}))
         if request_hash in self._request_keys:
             raise CaptureError("Duplicate page request within traversal")
         name = f"{self.prefix}/{request_hash}.json"
         existing = self.bucket.get_blob(name)
+        # A page re-read from a previous run's immutable capture does not consume
+        # this run's max_pages budget: the budget bounds requests to Shopify per
+        # run so a resumed traversal can continue past the cumulative cap.
+        resumed = existing is not None
         if existing is None:
             if self.read_only:
                 raise CaptureError("Missing page in read-only capture")
@@ -125,8 +133,10 @@ class ReturnsCapture:
                      "sha256": digest(body), "request_sha256": request_hash, "operation": operation,
                      "variables": dict(variables), "captured_at": metadata["captured_at"]}
         self.pages.append(reference)
+        if not resumed:
+            self._fresh_pages += 1
         self._request_keys.add(request_hash)
-        return data["data"]
+        return data["data"], resumed
 
     def walk(self, operation, owner=None):
         after, cursors, identifiers = None, set(), set()
@@ -136,7 +146,7 @@ class ReturnsCapture:
                 variables["query"] = self.search_filter
             else:
                 variables["id"] = gid(owner, "Order" if operation == "returns" else "Return")
-            data = self.fetch(operation, variables)
+            data, resumed = self.fetch(operation, variables)
             if operation == "orders":
                 connection = data.get("orders")
             else:
@@ -169,15 +179,43 @@ class ReturnsCapture:
             after = next_cursor
 
     def collect(self):
+        # A sealed capture is authoritative for both modes: replay the stored
+        # seal instead of re-walking every page (the walk replay would blow the
+        # read-only deadline on large captures, and a checkpoint-skip re-walk
+        # recomputes run-local seal fields like response_bytes, which can never
+        # byte-match). prepare_returns_raw keeps validating binding, seal bytes
+        # and every page body afterwards.
+        blob = self.bucket.get_blob(f"{self.prefix}/complete.json")
+        if blob is not None:
+            state = decode(blob.download_as_bytes(if_generation_match=int(blob.generation)))
+            if state.get("binding") != self.binding or state.get("status") != "captured":
+                raise CaptureError("Stored completion seal does not match the capture binding")
+            self._finished = True
+            return state
+        if self.read_only:
+            raise CaptureError("Missing or conflicting read-only capture binding")
         counts = {k: 0 for k in ("orders", "returns", "returnLineItems", "refunds")}
         # A Return may be linked to many things downstream, but it must have one
         # owning Order within this extraction.  ``walk`` deliberately scopes its
         # duplicate detector to one connection, so enforce this cross-order
         # invariant here before traversing children or writing the completion seal.
-        return_owners = {}
+        # Resumable checkpoint: orders whose children were fully captured in a
+        # previous run are skipped, and every stored page's manifest identity
+        # (operation/variables/captured_at/generation/sha256) is recorded as the
+        # walk touches it so the final seal can list ALL stored pages without
+        # re-downloading them in the sealing run.
+        checkpoint = self._load_checkpoint()
+        counts.update(checkpoint.get("counts", {k: 0 for k in counts}))
+        counts["orders"] = 0
+        return_owners = dict(checkpoint.get("return_owners", {}))
+        completed = set(checkpoint.get("completed_orders", []))
+        page_meta = dict(checkpoint.get("page_meta", {}))
+        pending_orders = 0
         for order in self.walk("orders"):
             order_id = gid(order.get("id"), "Order")
             counts["orders"] += 1
+            if order_id in completed:
+                continue
             for item in self.walk("returns", order_id):
                 return_id = gid(item.get("id"), "Return")
                 previous_owner = return_owners.setdefault(return_id, order_id)
@@ -186,7 +224,15 @@ class ReturnsCapture:
                 counts["returns"] += 1
                 counts["returnLineItems"] += sum(1 for _ in self.walk("returnLineItems", return_id))
                 counts["refunds"] += sum(1 for _ in self.walk("refunds", return_id))
-        seal = {"binding": self.binding, "status": "captured", "pages": self.pages,
+            completed.add(order_id)
+            page_meta.update(self._fresh_page_meta())
+            pending_orders += 1
+            if pending_orders >= 200:
+                pending_orders = 0
+                self._write_checkpoint(counts, sorted(completed), return_owners, page_meta)
+        page_meta.update(self._fresh_page_meta())
+        all_pages = self._merge_stored_pages(page_meta)
+        seal = {"binding": self.binding, "status": "captured", "pages": all_pages,
                 "counts": counts, "response_bytes": self.bytes,
                 "consistency": "multi_request_observations_not_transactional_snapshot"}
         content = encoded(seal)
@@ -204,3 +250,56 @@ class ReturnsCapture:
                     raise CaptureError("Conflicting completed capture")
         self._finished = True
         return seal
+
+    def _fresh_page_meta(self):
+        """Manifest identity for every page reference observed in this run."""
+        meta = {}
+        for reference in self.pages:
+            name = reference["uri"].rsplit("/", 1)[-1]
+            if reference["request_sha256"] in self._request_keys and name != "intent.json":
+                meta[reference["request_sha256"]] = {
+                    "operation": reference["operation"], "variables": reference["variables"],
+                    "captured_at": reference["captured_at"], "generation": reference["generation"],
+                    "sha256": reference["sha256"], "uri": reference["uri"]}
+        return meta
+
+    def _load_checkpoint(self):
+        if self.read_only:
+            return {}
+        blob = self.bucket.get_blob(f"{self.prefix}/checkpoint.json")
+        if blob is None:
+            return {}
+        state = decode(blob.download_as_bytes(if_generation_match=int(blob.generation)))
+        if state.get("binding_sha256") != self.binding.get("plan_sha256"):
+            raise CaptureError("Checkpoint binding does not match the capture plan")
+        return state
+
+    def _write_checkpoint(self, counts, completed, return_owners, page_meta):
+        state = {"binding_sha256": self.binding.get("plan_sha256"),
+                 "counts": counts, "completed_orders": sorted(completed),
+                 "return_owners": return_owners, "page_meta": page_meta}
+        blob = self.bucket.blob(f"{self.prefix}/checkpoint.json")
+        try:
+            blob.upload_from_string(encoded(state), content_type="application/json", if_generation_match=0)
+        except PreconditionFailed:
+            blob.reload()
+            blob.upload_from_string(encoded(state), content_type="application/json",
+                                    if_generation_match=blob.generation)
+
+    def _merge_stored_pages(self, page_meta):
+        """Seal pages = fresh references plus every previously stored page.
+
+        Stored-page identity comes from the checkpoint index (operation,
+        variables, captured_at, generation, sha256); the publication replay
+        re-verifies every body checksum, so sealing does not re-download.
+        """
+        pages = list(self.pages)
+        fresh_requests = {r["request_sha256"] for r in self.pages}
+        for request_sha, meta in page_meta.items():
+            if request_sha in fresh_requests:
+                continue
+            pages.append({"uri": meta["uri"], "generation": meta["generation"],
+                          "sha256": meta["sha256"], "request_sha256": request_sha,
+                          "operation": meta["operation"], "variables": meta["variables"],
+                          "captured_at": meta["captured_at"]})
+        return pages

@@ -89,8 +89,6 @@ def preflight(config_dir: Path, root: Path = ROOT, as_of_dt: str = None) -> dict
         for table in scope["tables"]:
             blockers.update(i.token for i in indexed.values() if i.key == f"cfg.{table}" or i.key.startswith(f"cfg.{table}["))
         decision_keys = list(scope["decisions"])
-        if model["scope"] == "fx" and values.get("fx.rule") == "daily":
-            decision_keys.append("daily_fx")
         for key in decision_keys:
             issue = Issue("BLOCKED_DECISION", key, decisions[key]["question"])
             indexed[issue.token] = issue

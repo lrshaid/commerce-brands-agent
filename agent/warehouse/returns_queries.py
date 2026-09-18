@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from graphql import parse, print_ast
 from graphql.language import OperationType
-from graphql.language.ast import FieldNode, OperationDefinitionNode, SelectionSetNode, VariableNode
+from graphql.language.ast import FieldNode, InlineFragmentNode, OperationDefinitionNode, SelectionSetNode, VariableNode
 
 
 class ReturnProjectionError(ValueError):
@@ -112,8 +112,13 @@ def compile_return_queries(source: str) -> ReturnQueryPlan:
         _source_connection_args(refunds)
         line_node = _node(line_items)
         refund_node = _node(refunds)
-        allowed_line_fields = {"id", "quantity", "lineItem", "subtotalSet", "totalTaxSet"}
-        if any(not isinstance(s, FieldNode) or s.name.value not in allowed_line_fields or s.alias or s.directives
+        # ReturnLineItemType lost lineItem/subtotalSet/totalTaxSet in API 2026-04;
+        # the original-line link comes from fulfillmentLineItem.lineItem and the
+        # return-side amounts stay NULL (refund side is the value source).
+        allowed_line_fields = {"id", "quantity", "customerNote", "returnReasonNote", "fulfillmentLineItem"}
+        if any((not isinstance(s, (FieldNode, InlineFragmentNode)) or getattr(s, "alias", None) or s.directives
+                or (isinstance(s, FieldNode) and s.name.value not in allowed_line_fields)
+                or (isinstance(s, InlineFragmentNode) and s.type_condition.name.value != "ReturnLineItem"))
                for s in line_node.selection_set.selections):
             raise ReturnProjectionError("Return line-item projection changed")
         if any(not isinstance(s, FieldNode) or s.name.value != "id" or s.alias or s.directives
@@ -147,5 +152,5 @@ def compile_return_queries(source: str) -> ReturnQueryPlan:
         )
     except ReturnProjectionError:
         raise
-    except Exception:
-        raise ReturnProjectionError("Cannot split the return projection safely") from None
+    except Exception as exc:
+        raise ReturnProjectionError(f"Cannot split the return projection safely: {exc!r}") from None

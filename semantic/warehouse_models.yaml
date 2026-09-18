@@ -32,18 +32,6 @@
       ],
       "decisions": []
     },
-    "fx": {
-      "config_keys": [
-        "fx.source",
-        "fx.rule",
-        "warehouse.timezone",
-        "warehouse.reporting_currency"
-      ],
-      "tables": [
-        "cfg_fx_rates"
-      ],
-      "decisions": []
-    },
     "commercial": {
       "config_keys": [
         "warehouse.timezone",
@@ -562,7 +550,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_products",
-        "core.xf_fx_rates"
       ]
     },
     "core.dim_variant": {
@@ -606,12 +593,6 @@
         "stg_shopify.stg_return_line_items"
       ]
     },
-    "core.xf_fx_rates": {
-      "scope": "fx",
-      "purity": "shopify_native",
-      "implementation": "not_started",
-      "depends_on": []
-    },
     "core.xf_line_classification": {
       "scope": "commercial",
       "purity": "shopify_native",
@@ -641,7 +622,6 @@
         "stg_shopify.stg_order_line_items",
         "stg_shopify.stg_order_discount_allocations",
         "core.xf_line_classification",
-        "core.xf_fx_rates"
       ]
     },
     "core.xf_order_sale": {
@@ -676,7 +656,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_exchange_line_items",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_order_transaction": {
@@ -685,7 +664,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_order_transactions",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_tender": {
@@ -694,7 +672,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_tender_transactions",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_balance_transaction": {
@@ -703,7 +680,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_balance_transactions",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_payout": {
@@ -712,7 +688,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_payouts",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_dispute": {
@@ -721,7 +696,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_disputes",
-        "core.xf_fx_rates"
       ]
     },
     "core.xf_order_payment": {
@@ -746,7 +720,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_refund_line_items",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_refund_order_adjustment": {
@@ -755,7 +728,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_refund_order_adjustments",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_return": {
@@ -772,7 +744,6 @@
       "implementation": "not_started",
       "depends_on": [
         "stg_shopify.stg_return_line_items",
-        "core.xf_fx_rates"
       ]
     },
     "core.fct_returns_joined": {

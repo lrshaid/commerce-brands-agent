@@ -1,4 +1,4 @@
-{{ config(tags=['refund_staging']) }}
+{{ config(tags=['refund_staging'], materialized='table') }}
 with children as {{ shopify_refund_child_nodes('orderAdjustments') }}
 select
     'refund_discrepancy' as kind, false as is_synthetic,

@@ -1,4 +1,4 @@
-{{ config(tags=['returns_staging']) }}
+{{ config(tags=['returns_staging'], materialized='table') }}
 -- Return headers, one row per return, parsed directly from raw pages.
 with pages as (
     select * from {{ shopify_return_pages() }}

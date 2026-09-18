@@ -23,14 +23,6 @@ tables:
       fiscal_week: INT64
       fiscal_week_start: DATE
       is_fiscal_year_start: BOOL
-  cfg_fx_rates:
-    grain: "month and currency"
-    primary_key: ["month_dt","currency"]
-    nonempty: true
-    columns:
-      month_dt: DATE
-      currency: STRING
-      rate_to_rc: NUMERIC
   cfg_sales_channel_map:
     grain: "rule"
     primary_key: ["rule_type","rule_value"]
