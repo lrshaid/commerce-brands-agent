@@ -23,7 +23,14 @@ class EntityPublicationResult:
 
 
 def _schema_signature(fields):
-    return [(field.name, field.field_type, field.mode, _schema_signature(field.fields))
+    aliases = {
+        "BOOL": "BOOLEAN",
+        "INT64": "INTEGER",
+        "FLOAT64": "FLOAT",
+        "STRUCT": "RECORD",
+    }
+    return [(field.name, aliases.get(field.field_type, field.field_type), field.mode,
+             _schema_signature(field.fields))
             for field in fields]
 
 

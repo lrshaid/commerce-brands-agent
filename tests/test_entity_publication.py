@@ -8,7 +8,12 @@ import pytest
 from agent.warehouse.entity_contract import load_entity_contract
 from agent.warehouse.entity_landing import land_entity_artifacts
 from agent.warehouse.entity_parquet import EntityArtifact, EntityBatchArtifacts
-from agent.warehouse.entity_publication import entity_batch_merge_sql, publish_entity_batch
+from agent.warehouse.entity_publication import (
+    _schema_signature,
+    entity_batch_merge_sql,
+    publish_entity_batch,
+)
+from google.cloud import bigquery
 from tests.test_raw_landing import Bucket
 
 
@@ -84,6 +89,24 @@ def test_contract_drives_arrow_temp_and_target_json_types():
     assert temporary["original_payload"] == "STRING"
     assert target["original_payload"] == "JSON"
     assert target["extracted_at"] == "TIMESTAMP"
+
+
+def test_schema_signature_normalizes_bigquery_type_aliases():
+    requested = [
+        bigquery.SchemaField("quantity", "INT64"),
+        bigquery.SchemaField("active", "BOOL"),
+        bigquery.SchemaField("items", "STRUCT", mode="REPEATED", fields=[
+            bigquery.SchemaField("value", "FLOAT64"),
+        ]),
+    ]
+    returned = [
+        bigquery.SchemaField("quantity", "INTEGER"),
+        bigquery.SchemaField("active", "BOOLEAN"),
+        bigquery.SchemaField("items", "RECORD", mode="REPEATED", fields=[
+            bigquery.SchemaField("value", "FLOAT"),
+        ]),
+    ]
+    assert _schema_signature(requested) == _schema_signature(returned)
 
 
 def test_merge_sql_updates_all_fields_inserts_and_never_deletes():

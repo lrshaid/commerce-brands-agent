@@ -175,14 +175,14 @@ schedule.
 "$REPO/.venv-platform/bin/python" "$REPO/infra/scripts/launch_orders_ingestion.py" \
   --job shopify_orders_ingestion \
   --extraction-id orders-YYYYMMDD-01 \
-  --expected-shop-gid gid://shopify/Shop/75959533781 \
+  --expected-shop-gid gid://shopify/Shop/12345794 \
   --window-start 2026-01-01T00:00:00Z \
   --window-end 2026-02-01T00:00:00Z
 
 "$REPO/.venv-platform/bin/python" "$REPO/infra/scripts/launch_orders_ingestion.py" \
   --job shopify_refunds_ingestion \
   --extraction-id refunds-YYYYMMDD-01 \
-  --expected-shop-gid gid://shopify/Shop/75959533781 \
+  --expected-shop-gid gid://shopify/Shop/12345794 \
   --window-start 2026-01-01T00:00:00Z \
   --window-end 2026-02-01T00:00:00Z \
   --retry-failed-run TERMINAL_FAILURE_RUN_ID
@@ -190,7 +190,7 @@ schedule.
 "$REPO/.venv-platform/bin/python" "$REPO/infra/scripts/launch_orders_ingestion.py" \
   --job shopify_returns_ingestion \
   --extraction-id returns-YYYYMMDD-01 \
-  --expected-shop-gid gid://shopify/Shop/75959533781 \
+  --expected-shop-gid gid://shopify/Shop/12345794 \
   --window-start 2026-01-01T00:00:00Z \
   --window-end 2026-02-01T00:00:00Z
 ```
@@ -220,9 +220,9 @@ BigQuery queries and prints technical counts/IDs, not payloads:
 ```sh
 export GOOGLE_OAUTH_ACCESS_TOKEN="$(/opt/homebrew/bin/gcloud auth print-access-token)"
 "$REPO/.venv-platform/bin/python" "$REPO/infra/scripts/verify_refund_warehouse.py" \
-  --extraction-id EXTRACTION_ID --shop-gid gid://shopify/Shop/75959533781
+  --extraction-id EXTRACTION_ID --shop-gid gid://shopify/Shop/12345794
 "$REPO/.venv-platform/bin/python" "$REPO/infra/scripts/verify_returns_warehouse.py" \
-  --extraction-id EXTRACTION_ID --shop-gid gid://shopify/Shop/75959533781
+  --extraction-id EXTRACTION_ID --shop-gid gid://shopify/Shop/12345794
 ```
 
 For replay, use the same extraction ID/scope and the exact successful run ID:
@@ -230,7 +230,7 @@ For replay, use the same extraction ID/scope and the exact successful run ID:
 ```sh
 "$REPO/.venv-platform/bin/python" "$REPO/infra/scripts/launch_orders_ingestion.py" \
   --job shopify_returns_ingestion --extraction-id EXTRACTION_ID \
-  --expected-shop-gid gid://shopify/Shop/75959533781 \
+  --expected-shop-gid gid://shopify/Shop/12345794 \
   --window-start START_UTC --window-end END_UTC \
   --replay-completed-run SUCCESSFUL_RUN_ID
 ```

@@ -219,6 +219,20 @@ entries about entries.
   image `orders-entity-7b86a09-20260918142550` by immutable digest for the
   Dagster control plane and worker rollout.
 
+### 2026-09-18 — live store identity correction
+
+- `docs/GCP_DEPLOYMENT.md` — replaced the retired sobrecodigo shop GID in live
+  launch and verification examples with the current Habibi shop GID after the
+  fail-closed identity check rejected the first two-day pilot attempt.
+
+### 2026-09-18 — BigQuery schema alias compatibility
+
+- `agent/warehouse/entity_publication.py` — canonicalized BigQuery's equivalent
+  schema names (`INT64`/`INTEGER`, `BOOL`/`BOOLEAN`, `FLOAT64`/`FLOAT` and
+  `STRUCT`/`RECORD`) before comparing an existing target to the contract.
+- `tests/test_entity_publication.py` — added a regression test covering scalar
+  and nested alias normalization.
+
 ## Validation ledger
 
 - 2026-09-17: `git diff --check` passed for the design changes before
@@ -238,3 +252,14 @@ entries about entries.
   (`4 added, 0 changed, 0 destroyed`); Cloud Build
   `3d6e8efa-f9a1-4003-8bc0-334c74db9e6e` completed `SUCCESS` and produced
   digest `sha256:85ac386ba7da7b58f28d84c250b5d1085cbc541d6761c429c193b8252cb7ab3d`.
+- 2026-09-18: the first two-day pilot run
+  `fde481ca-f05a-4d8b-878e-81e2ebc4945d` failed before extraction or
+  publication because the stale runbook GID did not match the authenticated
+  store. Cloud Run terminated successfully; retry
+  `6f452458-7b59-4162-bf95-89e637d4b9d8` reused the same extraction identity
+  with `gid://shopify/Shop/12345794`.
+- 2026-09-18: retry `6f452458-7b59-4162-bf95-89e637d4b9d8` reached entity table
+  initialization but rejected BigQuery's canonical type aliases as schema drift;
+  it produced no entity materializations and exposed the alias-comparison bug.
+- 2026-09-18: after the BigQuery alias fix, the full Python suite passed with
+  413 tests, 1 skipped and 27 subtests; `git diff --check` also passed.
