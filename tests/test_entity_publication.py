@@ -121,6 +121,7 @@ def test_merge_sql_updates_all_fields_inserts_and_never_deletes():
     assert "extracted_at = CURRENT_TIMESTAMP()" in sql
     assert "PARSE_JSON(S.original_payload" in sql
     assert "S.source_updated_at < T.source_updated_at" in sql
+    assert "PARSE_JSON(@entity_counts)\nFROM UNNEST([1])\nWHERE NOT EXISTS" in sql
 
 
 def test_publication_loads_every_exact_uri_merges_then_cleans_stages():

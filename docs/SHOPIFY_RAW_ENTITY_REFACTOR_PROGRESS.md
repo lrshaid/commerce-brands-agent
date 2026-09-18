@@ -255,6 +255,16 @@ entries about entries.
 - `infra/terraform/deployment.auto.tfvars` — pinned the runtime carrying the
   Parquet LIST inference fix by immutable digest.
 
+### 2026-09-18 — BigQuery entity manifest insert syntax
+
+- `agent/warehouse/entity_publication.py` — gives the conditional manifest
+  insert an explicit one-row `UNNEST` source so BigQuery accepts its `WHERE NOT
+  EXISTS` clause after all entity MERGEs.
+- `tests/test_entity_publication.py` — locks the generated conditional manifest
+  insert to the valid BigQuery scalar-row form.
+- `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — recorded the failed live run
+  diagnosis and this SQL-generation correction.
+
 ## Validation ledger
 
 - 2026-09-17: `git diff --check` passed for the design changes before
@@ -305,3 +315,11 @@ entries about entries.
 - 2026-09-18: Cloud Build `175f0f8c-905d-4ee5-912f-c97cf6acde8f`
   completed `SUCCESS` for commit `82896cb`, producing digest
   `sha256:8d3bee21ce3e49df22493928e5e7ff235067a941681d28605447f2bcd35bd6e9`.
+- 2026-09-18: retry `df0cb65c-04ae-4e6b-95f4-499e3bfe8ea0` successfully loaded
+  all three Parquet entity stages and submitted the atomic MERGE, but BigQuery
+  rejected the final conditional manifest insert because a scalar `SELECT` had
+  a `WHERE` without a `FROM`. The transaction did not commit and Dagster emitted
+  no materializations or checks.
+- 2026-09-18: after correcting the conditional manifest insert, the focused
+  entity-publication tests passed `7/7`; the full Python suite passed with 413
+  tests, 1 skipped and 27 subtests, and `git diff --check` passed.

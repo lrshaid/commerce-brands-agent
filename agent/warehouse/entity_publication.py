@@ -125,6 +125,7 @@ VALUES ({', '.join(insert_values)});""",
 SELECT @shop_key, @stream, @extraction_id, @contract_sha256, @manifest_uri,
   @manifest_generation, @manifest_sha256, @window_start, @window_end,
   CURRENT_TIMESTAMP(), PARSE_JSON(@entity_counts)
+FROM UNNEST([1])
 WHERE NOT EXISTS(SELECT 1 FROM `{dataset}.entity_ingestion_runs`
   WHERE shop_key = @shop_key AND stream = @stream AND extraction_id = @extraction_id);""",
         "COMMIT TRANSACTION;",
