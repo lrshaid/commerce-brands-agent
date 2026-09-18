@@ -213,6 +213,12 @@ entries about entries.
 - `tests/test_entity_publication.py` — verifies typed BigQuery timestamp bindings
   and rejection of timezone-naive manifest windows.
 
+### 2026-09-18 — orders shadow rollout
+
+- `infra/terraform/deployment.auto.tfvars` — pinned the successful Cloud Build
+  image `orders-entity-7b86a09-20260918142550` by immutable digest for the
+  Dagster control plane and worker rollout.
+
 ## Validation ledger
 
 - 2026-09-17: `git diff --check` passed for the design changes before
@@ -228,3 +234,7 @@ entries about entries.
 - 2026-09-18: after the pre-deployment edge fixes, the full Python suite passed
   with 412 tests, 1 skipped and 27 subtests; `dbt parse --no-partial-parse`,
   `git diff --check` and Terraform formatting for `main.tf` also passed.
+- 2026-09-18: Terraform applied the two shadow datasets and worker IAM only
+  (`4 added, 0 changed, 0 destroyed`); Cloud Build
+  `3d6e8efa-f9a1-4003-8bc0-334c74db9e6e` completed `SUCCESS` and produced
+  digest `sha256:85ac386ba7da7b58f28d84c250b5d1085cbc541d6761c429c193b8252cb7ab3d`.
