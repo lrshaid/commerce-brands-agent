@@ -1,0 +1,101 @@
+version: 2
+
+sources:
+  - name: shopify_entities_shadow
+    database: "{{ env_var('GOOGLE_CLOUD_PROJECT', 'commerce-agents-dev') }}"
+    schema: raw_shopify_shadow
+    tables:
+      - name: orders
+      - name: order_line_items
+      - name: order_shipping_lines
+      - name: entity_ingestion_runs
+
+models:
+  - name: stg_shopify_shadow__orders
+    description: Current observed state for one Shopify order per shop and GID.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [shop_key, order_gid]}
+    columns:
+      - {name: shop_key, data_type: string, data_tests: [not_null]}
+      - {name: order_gid, data_type: string, data_tests: [not_null]}
+      - {name: order_name, data_type: string}
+      - {name: created_at, data_type: timestamp}
+      - {name: updated_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: processed_at, data_type: timestamp}
+      - {name: cancelled_at, data_type: timestamp}
+      - {name: currency_code, data_type: string}
+      - {name: financial_status, data_type: string}
+      - {name: fulfillment_status, data_type: string}
+      - {name: customer_gid, data_type: string}
+      - {name: email, data_type: string}
+      - {name: note, data_type: string}
+      - {name: tags, data_type: "array<string>"}
+      - {name: shipping_address, data_type: json}
+      - {name: billing_address, data_type: json}
+      - {name: total_price_shop_amount, data_type: numeric}
+      - {name: total_price_shop_currency, data_type: string}
+      - {name: subtotal_price_shop_amount, data_type: numeric}
+      - {name: subtotal_price_shop_currency, data_type: string}
+      - {name: total_tax_shop_amount, data_type: numeric}
+      - {name: total_tax_shop_currency, data_type: string}
+      - {name: total_discounts_shop_amount, data_type: numeric}
+      - {name: total_discounts_shop_currency, data_type: string}
+      - {name: total_shipping_price_shop_amount, data_type: numeric}
+      - {name: total_shipping_price_shop_currency, data_type: string}
+      - {name: total_price_presentment_amount, data_type: numeric}
+      - {name: total_price_presentment_currency, data_type: string}
+      - name: discount_applications
+        data_type: "array<struct<allocation_method string, target_selection string, target_type string>>"
+      - {name: original_payload, data_type: json}
+      - {name: source_extraction_id, data_type: string, data_tests: [not_null]}
+      - {name: source_updated_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: source_published_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: extracted_at, data_type: timestamp, data_tests: [not_null]}
+
+  - name: stg_shopify_shadow__order_line_items
+    description: Current observed state for one Shopify order line per shop and GID.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [shop_key, line_item_gid]}
+    columns:
+      - {name: shop_key, data_type: string, data_tests: [not_null]}
+      - {name: line_item_gid, data_type: string, data_tests: [not_null]}
+      - {name: order_gid, data_type: string, data_tests: [not_null]}
+      - {name: quantity, data_type: int64}
+      - {name: sku, data_type: string}
+      - {name: title, data_type: string}
+      - {name: variant_title, data_type: string}
+      - {name: product_gid, data_type: string}
+      - {name: variant_gid, data_type: string}
+      - {name: is_gift_card, data_type: boolean}
+      - {name: original_total_shop_amount, data_type: numeric}
+      - {name: original_total_shop_currency, data_type: string}
+      - {name: discounted_total_shop_amount, data_type: numeric}
+      - {name: discounted_total_shop_currency, data_type: string}
+      - name: discount_allocations
+        data_type: "array<struct<allocated_amount_shop_amount numeric, allocated_amount_shop_currency string, discount_application_index int64>>"
+      - {name: original_payload, data_type: json}
+      - {name: source_extraction_id, data_type: string, data_tests: [not_null]}
+      - {name: source_updated_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: source_published_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: extracted_at, data_type: timestamp, data_tests: [not_null]}
+
+  - name: stg_shopify_shadow__order_shipping_lines
+    description: Current observed state for one Shopify shipping line per shop and GID.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [shop_key, shipping_line_gid]}
+    columns:
+      - {name: shop_key, data_type: string, data_tests: [not_null]}
+      - {name: shipping_line_gid, data_type: string, data_tests: [not_null]}
+      - {name: order_gid, data_type: string, data_tests: [not_null]}
+      - {name: title, data_type: string}
+      - {name: code, data_type: string}
+      - {name: original_price_shop_amount, data_type: numeric}
+      - {name: original_price_shop_currency, data_type: string}
+      - {name: original_payload, data_type: json}
+      - {name: source_extraction_id, data_type: string, data_tests: [not_null]}
+      - {name: source_updated_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: source_published_at, data_type: timestamp, data_tests: [not_null]}
+      - {name: extracted_at, data_type: timestamp, data_tests: [not_null]}

@@ -9,6 +9,7 @@ import dagster as dg
 from google.cloud import bigquery, storage
 
 from agent.warehouse.raw_landing import land_jsonl
+from agent.warehouse.orders_entity_pipeline import publish_orders_entity_shadow
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from agent.warehouse.raw_records import ExtractionIdentity, iter_raw_records
 from agent.warehouse.shopify_bulk import BulkClient, bind_orders_query
@@ -43,6 +44,9 @@ def extraction_window(config):
 @dg.multi_asset(specs=[
     dg.AssetSpec(key=["shopify", "orders"], group_name="shopify_raw"),
     dg.AssetSpec(key=["shopify", "ingestion_runs"], group_name="shopify_raw"),
+    dg.AssetSpec(key=["shopify_entities_shadow", "orders"], group_name="shopify_raw"),
+    dg.AssetSpec(key=["shopify_entities_shadow", "order_line_items"], group_name="shopify_raw"),
+    dg.AssetSpec(key=["shopify_entities_shadow", "order_shipping_lines"], group_name="shopify_raw"),
 ])
 def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
     start, end, search_filter = extraction_window(config)
@@ -68,6 +72,7 @@ def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
             raise ValueError("Landing count changed after validation")
         identity = replace(identity, file_id=landed["generation"])
         _, fields = contract_columns()
+        published_at = datetime.now(timezone.utc)
         manifest = dict.fromkeys(fields)
         manifest.update(
             shop_key=shop_key, stream="orders", extraction_id=config.extraction_id,
@@ -75,7 +80,7 @@ def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
             requested_api_version=client.api_version, actual_api_version=client.api_version,
             transport="shopify_bulk_query", bulk_operation_gid=operation_id,
             window_start=start, window_end=end, started_at=export.created_at,
-            completed_at=export.completed_at, published_at=datetime.now(timezone.utc),
+            completed_at=export.completed_at, published_at=published_at,
             status="published", raw_record_count=validated["record_count"],
             provider_object_count=export.object_count, root_object_count=export.root_count,
             files=[{k: landed[k] for k in ("uri", "generation", "sha256")}],
@@ -91,9 +96,21 @@ def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
         source.seek(0)
         publication = publish_records(bq, dataset, "orders", iter_raw_records(source, identity),
                                       manifest, transport_validated=True)
-    for name in ("orders", "ingestion_runs"):
-        yield dg.MaterializeResult(asset_key=["shopify", name], metadata={
+        entity_shadow = publish_orders_entity_shadow(
+            source, bucket, bq, project + ".raw_shopify_shadow", identity,
+            source_file=landed, window_start=start, window_end=end,
+            published_at=published_at,
+        )
+    metadata = {
             "bulk_operation_id": operation_id, "root_count": export.root_count,
             "record_count": export.object_count, "landing_uri": landed["uri"],
             "publication_job_id": publication["publication_job_id"],
-        })
+            "entity_manifest_uri": entity_shadow["manifest"]["manifest"]["uri"],
+            "entity_merge_job_id": entity_shadow["publication"].merge_job_id,
+            "entity_counts": entity_shadow["publication"].entity_counts,
+    }
+    for asset_key in (["shopify", "orders"], ["shopify", "ingestion_runs"],
+                      ["shopify_entities_shadow", "orders"],
+                      ["shopify_entities_shadow", "order_line_items"],
+                      ["shopify_entities_shadow", "order_shipping_lines"]):
+        yield dg.MaterializeResult(asset_key=asset_key, metadata=metadata)

@@ -28,27 +28,27 @@ The 28 existing entity projections are the starting schema inventory:
 
 | Family | Entity projections | Complexity |
 |---|---:|---|
-| Orders | 5: orders, lines, shipping lines, discount applications, allocations | Medium: mixed parent/child Bulk JSONL; two children have no Shopify GID |
+| Orders | 3 canonical raw entities: orders, lines and shipping lines; discounts remain nested | Medium: mixed parent/child Bulk JSONL |
 | Catalog | 3: customers, products, variants | Low/medium |
 | Order transactions | 1 | Low |
-| Refunds | 8 | High: nested connections, synthetic shipping adjustment, bridges |
-| Returns | 3 | High: overlaps the return projection captured through refunds |
+| Refunds | 5 canonical raw entities: refunds, refund lines, transactions, shipping lines and Shopify adjustments | High: nested connections and a synthetic shipping adjustment; each refund retains nullable `return_gid` |
+| Returns | 2 canonical raw entities: returns and return lines | Medium/high: this pipeline is the only canonical writer for return entities |
 | Payments | 3 | Low/medium |
 | Fulfillments | 1 | Low/medium |
 | Fulfillment orders | 2 | Medium |
 | Inventory | 2 | Medium |
 
-The final raw entity-table count will be between 25 and 28. It cannot be fixed
-mechanically from model count because some current models represent the same
-Shopify entity through different capture paths, and discount children need an
-approved stable composite key or must remain nested under their owner.
+The final raw entity-table count is approximately 22. It cannot be fixed
+mechanically from model count because some current models are derived dbt
+outputs rather than independent ingestion streams. Discount applications and
+allocations remain nested under their owner and do not become raw entity tables.
 
 ## Target pipeline
 
 For each successful extraction:
 
 1. Keep the provider JSON/JSONL immutable in GCS for replay and audit.
-2. Dagster normalizes it into one typed Parquet dataset per entity, under
+2. Dagster normalizes it into one typed, streaming Parquet dataset per entity, under
    `shopify/<entity>/extraction_id=<id>/`.
 3. A completion manifest binds exact GCS generations, checksums, schema
    version, entity counts and extraction identity.
@@ -102,21 +102,42 @@ The current uniqueness tests on `observation_key` remain only for immutable
 transport/audit data. A generic local dbt test must be added for composite key
 uniqueness; the project does not currently depend on `dbt_utils`.
 
-## Decisions required inside the implementation
+## Design decisions and accepted constraints
 
 These are code-design decisions, not business-policy questions:
 
-1. **Return writer ownership.** Return headers and return lines are projected
-   through both refunds and returns capture, with different field sets. Use one
-   authoritative writer per target table or define a complete union contract;
-   never let a partial projection overwrite richer fields with nulls.
-2. **Discount keys.** Discount applications and allocations do not expose a
-   stable standalone GID in the current projection. Either embed them in the
-   owning order/line row or approve stable keys such as owner GID plus Shopify
-   application index. Extraction offsets are not stable keys.
-3. **Synthetic adjustments.** The current refund-adjustment model unions real
-   adjustment GIDs with synthetic shipping-refund IDs. Keep that derivation in
-   dbt, or explicitly contract the synthetic key before placing it in raw.
+1. **Refund/return boundary.** The refunds pipeline publishes canonical
+   `refunds` and `refund_line_items`. Each refund retains the nullable
+   `return_gid` obtained from `Refund.return.id`, which is the foreign key used
+   to associate that refund with a canonical return. It does not normalize the
+   nested Return, ReturnLineItem or ExchangeLineItem objects. The standalone
+   returns pipeline is the only writer for separate `returns` and
+   `return_line_items` tables. Any return field required downstream must be
+   added to `return_line_items_bulk.graphql` and the returns contract. The
+   current `refund_returns` projection is retired after reconciliation.
+   `refund_return_lines` becomes a dbt/BigQuery-derived relationship built from
+   canonical refunds, refund lines and return lines; it is not queried through
+   GraphQL and is not a raw entity table. Its grain is the matched pair
+   `(shop_key, refund_gid, refund_line_item_gid, return_line_item_gid)`, joined
+   through `return_gid` and the original order line ID. Exchange line items are
+   selected inside the existing Return extraction and remain nested on their
+   owning raw return; they do not receive an independent pipeline, raw file,
+   raw table or `MERGE`. dbt projects them as return exchange lines and derives
+   `refund_exchange_lines` by joining them to `refunds.return_gid`. The refunds
+   GraphQL operation does not select nested exchange lines. The current
+   `return_refunds` bridge is retired because the same return/refund relation is
+   represented directly by `refunds.return_gid`.
+2. **Discount ownership.** Discount applications and allocations remain nested
+   inside the orders family. They are not separate extraction pipelines, raw
+   entity files, BigQuery raw tables or `MERGE` targets, and consume no
+   additional Shopify slot. Applications stay on their owning order and
+   allocations stay on their owning order line. dbt may project them into
+   relational staging models when required by downstream transformations.
+3. **Synthetic adjustments.** `stg_shopify__refund_adjustments` is a dbt model,
+   not a separate extraction pipeline. It unions Shopify order-adjustment
+   objects from the refunds payload with synthetic shipping-refund rows. Raw
+   stores the Shopify objects; the synthetic shipping adjustment remains a dbt
+   derivation with its synthetic key.
 4. **Identical matched rows.** The requested semantics update every matched row,
    so `extracted_at` advances on replay even if business values are identical.
    Row counts and business values remain idempotent. If `extracted_at` should
@@ -126,10 +147,10 @@ These are code-design decisions, not business-policy questions:
    the whole batch before `MERGE` when it is older than the target table's
    accepted watermark. An accepted batch still performs the requested
    unconditional full-field update for every match.
-6. **Children removed from an owner.** `NOT MATCHED BY SOURCE` correctly keeps
-   entities outside a one-day window, but it also keeps a child removed from an
-   authoritative collection. Each family needs an explicit delete/tombstone
-   rule based on a complete owner collection; a plain merge cannot infer it.
+6. **Children removed from an owner.** Use `NOT MATCHED BY SOURCE DO NOTHING`.
+   A child removed from a Shopify owner may therefore remain in raw. This stale
+   child behavior is an explicitly accepted low-priority risk for this refactor;
+   tombstones and collection reconciliation are out of scope.
 7. **Multi-table visibility.** One extraction updates several entity tables.
    If merge 4 of 8 fails, direct readers could observe a mixed version. Retain
    a batch manifest state (`merging` -> `published`) and expose only a published
@@ -145,11 +166,12 @@ These are code-design decisions, not business-policy questions:
    transaction contract and one authoritative writer/precedence rule, or keep
    context-specific tables without claiming they are the same raw entity.
 
-Recommended defaults: create a superset contract and single writer for return
-entities before cutover; keep link tables separate; keep discount children
-nested until a stable provider key is proven; keep synthetic financial
-adjustments in dbt; matched rows always refresh `extracted_at` as requested;
-older batches fail before merge.
+Recommended defaults: use the standalone returns pipeline as the single writer
+for separate return and return-line contracts; store the optional Return link
+as `refunds.return_gid`; keep discount children nested permanently inside the
+orders family; keep synthetic financial adjustments in dbt; matched rows
+always refresh `extracted_at` as requested; absent source rows remain
+unchanged; older batches fail before merge.
 
 ## Retention and runtime constraints
 
@@ -159,8 +181,15 @@ older batches fail before merge.
   manifests for expired periods. Long-term replay requires an approved archive
   prefix/bucket or a changed lifecycle policy.
 - The Cloud Run worker is limited to 2 CPU, 4 GiB and one hour. Parquet writing
-  must stream with `pyarrow.parquet.ParquetWriter`; backfills must be chunked and
-  run separately from the daily path.
+  must stream with `pyarrow.parquet.ParquetWriter` and bounded row groups, so
+  the normal daily path does not hold a full extraction in memory. Historical
+  backfills must be chunked and run separately from the daily path.
+- CSV would save some encoding CPU, but it produces larger files, has no native
+  schema, and makes quoting nested JSON and distinguishing nulls from empty
+  strings more fragile. Deferring every cast to dbt would also leave the raw
+  target weakly typed; the BigQuery `MERGE` still needs validated target types.
+  Keep streaming Parquet for typed raw entities, with genuinely complex values
+  represented as contracted JSON fields when necessary.
 - `pyarrow` is present in the generated runtime lock but absent from
   `infra/runtime/requirements.in`. Make it a direct dependency before relying
   on it.
@@ -189,7 +218,8 @@ Estimated change: 12–18 files, 900–1,500 changed lines.
 ### Phase 2 — orders pilot
 
 - Normalize orders, lines and shipping lines from Bulk JSONL.
-- Resolve discount children as nested values or stable-key tables.
+- Preserve discount applications on orders and discount allocations on order
+  lines as nested contracted values; do not create standalone raw targets.
 - Backfill shadow raw tables from the accepted historical GCS files.
 - Run dbt uniqueness and reconciliation against existing staging results.
 - Prove insert, full-field update, absent-source preservation and replay.
@@ -202,8 +232,21 @@ that drives GMV before porting the harder families.
 
 ### Phase 3 — refunds and returns
 
-- Port the eight refund and three return projections.
-- Resolve authoritative return ownership and bridge keys.
+- Port canonical refunds and refund line items without projecting nested return
+  children from the refunds payload.
+- Make the returns pipeline the only writer for separate `returns` and
+  `return_line_items` raw/staging tables. Include `Return.exchangeLineItems` in
+  the existing returns operation, retain it as a nested contracted value on the
+  owning return, and project it in dbt without a standalone raw target.
+- Keep `Refund.return.id` as nullable `return_gid` on the canonical refund row
+  and use it to join refunds to returns without an additional bridge table.
+- Remove `refund_returns` and `return_refunds` from the canonical graph after
+  shadow reconciliation. Rebuild `refund_return_lines` in dbt/BigQuery from
+  `refunds.return_gid`, `refund_line_items` and `return_line_items`; do not query
+  nested return lines through the refunds GraphQL operation. Keep
+  `refund_exchange_lines` out of raw and derive it in dbt from exchange lines
+  nested on the canonical Return plus `refunds.return_gid`. Add any richer
+  Return fields required by canonical return models to the returns query.
 - Keep refund/return event IDs stable across extraction dates.
 - Rebuild RMV joins without `extraction_id` equality and reconcile against the
   accepted historical totals.
@@ -267,8 +310,8 @@ contract and is outside this refactor.
 - A new ID inserts; an existing ID fully refreshes; an absent source ID remains;
   an intentional source null replaces the prior value.
 - An out-of-order old extraction is rejected before any target table changes.
-- An authoritative owner snapshot handles removed children according to the
-  contracted tombstone/delete policy.
+- `NOT MATCHED BY SOURCE DO NOTHING` is verified; stale deleted children are an
+  accepted limitation and do not block cutover.
 - Replay changes no business values or row counts; `extracted_at` behavior
   matches the selected policy.
 - Crash tests cover failure after Parquet write, temp load, any intermediate

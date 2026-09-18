@@ -115,6 +115,9 @@ models:
       shopify:
         +schema: analytics
         +tags: [shopify_staging]
+      shopify_shadow:
+        +schema: analytics_shadow
+        +tags: [shopify_entity_shadow]
       customers:
         +schema: analytics
         +tags: [customers_staging]

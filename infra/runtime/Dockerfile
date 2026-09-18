@@ -21,6 +21,7 @@ COPY queries/shopify/inventory_levels_bulk.graphql /app/queries/shopify/inventor
 COPY queries/shopify/customers_query.graphql /app/queries/shopify/customers_query.graphql
 COPY queries/shopify/products_query.graphql /app/queries/shopify/products_query.graphql
 COPY warehouse/contracts/shopify_raw_v1.yaml /app/warehouse/contracts/shopify_raw_v1.yaml
+COPY warehouse/contracts/shopify_entities_v1.yaml /app/warehouse/contracts/shopify_entities_v1.yaml
 COPY warehouse/contracts/returns_pages_v1.yaml /app/warehouse/contracts/returns_pages_v1.yaml
 COPY infra/runtime/dagster.yaml /opt/dagster/home/dagster.yaml
 COPY infra/runtime/workspace.yaml /opt/dagster/home/workspace.yaml

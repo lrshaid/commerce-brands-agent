@@ -1,0 +1,112 @@
+version: 1
+status: orders_shadow_pilot
+dataset_role: raw_shopify_shadow
+source_contract: shopify_raw_v1
+
+publication:
+  mode: current_state_merge
+  absent_source: do_nothing
+  matched: update_all_non_key_columns
+  new_key: insert
+  stale_source: reject_batch
+  extracted_at: merge_statement_current_timestamp
+  temporary_table_ttl_hours: 24
+
+entities:
+  orders:
+    source_stream: orders
+    key: [shop_key, order_gid]
+    cluster_by: [shop_key, order_gid]
+    columns:
+      shop_key: {type: STRING, required: true, source: $context.shop_key}
+      order_gid: {type: STRING, required: true, source: $.id}
+      order_name: {type: STRING, source: $.name}
+      created_at: {type: TIMESTAMP, source: $.createdAt}
+      updated_at: {type: TIMESTAMP, required: true, source: $.updatedAt}
+      processed_at: {type: TIMESTAMP, source: $.processedAt}
+      cancelled_at: {type: TIMESTAMP, source: $.cancelledAt}
+      currency_code: {type: STRING, source: $.currencyCode}
+      financial_status: {type: STRING, source: $.displayFinancialStatus}
+      fulfillment_status: {type: STRING, source: $.displayFulfillmentStatus}
+      customer_gid: {type: STRING, source: $.customer.id}
+      email: {type: STRING, source: $.email}
+      note: {type: STRING, source: $.note}
+      tags: {type: STRING, mode: REPEATED, source: $.tags}
+      shipping_address: {type: JSON, source: $.shippingAddress}
+      billing_address: {type: JSON, source: $.billingAddress}
+      total_price_shop_amount: {type: NUMERIC, source: $.totalPriceSet.shopMoney.amount}
+      total_price_shop_currency: {type: STRING, source: $.totalPriceSet.shopMoney.currencyCode}
+      subtotal_price_shop_amount: {type: NUMERIC, source: $.subtotalPriceSet.shopMoney.amount}
+      subtotal_price_shop_currency: {type: STRING, source: $.subtotalPriceSet.shopMoney.currencyCode}
+      total_tax_shop_amount: {type: NUMERIC, source: $.totalTaxSet.shopMoney.amount}
+      total_tax_shop_currency: {type: STRING, source: $.totalTaxSet.shopMoney.currencyCode}
+      total_discounts_shop_amount: {type: NUMERIC, source: $.totalDiscountsSet.shopMoney.amount}
+      total_discounts_shop_currency: {type: STRING, source: $.totalDiscountsSet.shopMoney.currencyCode}
+      total_shipping_price_shop_amount: {type: NUMERIC, source: $.totalShippingPriceSet.shopMoney.amount}
+      total_shipping_price_shop_currency: {type: STRING, source: $.totalShippingPriceSet.shopMoney.currencyCode}
+      total_price_presentment_amount: {type: NUMERIC, source: $.totalPriceSet.presentmentMoney.amount}
+      total_price_presentment_currency: {type: STRING, source: $.totalPriceSet.presentmentMoney.currencyCode}
+      discount_applications:
+        type: RECORD
+        mode: REPEATED
+        source: $assembled.discount_applications
+        fields:
+          allocation_method: {type: STRING, source: $.allocationMethod}
+          target_selection: {type: STRING, source: $.targetSelection}
+          target_type: {type: STRING, source: $.targetType}
+      original_payload: {type: JSON, required: true, source: $}
+      source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+      source_updated_at: {type: TIMESTAMP, required: true, source: $.updatedAt}
+      source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+      extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}
+
+  order_line_items:
+    source_stream: orders
+    key: [shop_key, line_item_gid]
+    cluster_by: [shop_key, line_item_gid]
+    columns:
+      shop_key: {type: STRING, required: true, source: $context.shop_key}
+      line_item_gid: {type: STRING, required: true, source: $.id}
+      order_gid: {type: STRING, required: true, source: $.__parentId}
+      quantity: {type: INT64, source: $.quantity}
+      sku: {type: STRING, source: $.sku}
+      title: {type: STRING, source: $.title}
+      variant_title: {type: STRING, source: $.variantTitle}
+      product_gid: {type: STRING, source: $.product.id}
+      variant_gid: {type: STRING, source: $.variant.id}
+      is_gift_card: {type: BOOL, source: $.isGiftCard}
+      original_total_shop_amount: {type: NUMERIC, source: $.originalTotalSet.shopMoney.amount}
+      original_total_shop_currency: {type: STRING, source: $.originalTotalSet.shopMoney.currencyCode}
+      discounted_total_shop_amount: {type: NUMERIC, source: $.discountedTotalSet.shopMoney.amount}
+      discounted_total_shop_currency: {type: STRING, source: $.discountedTotalSet.shopMoney.currencyCode}
+      discount_allocations:
+        type: RECORD
+        mode: REPEATED
+        source: $.discountAllocations
+        fields:
+          allocated_amount_shop_amount: {type: NUMERIC, source: $.allocatedAmountSet.shopMoney.amount}
+          allocated_amount_shop_currency: {type: STRING, source: $.allocatedAmountSet.shopMoney.currencyCode}
+          discount_application_index: {type: INT64, source: $.discountApplication.index}
+      original_payload: {type: JSON, required: true, source: $}
+      source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+      source_updated_at: {type: TIMESTAMP, required: true, source: $context.owner_updated_at}
+      source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+      extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}
+
+  order_shipping_lines:
+    source_stream: orders
+    key: [shop_key, shipping_line_gid]
+    cluster_by: [shop_key, shipping_line_gid]
+    columns:
+      shop_key: {type: STRING, required: true, source: $context.shop_key}
+      shipping_line_gid: {type: STRING, required: true, source: $.id}
+      order_gid: {type: STRING, required: true, source: $.__parentId}
+      title: {type: STRING, source: $.title}
+      code: {type: STRING, source: $.code}
+      original_price_shop_amount: {type: NUMERIC, source: $.originalPriceSet.shopMoney.amount}
+      original_price_shop_currency: {type: STRING, source: $.originalPriceSet.shopMoney.currencyCode}
+      original_payload: {type: JSON, required: true, source: $}
+      source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+      source_updated_at: {type: TIMESTAMP, required: true, source: $context.owner_updated_at}
+      source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+      extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}

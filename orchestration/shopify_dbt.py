@@ -17,6 +17,11 @@ def shopify_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "shopify")
 
 
+@dbt_assets(manifest=MANIFEST, select="tag:shopify_entity_shadow")
+def shopify_entity_shadow_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
+    yield from run_dbt(context, dbt, "shopify_entity_shadow")
+
+
 @dbt_assets(manifest=MANIFEST, select="tag:customers_staging")
 def customers_dbt(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from run_dbt(context, dbt, "customers")

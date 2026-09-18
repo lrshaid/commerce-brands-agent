@@ -2,6 +2,7 @@ from contextlib import ExitStack, contextmanager
 import io
 import os
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from agent.warehouse.shopify_bulk import BulkError
@@ -40,6 +41,19 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(dataset, "commerce-agents-dev.raw_shopify")
             return {"publication_job_id": "test-job"}
 
+        def publish_entities(source, bucket, bq, dataset, identity, **kwargs):
+            self.assertEqual(dataset, "commerce-agents-dev.raw_shopify_shadow")
+            self.assertEqual(identity.extraction_id, "stable-extraction")
+            self.assertEqual(kwargs["source_file"]["generation"], "123")
+            return {
+                "manifest": {"manifest": {"uri": "gs://test/entity-manifest.json"}},
+                "publication": SimpleNamespace(
+                    merge_job_id="entity-merge-job",
+                    entity_counts={"orders": 1, "order_line_items": 0,
+                                   "order_shipping_lines": 0},
+                ),
+            }
+
         with ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, dict(GOOGLE_CLOUD_PROJECT="commerce-agents-dev",
                 SHOPIFY_SHOP_DOMAIN="test.myshopify.com", SHOPIFY_ADMIN_ACCESS_TOKEN="private",
@@ -48,6 +62,7 @@ class PipelineTests(unittest.TestCase):
                                 "wait_for_export": Mock(return_value=export),
                                 "download_export": download, "land_jsonl": Mock(side_effect=land),
                                 "initialize_tables": Mock(), "publish_records": Mock(side_effect=publish),
+                                "publish_orders_entity_shadow": Mock(side_effect=publish_entities),
                                 "storage.Client": Mock(), "bigquery.Client": Mock()}.items():
                 stack.enter_context(patch("orchestration.shopify_orders." + name, value))
             if bad_count:
@@ -56,12 +71,16 @@ class PipelineTests(unittest.TestCase):
                 self.assertEqual(captured, {})
             else:
                 results = list(shopify_orders.op.compute_fn.decorated_fn(context, self.config()))
-                self.assertEqual(len(results), 2)
+                self.assertEqual(len(results), 5)
                 self.assertEqual(captured["rows"][0]["file_id"], "123")
                 self.assertEqual(captured["rows"][0]["record_text"].encode(), payload.rstrip(b"\n"))
                 self.assertEqual(captured["manifest"]["bulk_operation_gid"], export.operation_id)
                 self.assertEqual(captured["manifest"]["extraction_id"], "stable-extraction")
                 self.assertTrue(captured["kwargs"]["transport_validated"])
+                self.assertEqual(
+                    results[4].metadata["entity_manifest_uri"],
+                    "gs://test/entity-manifest.json",
+                )
 
     def test_complete_export_reaches_raw_publication(self):
         self.execute()
