@@ -21,6 +21,8 @@ class PaymentsQueryTests(unittest.TestCase):
             self.assertNotIn("mutation", document.lower())
         self.assertIn("TenderTransactionsPage", plan.tender_transactions)
         self.assertIn("shopifyPaymentsAccount", plan.balance_transactions)
+        self.assertIn("query: $query", plan.balance_transactions)
+        self.assertIn("sortKey: PROCESSED_AT", plan.balance_transactions)
         self.assertIn("DisputesPage", plan.disputes)
 
     def test_preserves_node_projection_from_sources(self):
@@ -43,6 +45,14 @@ class PaymentsQueryTests(unittest.TestCase):
     def test_rejects_tender_root_without_explicit_query_variable(self):
         with self.assertRaises(PaymentsProjectionError):
             compile_payments_queries(TENDER.replace("(query: $query)", "(first: 50)"), BALANCE, DISPUTES)
+
+    def test_rejects_balance_without_processed_at_filter_contract(self):
+        with self.assertRaises(PaymentsProjectionError):
+            compile_payments_queries(
+                TENDER,
+                BALANCE.replace(", query: $query, sortKey: PROCESSED_AT", ""),
+                DISPUTES,
+            )
 
 
 if __name__ == "__main__":

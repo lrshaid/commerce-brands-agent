@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from graphql import parse, print_ast
 from graphql.language import OperationType
-from graphql.language.ast import FieldNode, OperationDefinitionNode, VariableNode
+from graphql.language.ast import EnumValueNode, FieldNode, OperationDefinitionNode, VariableNode
 
 
 class PaymentsProjectionError(ValueError):
@@ -83,12 +83,15 @@ def _check_fields(selection, allowed):
     _field(selection, "id")
 
 
-def _root_document(name, connection_name, selection, *, account_level, has_query):
+def _root_document(name, connection_name, selection, *, account_level, has_query,
+                   sort_key=None):
     variables = "$first: Int!, $after: String"
     arguments = "first: $first, after: $after"
     if has_query:
         variables = "$query: String!, " + variables
         arguments = "query: $query, " + arguments
+    if sort_key:
+        arguments += f", sortKey: {sort_key}"
     wrapper = "{ %s(%s) { pageInfo { hasNextPage endCursor } edges { node { __typename } } } }"
     if account_level:
         wrapper = "{ shopifyPaymentsAccount " + wrapper + " }"
@@ -128,8 +131,15 @@ def compile_payments_queries(tender_source: str, balance_source: str,
 
         balance = _check_source(balance_source)
         connection = _account_connection(balance, "balanceTransactions")
-        if {a.name.value for a in connection.arguments} != {"first"}:
-            raise PaymentsProjectionError("Balance connection must only declare first")
+        balance_arguments = {argument.name.value: argument.value
+                             for argument in connection.arguments}
+        if set(balance_arguments) != {"first", "query", "sortKey"}:
+            raise PaymentsProjectionError("Balance connection must declare first, query and sortKey")
+        if (not isinstance(balance_arguments["query"], VariableNode)
+                or balance_arguments["query"].name.value != "query"
+                or not isinstance(balance_arguments["sortKey"], EnumValueNode)
+                or balance_arguments["sortKey"].value != "PROCESSED_AT"):
+            raise PaymentsProjectionError("Balance connection must filter and sort by processed time")
         balance_node = _node(connection)
         _check_fields(balance_node.selection_set, _BALANCE_FIELDS)
         for money in ("amount", "fee", "net"):
@@ -157,7 +167,8 @@ def compile_payments_queries(tender_source: str, balance_source: str,
             _root_document("TenderTransactionsPage", "tenderTransactions",
                            tender_node.selection_set, account_level=False, has_query=True),
             _root_document("BalanceTransactionsPage", "balanceTransactions",
-                           balance_node.selection_set, account_level=True, has_query=False),
+                           balance_node.selection_set, account_level=True, has_query=True,
+                           sort_key="PROCESSED_AT"),
             _root_document("DisputesPage", "disputes",
                            dispute_node.selection_set, account_level=True, has_query=True),
         )

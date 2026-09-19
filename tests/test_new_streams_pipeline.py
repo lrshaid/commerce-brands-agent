@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from orchestration.shopify_fulfillments import shopify_fulfillments
 from orchestration.shopify_fulfillment_orders import shopify_fulfillment_orders
 from orchestration.shopify_inventory import shopify_inventory
-from orchestration.shopify_payments import shopify_payments
+from orchestration.shopify_balance_transactions import shopify_balance_transactions
 
 CONFIG = dict(extraction_id="test", expected_shop_gid="gid://shopify/Shop/1",
               window_start="1970-01-01T00:00:00Z", window_end="2026-09-09T00:00:00Z")
@@ -38,7 +38,7 @@ class NewStreamPipelineTests(unittest.TestCase):
     def test_jobs_accept_their_launcher_configs(self):
         import dagster as dg
         from orchestration.definitions import defs
-        for job, ops in (("shopify_payments_ingestion", {"shopify_capture__payment_pages", "shopify_payments_raw"}),
+        for job, ops in (("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify__balance_transactions"}),
                          ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
                          ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
                          ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):
@@ -47,7 +47,7 @@ class NewStreamPipelineTests(unittest.TestCase):
     def test_verified_shop_capture_only_and_default_page_size(self):
         from orchestration.shopify_orders import OrdersConfig
         config = OrdersConfig(**CONFIG)
-        for module, asset, capture_name in (("shopify_payments", shopify_payments, "PaymentsCapture"),
+        for module, asset, capture_name in (("shopify_balance_transactions", shopify_balance_transactions, "PaymentsCapture"),
                                             ("shopify_fulfillments", shopify_fulfillments, "FulfillmentsCapture"),
                                             ("shopify_fulfillment_orders", shopify_fulfillment_orders, "FulfillmentOrdersCapture"),
                                             ("shopify_inventory", shopify_inventory, "InventoryCapture")):
@@ -60,17 +60,17 @@ class NewStreamPipelineTests(unittest.TestCase):
     def test_verified_shop_mismatch_blocks_capture(self):
         from orchestration.shopify_orders import OrdersConfig
         config = OrdersConfig(**CONFIG)
-        with patch.dict(os.environ, ENV), patch("orchestration.shopify_payments.BulkClient") as client, \
-                patch("orchestration.shopify_payments.storage.Client"), \
-                patch("orchestration.shopify_payments.PaymentsCapture") as capture:
+        with patch.dict(os.environ, ENV), patch("orchestration.shopify_balance_transactions.BulkClient") as client, \
+                patch("orchestration.shopify_balance_transactions.storage.Client"), \
+                patch("orchestration.shopify_balance_transactions.PaymentsCapture") as capture:
             client.return_value.verify_shop.side_effect = ValueError("Wrong shop")
             with self.assertRaises(ValueError):
-                shopify_payments.op.compute_fn.decorated_fn(Mock(), config)
+                shopify_balance_transactions.op.compute_fn.decorated_fn(Mock(), config)
             capture.assert_not_called()
 
     def test_launcher_maps_new_job_capture_and_raw_assets(self):
         for job, expected_ops in (
-                ("shopify_payments_ingestion", {"shopify_capture__payment_pages", "shopify_payments_raw"}),
+                ("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify__balance_transactions"}),
                 ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
                 ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
                 ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):

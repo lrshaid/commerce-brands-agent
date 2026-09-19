@@ -1,4 +1,4 @@
-"""Manual Shopify payments page capture; publication is a downstream asset."""
+"""Manual Shopify balance-transactions capture; publication is downstream."""
 import os
 from pathlib import Path
 
@@ -15,16 +15,20 @@ BALANCE_QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/bala
 DISPUTES_QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/disputes_bulk.graphql"
 
 
-class PaymentsConfig(dg.Config):
+class BalanceTransactionsConfig(dg.Config):
     extraction_id: str
     expected_shop_gid: str
     window_start: str
     window_end: str
 
 
-@dg.asset(key=["shopify_capture", "payment_pages"], group_name="shopify_capture")
-def shopify_payments(context: dg.AssetExecutionContext, config: PaymentsConfig):
-    _, _, search_filter = extraction_window(config)
+@dg.asset(key=["shopify_capture", "balance_transaction_pages"], group_name="shopify_capture")
+def shopify_balance_transactions(context: dg.AssetExecutionContext,
+                                 config: BalanceTransactionsConfig):
+    start, end, _ = extraction_window(config)
+    search_filter = (
+        f"processed_at:>='{start.isoformat()}' processed_at:<'{end.isoformat()}'"
+    )
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     client = BulkClient(os.environ["SHOPIFY_SHOP_DOMAIN"], shopify_access_token,
                         os.environ["SHOPIFY_API_VERSION"])
@@ -37,11 +41,12 @@ def shopify_payments(context: dg.AssetExecutionContext, config: PaymentsConfig):
         tender_source=TENDER_QUERY_PATH.read_text(),
         balance_source=BALANCE_QUERY_PATH.read_text(),
         disputes_source=DISPUTES_QUERY_PATH.read_text(),
-        search_filter=search_filter, page_size=50,
+        search_filters={"balanceTransactions": search_filter},
+        operations=("balanceTransactions",), page_size=50,
     )
     seal = capture.collect()
     return dg.MaterializeResult(metadata={**seal["counts"], "pages": len(seal["pages"]),
         "response_bytes": seal["response_bytes"],
         "seal_uri": f"gs://{bucket.name}/{capture.prefix}/complete.json",
         "extraction_id": config.extraction_id, "warehouse_published": False,
-        "consistency": seal["consistency"]})
+        "consistency": seal["consistency"], "window_filter": search_filter})

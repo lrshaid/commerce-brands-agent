@@ -267,6 +267,38 @@ entries about entries.
 - `infra/terraform/deployment.auto.tfvars` — pinned the successful runtime build
   containing the manifest SQL correction by immutable image digest.
 
+### 2026-09-19 — balance-transactions pipeline identity and window
+
+- `queries/shopify/balance_transactions_bulk.graphql` — added the documented
+  `query` argument and fixed `PROCESSED_AT` sort key.
+- `queries/shopify/MANIFEST.json` — updated the pinned SHA-256 for the reviewed
+  balance-transactions query change.
+- `agent/warehouse/payments_queries.py` — requires and preserves the processed
+  time filter/sort contract in the compiled paginated query.
+- `agent/warehouse/payments_capture.py` — supports an explicit operation subset
+  with a distinct filter per selected Shopify Payments connection.
+- `agent/warehouse/payments_raw.py` — replays and exposes only the raw streams
+  selected by the sealed capture.
+- `orchestration/shopify_balance_transactions.py` — renamed the Payments
+  capture module/asset and made it balance-only with half-open `processed_at`
+  bounds.
+- `orchestration/shopify_balance_transactions_raw.py` — renamed the raw
+  publisher and restricted it to the already-correct
+  `raw_shopify.balance_transactions` table.
+- `orchestration/definitions.py` and
+  `infra/scripts/launch_orders_ingestion.py` — replaced
+  `shopify_payments_ingestion` with `shopify_balance_transactions_ingestion`;
+  the launcher addresses the raw asset by its Dagster key-derived op name
+  `shopify__balance_transactions`.
+- `tests/test_payments_capture.py`, `tests/test_payments_queries.py`,
+  `tests/test_payments_raw.py` and `tests/test_new_streams_pipeline.py` — cover
+  the filtered balance-only capture, replay, query contract, job and launcher.
+- `docs/2026-09-09_payments_fulfillments_inventory.md` — updated the deployed
+  architecture and names; tender transactions and disputes now require their
+  own future jobs.
+- `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — recorded every file changed
+  by this correction.
+
 ## Validation ledger
 
 - 2026-09-17: `git diff --check` passed for the design changes before
@@ -342,3 +374,13 @@ entries about entries.
   (`e28a5ca7-2adb-4b91-974b-4004bbceae1a`) and order transactions
   (`b78b36ac-b76d-490a-9850-36992e351383`). Dagster's configured maximum of
   one concurrent run keeps the Shopify jobs sequential.
+- 2026-09-19: Payments run `56ff09b1-35be-46d5-a2f2-68f4c4582cd7`
+  failed before materialization after 900 seconds and 1,429 partial page
+  artifacts because the combined job traversed unfiltered balance history.
+  Shopify Admin GraphQL 2026-04 documents `processed_at` as a
+  `balanceTransactions` search filter and `PROCESSED_AT` as its default sort.
+- 2026-09-19: the revised balance query validated successfully against the
+  Shopify Admin GraphQL schema and requires `read_shopify_payments` plus
+  `read_shopify_payments_accounts`; focused tests passed `19/19`, the full
+  Python suite passed with 416 tests, 1 skipped and 27 subtests, `dbt parse
+  --no-partial-parse` passed, and `git diff --check` passed.

@@ -8,6 +8,11 @@ from agent.warehouse.payments_capture import PaymentsCapture, CaptureError
 TENDER = open("queries/shopify/tender_transactions_bulk.graphql").read()
 BALANCE = open("queries/shopify/balance_transactions_bulk.graphql").read()
 DISPUTES = open("queries/shopify/disputes_bulk.graphql").read()
+FILTERS = {
+    "tenderTransactions": "processed_at:>=2026-01-01",
+    "balanceTransactions": "processed_at:>=2026-01-01",
+    "disputes": "initiated_at:>=2026-01-01",
+}
 
 
 class Blob:
@@ -87,11 +92,12 @@ def pages(empty=False):
 
 
 def make(pageset=None, **kwargs):
+    search_filters = kwargs.pop("search_filters", FILTERS)
     return Harness(bucket=kwargs.pop("bucket", Bucket()), domain="example.myshopify.com",
                    token=kwargs.pop("token", "token"), api_version="2026-04",
                    shop_gid="gid://shopify/Shop/1", extraction_id="payments-test",
                    tender_source=TENDER, balance_source=BALANCE, disputes_source=DISPUTES,
-                   search_filter="created_at:>=2026-01-01", pages=pageset or pages(), **kwargs)
+                   search_filters=search_filters, pages=pageset or pages(), **kwargs)
 
 
 class PaymentsCaptureTests(unittest.TestCase):
@@ -102,6 +108,17 @@ class PaymentsCaptureTests(unittest.TestCase):
         self.assertEqual(seal["counts"], {"tenderTransactions": 1, "balanceTransactions": 1, "disputes": 1})
         self.assertEqual({p["operation"] for p in seal["pages"]},
                          {"tenderTransactions", "balanceTransactions", "disputes"})
+        self.assertIn(("balanceTransactions", {"first": 50, "after": None,
+                                                "query": FILTERS["balanceTransactions"]}),
+                      capture.http_calls)
+
+    def test_balance_only_capture_uses_only_balance_filter_and_pages(self):
+        capture = make(search_filters={"balanceTransactions": FILTERS["balanceTransactions"]},
+                       operations=("balanceTransactions",))
+        seal = capture.collect()
+        self.assertEqual(seal["counts"], {"balanceTransactions": 1})
+        self.assertEqual({page["operation"] for page in seal["pages"]},
+                         {"balanceTransactions"})
 
     def test_empty_first_pages_still_seal(self):
         capture = make(pages(empty=True))
@@ -142,7 +159,7 @@ class PaymentsCaptureTests(unittest.TestCase):
         replay = Harness(bucket=capture.bucket, domain="example.myshopify.com", token="",
                          api_version="2026-04", shop_gid="gid://shopify/Shop/1", extraction_id="payments-test",
                          tender_source=TENDER, balance_source=BALANCE, disputes_source=DISPUTES,
-                         search_filter="created_at:>=2026-01-01", pages=capture.responses, read_only=True)
+                         search_filters=FILTERS, pages=capture.responses, read_only=True)
         self.assertEqual(replay.collect()["counts"], seal["counts"])
         self.assertEqual(replay.http_calls, [])
         with self.assertRaises(CaptureError):

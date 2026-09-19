@@ -20,8 +20,8 @@ from orchestration.shopify_returns import shopify_returns
 from orchestration.shopify_returns_raw import shopify_returns_raw
 from orchestration.shopify_catalog import shopify_catalog
 from orchestration.shopify_catalog_raw import shopify_catalog_raw
-from orchestration.shopify_payments import shopify_payments
-from orchestration.shopify_payments_raw import shopify_payments_raw
+from orchestration.shopify_balance_transactions import shopify_balance_transactions
+from orchestration.shopify_balance_transactions_raw import shopify_balance_transactions_raw
 from orchestration.shopify_fulfillments import shopify_fulfillments
 from orchestration.shopify_fulfillments_raw import shopify_fulfillments_raw
 from orchestration.shopify_fulfillment_orders import shopify_fulfillment_orders
@@ -153,7 +153,8 @@ defs = dg.Definitions(
             shopify_refunds, shopify_refunds_raw, refund_dbt, shopify_returns, shopify_returns_raw, returns_dbt,
             shopify_catalog, shopify_catalog_raw, payments_dbt, fulfillments_dbt, inventory_dbt,
             fulfillment_orders_dbt,
-            shopify_payments, shopify_payments_raw, shopify_fulfillments, shopify_fulfillments_raw,
+            shopify_balance_transactions, shopify_balance_transactions_raw,
+            shopify_fulfillments, shopify_fulfillments_raw,
             shopify_fulfillment_orders, shopify_fulfillment_orders_raw,
             shopify_inventory, shopify_inventory_raw, intermediate_dbt, marts_dbt,
             klaviyo_events, klaviyo_events_raw, klaviyo_dbt,
@@ -169,8 +170,10 @@ defs = dg.Definitions(
         "shopify_catalog_ingestion", selection=dg.AssetSelection.assets(shopify_catalog, shopify_catalog_raw),
         tags={"dagster/max_retries": "0", "purpose": "shopify_catalog_ingestion"},
         executor_def=dg.in_process_executor), dg.define_asset_job(
-        "shopify_payments_ingestion", selection=dg.AssetSelection.assets(shopify_payments, shopify_payments_raw),
-        tags={"dagster/max_retries": "0", "purpose": "shopify_payments_ingestion"},
+        "shopify_balance_transactions_ingestion",
+        selection=dg.AssetSelection.assets(shopify_balance_transactions,
+                                           shopify_balance_transactions_raw),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_balance_transactions_ingestion"},
         executor_def=dg.in_process_executor), dg.define_asset_job(
         "shopify_fulfillments_ingestion", selection=dg.AssetSelection.assets(shopify_fulfillments, shopify_fulfillments_raw),
         tags={"dagster/max_retries": "0", "purpose": "shopify_fulfillments_ingestion"},

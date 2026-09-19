@@ -1,7 +1,7 @@
 {
   "abandoned_checkouts_bulk.graphql": "ca74f7281ac050cb2bf4a3af65b02bf39c22142950311c432ec1e211e1a7d7f4",
   "articles_bulk.graphql": "642e76fd16120ee21951e40bd5737380d333e4499167c5b1c13ce49d9d59291c",
-  "balance_transactions_bulk.graphql": "08ff97df86340c1dbd6825c3e917e4a4eef75c6e68dfd24452e9351351203daa",
+  "balance_transactions_bulk.graphql": "0f4a01f45d963dd50d07c39c7dd8c15a71999152e1b6cbb022e74e7a4eba5084",
   "blogs_bulk.graphql": "282a7b8b646ec3f2616dd88df728d32a1d9b6a940821a35c65766436b22d3da1",
   "cash_tracking_sessions_bulk.graphql": "627869293c1a2c1158ba3d80efebe3b37b1600ba8672df819858d86f3c57e970",
   "collections_bulk.graphql": "b1860d7a45a0f882c17ce892338d10835c2b84ab6ee11ad5b230d6c2fffa4687",

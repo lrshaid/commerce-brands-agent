@@ -6,19 +6,22 @@ HTTP response page, dbt staging parsed via page macros). Local implementation
 only: no live capture, no BigQuery writes, no deploy. All API shapes are
 unverified against the live Admin API 2026-04.
 
-## Payments (one capture, three raw streams)
+## Balance transactions
 
-- Queries (existing, unchanged): `tender_transactions_bulk.graphql`,
-  `balance_transactions_bulk.graphql`, `disputes_bulk.graphql`. The compiler
-  (`agent/warehouse/payments_queries.py`) adds first/after/pageInfo transport;
-  no field was invented. `transactions_bulk.graphql` does NOT exist —
-  order transactions remain only inside the order_refunds stream.
-- Raw tables: `tender_transactions`, `balance_transactions`, `disputes`.
-- Staging: `stg_shopify__tender_transactions`, `stg_shopify__balance_transactions`,
-  `stg_shopify__disputes` (macros `shopify_payment_pages.sql`).
-- Assets: `shopify_capture/payment_pages`, `shopify/{tender_transactions,balance_transactions,disputes}`.
-- Job: `shopify_payments_ingestion` →
-  `infra/scripts/launch_orders_ingestion.py --job shopify_payments_ingestion --extraction-id … --expected-shop-gid … --window-start … --window-end …`
+- Query: `balance_transactions_bulk.graphql`. The compiler adds
+  first/after/pageInfo transport and keeps `query: $query` with
+  `sortKey: PROCESSED_AT`.
+- Window: half-open UTC bounds bind to Shopify's documented `processed_at`
+  search filter. The returned event timestamp is `transactionDate`.
+- Raw table: `raw_shopify.balance_transactions` (already correctly named).
+- Staging: `stg_shopify__balance_transactions`.
+- Assets: `shopify_capture/balance_transaction_pages` and
+  `shopify/balance_transactions`.
+- Job: `shopify_balance_transactions_ingestion` →
+  `infra/scripts/launch_orders_ingestion.py --job shopify_balance_transactions_ingestion --extraction-id … --expected-shop-gid … --window-start … --window-end …`.
+- Tender transactions and disputes are no longer captured as side effects of
+  the balance-transactions job. They require their own explicit jobs before
+  being scheduled.
 
 ## Fulfillments
 

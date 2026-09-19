@@ -1,6 +1,6 @@
-query BalanceTransactionsBulk {
+query BalanceTransactionsBulk($query: String) {
   shopifyPaymentsAccount {
-    balanceTransactions(first: 250) {
+    balanceTransactions(first: 250, query: $query, sortKey: PROCESSED_AT) {
       edges { node {
         id
         type

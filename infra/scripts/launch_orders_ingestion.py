@@ -26,7 +26,7 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
+    parser.add_argument("--job", choices=("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_balance_transactions_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
     parser.add_argument("--refund-capture-version", type=int, choices=(1, 2), default=2)
@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--retry-failed-run", help="Retry this terminal failed run after verifying its remote worker stopped")
     args = parser.parse_args()
     windowed_jobs = ("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion",
-                     "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_payments_ingestion",
+                     "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_balance_transactions_ingestion",
                      "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion",
                      "shopify_inventory_ingestion", "klaviyo_events_ingestion")
     if args.job in windowed_jobs and (not args.window_start or not args.window_end):
@@ -83,9 +83,9 @@ def main():
     if args.job == "shopify_catalog_ingestion":
         operations = {"shopify_capture__catalog_pages": {"config": config},
                       "shopify_catalog_raw": {"config": config}}
-    if args.job == "shopify_payments_ingestion":
-        operations = {"shopify_capture__payment_pages": {"config": config},
-                      "shopify_payments_raw": {"config": config}}
+    if args.job == "shopify_balance_transactions_ingestion":
+        operations = {"shopify_capture__balance_transaction_pages": {"config": config},
+                      "shopify__balance_transactions": {"config": config}}
     if args.job == "shopify_fulfillments_ingestion":
         operations = {"shopify_capture__fulfillment_pages": {"config": config},
                       "shopify_fulfillments_raw": {"config": config}}

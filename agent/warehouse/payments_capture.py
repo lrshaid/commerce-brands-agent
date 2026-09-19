@@ -17,14 +17,15 @@ from .payments_queries import compile_payments_queries
 
 class PaymentsCapture:
     def __init__(self, *, bucket, domain, token, api_version, shop_gid, extraction_id,
-                 tender_source, balance_source, disputes_source, search_filter,
+                 tender_source, balance_source, disputes_source, search_filters,
+                 operations=None,
                  page_size=50, timeout_seconds=900, max_pages=2000,
                  max_bytes=256 * 1024 * 1024, read_only=False):
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]*\.myshopify\.com", domain):
             raise CaptureError("Invalid Shopify domain")
         if not re.fullmatch(r"20[0-9]{2}-(01|04|07|10)", api_version) or (not read_only and not token.strip()):
             raise CaptureError("Missing credential or API version")
-        if not extraction_id or not isinstance(search_filter, str) or not search_filter.strip():
+        if not extraction_id or not isinstance(search_filters, dict):
             raise CaptureError("Explicit extraction identity and scope are required")
         if not 1 <= page_size <= 100 or not 1 <= timeout_seconds <= 1200 or not 1 <= max_pages <= 10000:
             raise CaptureError("Invalid capture bounds")
@@ -32,19 +33,29 @@ class PaymentsCapture:
             raise CaptureError("Invalid capture resource limit")
         gid(shop_gid, "Shop")
         self.bucket, self.domain, self._token = bucket, domain, token.strip()
-        self.api_version, self.search_filter, self.page_size = api_version, search_filter, page_size
+        self.api_version, self.page_size = api_version, page_size
         plan = compile_payments_queries(tender_source, balance_source, disputes_source)
-        self.operations = dict(zip(("tenderTransactions", "balanceTransactions", "disputes"),
-                                   plan.documents()))
-        self.filtered = {"tenderTransactions", "disputes"}
+        available = dict(zip(("tenderTransactions", "balanceTransactions", "disputes"),
+                             plan.documents()))
+        selected = tuple(operations or available)
+        if len(set(selected)) != len(selected) or any(name not in available for name in selected):
+            raise CaptureError("Invalid payments operation selection")
+        if (set(search_filters) != set(selected)
+                or any(not isinstance(value, str) or not value.strip()
+                       for value in search_filters.values())):
+            raise CaptureError("Every selected payments operation requires an explicit filter")
+        self.operations = {name: available[name] for name in selected}
+        self.search_filters = dict(search_filters)
+        source_digests = {"tenderTransactions": digest(tender_source.encode()),
+                          "balanceTransactions": digest(balance_source.encode()),
+                          "disputes": digest(disputes_source.encode())}
         self.binding = {
             "format_version": 1, "stream": "payments", "domain": domain, "shop_gid": shop_gid,
             "api_version": api_version, "extraction_id": extraction_id,
-            "query_sha256": {"tenderTransactions": digest(tender_source.encode()),
-                             "balanceTransactions": digest(balance_source.encode()),
-                             "disputes": digest(disputes_source.encode())},
+            "query_sha256": {name: source_digests[name] for name in selected},
             "plan_sha256": digest(encoded(self.operations)),
-            "scope_sha256": digest(encoded({"query": search_filter, "first": page_size})),
+            "scope_sha256": digest(encoded({"queries": self.search_filters,
+                                             "first": page_size})),
         }
         key = digest(encoded([shop_gid, extraction_id, "payments"]))
         self.prefix = f"pages/v1/payments/{key}"
@@ -150,8 +161,7 @@ class PaymentsCapture:
         after, cursors, identifiers = None, set(), set()
         while True:
             variables = {"first": self.page_size, "after": after}
-            if operation in self.filtered:
-                variables["query"] = self.search_filter
+            variables["query"] = self.search_filters[operation]
             data = self.fetch(operation, variables)
             connection = self._connection(operation, data)
             if not isinstance(connection, dict):
@@ -179,7 +189,7 @@ class PaymentsCapture:
             after = next_cursor
 
     def collect(self):
-        operations = ("tenderTransactions", "balanceTransactions", "disputes")
+        operations = tuple(self.operations)
         counts = {operation: 0 for operation in operations}
         for operation in operations:
             for _ in self.walk(operation):

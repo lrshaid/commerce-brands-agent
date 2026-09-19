@@ -17,7 +17,8 @@ _STREAM_OPERATIONS = {"tender_transactions": "tenderTransactions",
 
 
 def prepare_payments_raw(*, bucket, domain, api_version, shop_gid, extraction_id,
-                         tender_source, balance_source, disputes_source, search_filter,
+                         tender_source, balance_source, disputes_source, search_filters,
+                         operations=None,
                          ingested_at, page_size=50):
     if ingested_at.utcoffset() is None:
         raise ValueError("Timezone-aware ingestion timestamp required")
@@ -25,7 +26,8 @@ def prepare_payments_raw(*, bucket, domain, api_version, shop_gid, extraction_id
         bucket=bucket, domain=domain, token="", api_version=api_version,
         shop_gid=shop_gid, extraction_id=extraction_id, tender_source=tender_source,
         balance_source=balance_source, disputes_source=disputes_source,
-        search_filter=search_filter, page_size=page_size, read_only=True,
+        search_filters=search_filters, operations=operations,
+        page_size=page_size, read_only=True,
     )
     seal = capture.collect()
     seal_blob = bucket.get_blob(capture.prefix + "/complete.json")
@@ -39,7 +41,8 @@ def prepare_payments_raw(*, bucket, domain, api_version, shop_gid, extraction_id
     generations = [str(page.get("generation")) for page in pages]
     if any(not generation.isdigit() for generation in generations):
         raise CaptureError("Payments page generation is invalid")
-    for operation in _STREAM_OPERATIONS.values():
+    selected_operations = set(capture.operations)
+    for operation in selected_operations:
         scoped = [str(page.get("generation")) for page in pages
                   if page.get("operation") == operation]
         if len(set(scoped)) != len(scoped):
@@ -92,7 +95,8 @@ def prepare_payments_raw(*, bucket, domain, api_version, shop_gid, extraction_id
 
     return {
         "streams": {stream: stream_result(operation)
-                    for stream, operation in _STREAM_OPERATIONS.items()},
+                    for stream, operation in _STREAM_OPERATIONS.items()
+                    if operation in selected_operations},
         "counts": dict(seal.get("counts", {})),
         "raw_record_count": len(pages),
         "completion_seal": seal_file,

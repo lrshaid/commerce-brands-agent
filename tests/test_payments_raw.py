@@ -37,7 +37,11 @@ class PaymentsRawTests(unittest.TestCase):
         args = dict(bucket=bucket, domain="test.myshopify.com", api_version="2026-04",
                     shop_gid="gid://shopify/Shop/3", extraction_id="same-run",
                     tender_source=TENDER, balance_source=BALANCE, disputes_source=DISPUTES,
-                    search_filter="created_at:>=2025-01-01", page_size=2)
+                    search_filters={
+                        "tenderTransactions": "processed_at:>=2025-01-01",
+                        "balanceTransactions": "processed_at:>=2025-01-01",
+                        "disputes": "initiated_at:>=2025-01-01",
+                    }, page_size=2)
         capture = PaymentsCapture(**args, token="private-token")
         with patch.object(capture, "_http", side_effect=bodies()):
             seal = capture.collect()
@@ -79,6 +83,19 @@ class PaymentsRawTests(unittest.TestCase):
         with patch.object(PaymentsCapture, "_http", side_effect=AssertionError("No HTTP")), \
                 self.assertRaises(CaptureError):
             prepare_payments_raw(**args, ingested_at=datetime.now(timezone.utc))
+
+    def test_balance_only_replay_exposes_only_balance_raw_stream(self):
+        bucket = UniqueGenerationBucket()
+        args = dict(bucket=bucket, domain="test.myshopify.com", api_version="2026-04",
+                    shop_gid="gid://shopify/Shop/3", extraction_id="balance-only",
+                    tender_source=TENDER, balance_source=BALANCE, disputes_source=DISPUTES,
+                    search_filters={"balanceTransactions": "processed_at:>=2025-01-01"},
+                    operations=("balanceTransactions",), page_size=2)
+        capture = PaymentsCapture(**args, token="private-token")
+        with patch.object(capture, "_http", side_effect=[bodies()[2]]):
+            capture.collect()
+        prepared = prepare_payments_raw(**args, ingested_at=datetime.now(timezone.utc))
+        self.assertEqual(set(prepared["streams"]), {"balance_transactions"})
 
 
 if __name__ == "__main__":
