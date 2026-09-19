@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import re
 import sqlite3
 import tempfile
 from typing import BinaryIO, Mapping
@@ -52,9 +53,13 @@ def _convert_scalar(column, value):
             raise ValueError(f"Expected string for {column.name}")
         return value
     if column.type == "INT64":
-        if not isinstance(value, int) or isinstance(value, bool):
+        if isinstance(value, bool):
             raise ValueError(f"Expected integer for {column.name}")
-        return value
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and re.fullmatch(r"-?\d+", value):
+            return int(value)
+        raise ValueError(f"Expected integer for {column.name}")
     if column.type == "BOOL":
         if not isinstance(value, bool):
             raise ValueError(f"Expected boolean for {column.name}")
