@@ -23,8 +23,12 @@ class RefundRawPipelineTests(unittest.TestCase):
                 patch("orchestration.shopify_refunds_raw.bigquery.Client"), \
                 patch("orchestration.shopify_refunds_raw.prepare_refund_raw", return_value=prepared) as prepare, \
                 patch("orchestration.shopify_refunds_raw.initialize_tables") as initialize, \
-                patch("orchestration.shopify_refunds_raw.publish_records", return_value={"publication_job_id": "job"}) as publish:
-            self.assertEqual(len(list(shopify_refunds_raw.op.compute_fn.decorated_fn(context, config))), 2)
+                patch("orchestration.shopify_refunds_raw.publish_records", return_value={"publication_job_id": "job"}) as publish, \
+                patch("orchestration.shopify_refunds_raw.publish_stream_entity_shadow", return_value={
+                    "manifest": {"manifest": {"uri": "gs://fixture/manifest.json"}},
+                    "publication": Mock(merge_job_id="entity-merge", entity_counts={"refunds": 0}),
+                }) as entity_shadow:
+            self.assertEqual(len(list(shopify_refunds_raw.op.compute_fn.decorated_fn(context, config))), 7)
             manifest = publish.call_args.args[4]
             self.assertEqual(manifest["transport"], "shopify_bulk_and_graphql_pages_v2")
             self.assertIsNone(manifest["provider_object_count"])

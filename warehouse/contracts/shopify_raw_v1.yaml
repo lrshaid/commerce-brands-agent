@@ -172,7 +172,7 @@ streams:
 
   returns:
     query_file: queries/shopify/return_line_items_bulk.graphql
-    query_sha256: aa17624b86c76374bc1e17272c966d1c920a03905aec8dcff45082cbd7bd6911
+    query_sha256: e7b6b78af8ba49a764e1f287bcd9841eef5c2ae3bf565a7bc33a7dab397eba1f
     raw_table: returns
     graphql_schema_validation: passed
     transport: bulk_candidate_not_runtime_verified

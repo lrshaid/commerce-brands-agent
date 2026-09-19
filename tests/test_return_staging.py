@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReturnStagingContractTests(unittest.TestCase):
-    def test_compiler_emits_four_independently_paginated_operations(self):
+    def test_compiler_emits_five_independently_paginated_operations(self):
         source = (ROOT / 'queries/shopify/return_line_items_bulk.graphql').read_text()
         plan = compile_return_queries(source)
-        self.assertEqual(len(plan.documents()), 4)
+        self.assertEqual(len(plan.documents()), 5)
         for document in plan.documents():
             self.assertIn('pageInfo', document)
             self.assertIn('after:', document)

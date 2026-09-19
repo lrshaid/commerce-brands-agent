@@ -36,6 +36,7 @@ class ReturnsRawTests(unittest.TestCase):
             response("orders"),
             response("returns", ORDER, {"id": RETURN, "name": "#R2", "status": "OPEN"}),
             response("returnLineItems", RETURN),
+            response("exchangeLineItems", RETURN, {"id": "gid://shopify/ExchangeLineItem/9", "quantity": 1}),
             response("refunds", RETURN, {"id": "gid://shopify/Refund/5"}),
         ]
         with patch.object(capture, "_http", side_effect=bodies):
@@ -48,13 +49,13 @@ class ReturnsRawTests(unittest.TestCase):
         with patch.object(ReturnsCapture, "_http", side_effect=AssertionError("No HTTP")):
             prepared = prepare_returns_raw(**args, ingested_at=datetime.now(timezone.utc))
             rows = list(prepared["records"])
-        self.assertEqual(len(rows), 4)
+        self.assertEqual(len(rows), 5)
         self.assertEqual([row["record_text"].encode() for row in rows], bodies)
         self.assertTrue(all(row["payload"] == row["record_text"] for row in rows))
         self.assertTrue(all(row["record_index"] == 1 for row in rows))
-        self.assertEqual(prepared["raw_record_count"], 4)
-        self.assertEqual(prepared["counts"], {"orders": 1, "returns": 1, "returnLineItems": 1, "refunds": 1})
-        self.assertEqual(sum(file["role"] == "response_page" for file in prepared["files"]), 4)
+        self.assertEqual(prepared["raw_record_count"], 5)
+        self.assertEqual(prepared["counts"], {"orders": 1, "returns": 1, "returnLineItems": 1, "exchangeLineItems": 1, "refunds": 1})
+        self.assertEqual(sum(file["role"] == "response_page" for file in prepared["files"]), 5)
         self.assertEqual(sum(file["role"] == "completion_seal" for file in prepared["files"]), 1)
         self.assertEqual(before, {key: (obj.generation, obj.body) for key, obj in args["bucket"].objects.items()})
 

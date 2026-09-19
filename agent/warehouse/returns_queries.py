@@ -25,7 +25,7 @@ class ReturnQueryPlan:
     refunds: str
 
     def documents(self):
-        return (self.orders, self.returns, self.return_line_items, self.refunds)
+        return (self.orders, self.returns, self.return_line_items, self.exchange_line_items, self.refunds)
 
 
 def _field(selection_set, name):

@@ -128,6 +128,9 @@ def compile_inventory_queries(items_source: str, levels_source: str) -> Inventor
             pageInfo { hasNextPage endCursor } edges { node { __typename } }
           }
         }""")
+        _node(locations_doc.definitions[0].selection_set.selections[0]).selection_set = parse(
+            "{ id }"
+        ).definitions[0].selection_set
         levels_doc = parse("""query InventoryLevelsPage($id: ID!, $first: Int!, $after: String) {
           node(id: $id) { ... on Location { id
             inventoryLevels(first: $first, after: $after) {

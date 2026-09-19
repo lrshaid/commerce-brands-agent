@@ -38,7 +38,7 @@ class NewStreamPipelineTests(unittest.TestCase):
     def test_jobs_accept_their_launcher_configs(self):
         import dagster as dg
         from orchestration.definitions import defs
-        for job, ops in (("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify__balance_transactions"}),
+        for job, ops in (("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify_balance_transactions_raw"}),
                          ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
                          ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
                          ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):
@@ -70,7 +70,7 @@ class NewStreamPipelineTests(unittest.TestCase):
 
     def test_launcher_maps_new_job_capture_and_raw_assets(self):
         for job, expected_ops in (
-                ("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify__balance_transactions"}),
+                ("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify_balance_transactions_raw"}),
                 ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
                 ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
                 ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):

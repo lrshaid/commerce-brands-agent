@@ -85,7 +85,7 @@ def main():
                       "shopify_catalog_raw": {"config": config}}
     if args.job == "shopify_balance_transactions_ingestion":
         operations = {"shopify_capture__balance_transaction_pages": {"config": config},
-                      "shopify__balance_transactions": {"config": config}}
+                      "shopify_balance_transactions_raw": {"config": config}}
     if args.job == "shopify_fulfillments_ingestion":
         operations = {"shopify_capture__fulfillment_pages": {"config": config},
                       "shopify_fulfillments_raw": {"config": config}}

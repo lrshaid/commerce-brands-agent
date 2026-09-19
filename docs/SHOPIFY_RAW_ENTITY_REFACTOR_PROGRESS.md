@@ -538,3 +538,20 @@ entries about entries.
   Dagster VM restarted onto the new image digest, PostgreSQL and the code
   location reported healthy, the daemon and webserver came up without errors,
   and the code server loaded `orchestration.definitions` from the new runtime.
+
+### 2026-09-19 — from-zero shadow restart fixes
+
+- `agent/warehouse/orders_entities.py` — accepts pure numeric strings for
+  INT64 contract columns because Shopify bulk exports serialize
+  `numberOfOrders` as a string.
+- `agent/warehouse/returns_queries.py` — `documents()` includes the compiled
+  standalone exchange-line document so the capture zip binds five operations
+  to five names again.
+- `agent/warehouse/inventory_queries.py` — the compiled locations page
+  selects the location `id` instead of the bare `__typename` placeholder.
+- `infra/scripts/launch_orders_ingestion.py` — addresses the balance
+  transactions raw publisher by its multi-asset function name.
+- `tests/test_return_staging.py`, `tests/test_returns_raw.py`,
+  `tests/test_refund_raw_pipeline.py`, `tests/test_new_streams_pipeline.py`,
+  `warehouse/contracts/shopify_raw_v1.yaml` — updated the stale locks to the
+  five-operation return plan and re-pinned the returns query hash.
