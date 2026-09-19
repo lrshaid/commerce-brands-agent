@@ -296,6 +296,8 @@ entries about entries.
 - `docs/2026-09-09_payments_fulfillments_inventory.md` — updated the deployed
   architecture and names; tender transactions and disputes now require their
   own future jobs.
+- `infra/terraform/deployment.auto.tfvars` — pinned the successful renamed
+  balance-transactions runtime by immutable digest.
 - `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — recorded every file changed
   by this correction.
 
@@ -384,3 +386,11 @@ entries about entries.
   `read_shopify_payments_accounts`; focused tests passed `19/19`, the full
   Python suite passed with 416 tests, 1 skipped and 27 subtests, `dbt parse
   --no-partial-parse` passed, and `git diff --check` passed.
+- 2026-09-19: Cloud Build `db254c7a-bbed-41a8-9f87-885a9b04a900`
+  completed `SUCCESS` for commit `757162e`, producing digest
+  `sha256:5273c72e4b0512e4439d18f564597f10a93636e14940c88d60a010a3780b99dd`.
+- 2026-09-19: Terraform applied the renamed balance-transactions runtime with
+  exactly `0 added, 2 changed, 0 destroyed`; the PostgreSQL backup/startup
+  completed successfully, PostgreSQL and the code location reported healthy,
+  daemon/webserver were running, and the refreshed Dagster tunnel returned
+  HTTP 200.
