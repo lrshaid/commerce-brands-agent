@@ -394,3 +394,7 @@ entries about entries.
   completed successfully, PostgreSQL and the code location reported healthy,
   daemon/webserver were running, and the refreshed Dagster tunnel returned
   HTTP 200.
+- 2026-09-19: launched the new filtered two-day acceptance run
+  `0162add4-b0a3-40a4-9f49-cbed71f56c98` with extraction identity
+  `balance-transactions-2d-20260919-01` for the half-open window
+  `[2026-09-16T00:00:00Z, 2026-09-18T00:00:00Z)`.
