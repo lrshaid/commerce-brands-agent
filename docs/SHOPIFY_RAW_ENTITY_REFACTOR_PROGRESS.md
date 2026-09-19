@@ -529,3 +529,12 @@ entries about entries.
 - 2026-09-19: `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — corrected the
   balance-transactions permission contract from requiring both Shopify scopes
   to requiring either accepted scope, and recorded the disabled state.
+- 2026-09-19: Cloud Build `d3b8032e-bfa2-41c2-a081-eb2dca476fd4`
+  completed `SUCCESS` for commit `e3adc90` (all-family shared flatten
+  pipeline, 22-entity contract, 18h temporary-table TTL), producing digest
+  `sha256:9beaef5b50f7996bfbec45d44305a492246437beed98209e0036e21c397c883b`.
+- 2026-09-19: Terraform applied the flattened-entity runtime with exactly
+  `0 added, 2 changed, 0 destroyed` (remote state serial 102 → 105); the
+  Dagster VM restarted onto the new image digest, PostgreSQL and the code
+  location reported healthy, the daemon and webserver came up without errors,
+  and the code server loaded `orchestration.definitions` from the new runtime.
