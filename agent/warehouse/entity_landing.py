@@ -93,7 +93,7 @@ def land_entity_artifacts(bucket, artifacts, *, source_files, query_sha256,
     }
     body = (json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode()
     manifest_sha = hashlib.sha256(body).hexdigest()
-    manifest_name = (f"entities/v{artifacts.version}/manifests/shop={shop_hash}/"
+    manifest_name = (f"entities/v{artifacts.version}/manifests/{artifacts.stream}/shop={shop_hash}/"
                      f"extraction_id={safe_extraction}/manifest.json")
     manifest_ref = _upload_create_only(
         bucket, manifest_name, io.BytesIO(body), sha256=manifest_sha, size=len(body),

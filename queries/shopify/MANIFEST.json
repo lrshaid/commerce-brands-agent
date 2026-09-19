@@ -33,7 +33,7 @@
   "product_variants_bulk.graphql": "2678f780309b105b5a7d2e35939cbb7370c0a4864309d3a76a4dde1bb2fcb2ea",
   "products_bulk.graphql": "1c7ff3d95453bb1c5f59ab6dbf0b2ecee21d5ac8e8cddf59a689dbf6427586eb",
   "products_query.graphql": "d1cb6a7c3067fff666c20149e0a9613c277e606053ac1acc4c4137241794b035",
-  "return_line_items_bulk.graphql": "aa17624b86c76374bc1e17272c966d1c920a03905aec8dcff45082cbd7bd6911",
+  "return_line_items_bulk.graphql": "e7b6b78af8ba49a764e1f287bcd9841eef5c2ae3bf565a7bc33a7dab397eba1f",
   "shop_bulk.graphql": "619121e8090f7d859a9c4e5f91966cdfac4bce57fa7024523d0cc7bcf630e20b",
   "smart_collections_bulk.graphql": "dbd13af07114d2b439ef0e699e65d0fceddb9cabfbcee41b201988c9beceba57",
   "tender_transactions_bulk.graphql": "ae310791a7908b2172209ff4c1cfbed14d8a9ff072cc6cb8fab526de6784d76e"

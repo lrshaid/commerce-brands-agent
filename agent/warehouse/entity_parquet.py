@@ -121,7 +121,7 @@ def write_entity_parquet(rows, contracts: EntityContractSet, output_root,
         size_bytes=writer.path.stat().st_size,
         sha256=_sha256(writer.path),
     ) for entity, writer in writers.items())
-    manifest_folder = base / "manifests" / f"extraction_id={safe_extraction}"
+    manifest_folder = base / "manifests" / stream / f"extraction_id={safe_extraction}"
     manifest_folder.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_folder / "manifest.json"
     created_at = datetime.now(timezone.utc).isoformat()

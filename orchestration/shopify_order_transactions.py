@@ -15,6 +15,7 @@ from agent.warehouse.shopify_bulk import BulkClient, bind_orders_query
 from agent.warehouse.shopify_export import download_export, wait_for_export
 from agent.warehouse.order_transactions import validate_order_transactions_file as validate_orders_file
 from agent.warehouse.shopify_token import shopify_access_token
+from agent.warehouse.stream_entity_pipeline import publish_stream_entity_shadow
 from orchestration.shopify_orders import OrdersConfig, extraction_window
 
 QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/order_transactions_bulk.graphql"
@@ -23,6 +24,7 @@ QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/order_transa
 @dg.multi_asset(specs=[
     dg.AssetSpec(key=["shopify_order_transactions", "order_transactions"], group_name="shopify_raw"),
     dg.AssetSpec(key=["shopify_order_transactions", "ingestion_runs"], group_name="shopify_raw"),
+    dg.AssetSpec(key=["shopify_entities_shadow", "order_transactions"], group_name="shopify_raw"),
 ])
 def shopify_order_transactions(context: dg.AssetExecutionContext, config: OrdersConfig):
     start, end, search_filter = extraction_window(config)
@@ -73,10 +75,24 @@ def shopify_order_transactions(context: dg.AssetExecutionContext, config: Orders
         source.seek(0)
         publication = publish_records(bq, dataset, "order_transactions", iter_raw_records(source, identity),
                                       manifest, transport_validated=True)
-    for name in ("order_transactions", "ingestion_runs"):
-        yield dg.MaterializeResult(asset_key=["shopify_order_transactions", name], metadata={
+        def record_factory():
+            source.seek(0)
+            return iter_raw_records(source, identity)
+        entity_shadow = publish_stream_entity_shadow(
+            record_factory, bucket, bq, project + ".raw_shopify_shadow", identity,
+            stream="order_transactions", source_files=manifest["files"],
+            window_start=start, window_end=end, published_at=export.completed_at,
+        )
+    metadata = {
             "bulk_operation_id": operation_id, "root_count": export.root_count,
             "record_count": export.object_count, "transaction_count": validated["transaction_count"],
             "landing_uri": landed["uri"],
             "publication_job_id": publication["publication_job_id"],
-        })
+            "entity_manifest_uri": entity_shadow["manifest"]["manifest"]["uri"],
+            "entity_merge_job_id": entity_shadow["publication"].merge_job_id,
+            "entity_counts": entity_shadow["publication"].entity_counts,
+    }
+    for key in (["shopify_order_transactions", "order_transactions"],
+                ["shopify_order_transactions", "ingestion_runs"],
+                ["shopify_entities_shadow", "order_transactions"]):
+        yield dg.MaterializeResult(asset_key=key, metadata=metadata)

@@ -7,6 +7,9 @@ from google.cloud import bigquery, storage
 
 from agent.warehouse.payments_raw import prepare_payments_raw
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
+from agent.warehouse.raw_records import ExtractionIdentity
+from agent.warehouse.replayable_records import replayable_records
+from agent.warehouse.stream_entity_pipeline import publish_stream_entity_shadow
 from orchestration.shopify_orders import extraction_window
 from orchestration.shopify_balance_transactions import (
     BALANCE_QUERY_PATH, DISPUTES_QUERY_PATH, BalanceTransactionsConfig,
@@ -16,8 +19,10 @@ from orchestration.shopify_balance_transactions import (
 STREAM = "balance_transactions"
 
 
-@dg.asset(key=["shopify", "balance_transactions"],
-          deps=[["shopify_capture", "balance_transaction_pages"]], group_name="shopify_raw")
+@dg.multi_asset(specs=[
+    dg.AssetSpec(key=["shopify", "balance_transactions"], deps=[["shopify_capture", "balance_transaction_pages"]], group_name="shopify_raw"),
+    dg.AssetSpec(key=["shopify_entities_shadow", "balance_transactions"], deps=[["shopify_capture", "balance_transaction_pages"]], group_name="shopify_raw"),
+])
 def shopify_balance_transactions_raw(context: dg.AssetExecutionContext,
                                      config: BalanceTransactionsConfig):
     start, end, _ = extraction_window(config)
@@ -54,10 +59,25 @@ def shopify_balance_transactions_raw(context: dg.AssetExecutionContext,
         code_revision=os.environ.get("CODE_VERSION", "unknown"))
     dataset = project + ".raw_shopify"
     initialize_tables(bq, dataset, STREAM)
-    publication = publish_records(bq, dataset, STREAM, result["records"], manifest,
-                                  transport_validated=True)
-    return dg.MaterializeResult(metadata={
+    identity = ExtractionIdentity(config.expected_shop_gid, config.extraction_id, "entity",
+        result["query_sha256"], result["request_sha256"], os.environ["SHOPIFY_API_VERSION"], now)
+    with replayable_records(result["records"]) as (record_factory, record_count):
+        if record_count != result["raw_record_count"]:
+            raise ValueError("Balance transaction replay count changed before publication")
+        publication = publish_records(bq, dataset, STREAM, record_factory(), manifest,
+                                      transport_validated=True)
+        entity_shadow = publish_stream_entity_shadow(record_factory,
+            storage.Client(project=project).bucket(project + "-landing"), bq,
+            project + ".raw_shopify_shadow", identity, stream=STREAM,
+            source_files=result["files"], window_start=start, window_end=end,
+            published_at=result["completed_at"])
+    metadata = {
         "raw_pages": result["raw_record_count"],
         "publication_job_id": publication["publication_job_id"],
         "extraction_id": config.extraction_id,
-    })
+        "entity_manifest_uri": entity_shadow["manifest"]["manifest"]["uri"],
+        "entity_merge_job_id": entity_shadow["publication"].merge_job_id,
+        "entity_counts": entity_shadow["publication"].entity_counts,
+    }
+    for key in (["shopify", STREAM], ["shopify_entities_shadow", STREAM]):
+        yield dg.MaterializeResult(asset_key=key, metadata=metadata)

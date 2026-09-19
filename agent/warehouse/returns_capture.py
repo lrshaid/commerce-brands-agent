@@ -30,7 +30,7 @@ class ReturnsCapture:
         gid(shop_gid, "Shop")
         self.read_only = read_only
         self.bucket, self.domain, self._token = bucket, domain, token.strip()
-        self.operations = dict(zip(("orders", "returns", "returnLineItems", "refunds"),
+        self.operations = dict(zip(("orders", "returns", "returnLineItems", "exchangeLineItems", "refunds"),
                                    compile_return_queries(query_source).documents()))
         self.binding = {"format_version": 1, "stream": "returns", "domain": domain,
                         "shop_gid": shop_gid, "api_version": api_version,
@@ -194,7 +194,7 @@ class ReturnsCapture:
             return state
         if self.read_only:
             raise CaptureError("Missing or conflicting read-only capture binding")
-        counts = {k: 0 for k in ("orders", "returns", "returnLineItems", "refunds")}
+        counts = {k: 0 for k in ("orders", "returns", "returnLineItems", "exchangeLineItems", "refunds")}
         # A Return may be linked to many things downstream, but it must have one
         # owning Order within this extraction.  ``walk`` deliberately scopes its
         # duplicate detector to one connection, so enforce this cross-order
@@ -223,6 +223,7 @@ class ReturnsCapture:
                     raise CaptureError("Return is linked to multiple orders in one extraction")
                 counts["returns"] += 1
                 counts["returnLineItems"] += sum(1 for _ in self.walk("returnLineItems", return_id))
+                counts["exchangeLineItems"] += sum(1 for _ in self.walk("exchangeLineItems", return_id))
                 counts["refunds"] += sum(1 for _ in self.walk("refunds", return_id))
             completed.add(order_id)
             page_meta.update(self._fresh_page_meta())

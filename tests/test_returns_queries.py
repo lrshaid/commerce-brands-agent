@@ -10,19 +10,20 @@ SOURCE = (Path(__file__).resolve().parents[1] / "queries/shopify/return_line_ite
 
 
 class ReturnQueryTests(unittest.TestCase):
-    def test_compiles_four_independent_connections(self):
+    def test_compiles_five_independent_connections(self):
         plan = compile_return_queries(SOURCE)
         docs = [parse(d) for d in plan.documents()]
-        self.assertEqual(len(docs), 4)
+        self.assertEqual(len(docs), 5)
         for doc in docs:
             self.assertEqual(doc.definitions[0].operation.value, "query")
-        for doc, connection, typename in zip(docs[1:], ("returns", "returnLineItems", "refunds"), ("Order", "Return", "Return")):
+        for doc, connection, typename in zip(docs[1:], ("returns", "returnLineItems", "exchangeLineItems", "refunds"), ("Order", "Return", "Return", "Return")):
             node = _field(doc.definitions[0].selection_set, "node")
             fragment = next(s for s in node.selection_set.selections
                             if getattr(s, "type_condition", None).name.value == typename)
             fragment = fragment.selection_set
             conn = _field(fragment, connection)
-            self.assertEqual({a.name.value for a in conn.arguments}, {"first", "after"})
+            expected_args = {"first", "after", "includeRemovedItems"} if connection == "exchangeLineItems" else {"first", "after"}
+            self.assertEqual({a.name.value for a in conn.arguments}, expected_args)
             self.assertEqual({f.name.value for f in _field(conn.selection_set, "pageInfo").selection_set.selections},
                              {"hasNextPage", "endCursor"})
 

@@ -6,7 +6,7 @@ import json
 import pyarrow.parquet as pq
 import pytest
 
-from agent.warehouse.entity_contract import load_entity_contract
+from agent.warehouse.entity_contract import contracts_for_stream, load_entity_contract
 from agent.warehouse.entity_parquet import write_entity_parquet
 from agent.warehouse.orders_entities import iter_order_entities
 from agent.warehouse.raw_records import ExtractionIdentity
@@ -67,7 +67,7 @@ def _payload():
 
 
 def _rows(payload=None):
-    contracts = load_entity_contract()
+    contracts = contracts_for_stream(load_entity_contract(), "orders")
     rows = list(iter_order_entities(
         io.BytesIO(payload or _payload()), _identity(), NOW, contracts.entities
     ))

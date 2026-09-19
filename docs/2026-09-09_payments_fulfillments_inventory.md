@@ -8,6 +8,14 @@ unverified against the live Admin API 2026-04.
 
 ## Balance transactions
 
+- Status: **disabled**. Two-day acceptance run
+  `0162add4-b0a3-40a4-9f49-cbed71f56c98` (Cloud Run execution
+  `dagster-worker-28prc`) failed on its first GraphQL response, before raw or
+  canonical publication. Shopify returned `Access denied for
+  shopifyPaymentsAccount`; the connected app needs either
+  `read_shopify_payments` or `read_shopify_payments_accounts`. Keep the job
+  unscheduled until one of those scopes is granted and a new live acceptance
+  run passes.
 - Query: `balance_transactions_bulk.graphql`. The compiler adds
   first/after/pageInfo transport and keeps `query: $query` with
   `sortKey: PROCESSED_AT`.
@@ -19,6 +27,9 @@ unverified against the live Admin API 2026-04.
   `shopify/balance_transactions`.
 - Job: `shopify_balance_transactions_ingestion` →
   `infra/scripts/launch_orders_ingestion.py --job shopify_balance_transactions_ingestion --extraction-id … --expected-shop-gid … --window-start … --window-end …`.
+- The implementation remains available for an explicit acceptance retry after
+  the permission change; disabled here means blocked and unscheduled, matching
+  fulfillment orders.
 - Tender transactions and disputes are no longer captured as side effects of
   the balance-transactions job. They require their own explicit jobs before
   being scheduled.
@@ -46,8 +57,17 @@ unverified against the live Admin API 2026-04.
   `shopify/{fulfillment_orders,fulfillment_order_line_items}`.
 - Job: `shopify_fulfillment_orders_ingestion`.
 - The root API filters results according to the app's merchant-managed,
-  assigned, and third-party fulfillment-order scopes. Live scope coverage and
-  acceptance remain required before scheduling.
+  assigned, third-party and marketplace fulfillment-order scopes. Two-day
+  acceptance run `38e630f4-0a3a-4b67-aa9a-02cbbc0be4c6` (Cloud Run execution
+  `dagster-worker-swq5z`) failed on its first GraphQL request with
+  `Captured fulfillment-orders response is incomplete`, before raw publication.
+  The connected Shopify app has not been verified with any of the required
+  `read_assigned_fulfillment_orders`,
+  `read_merchant_managed_fulfillment_orders`,
+  `read_third_party_fulfillment_orders` or
+  `read_marketplace_fulfillment_orders` scopes. Treat the pipeline as blocked
+  on Shopify app permissions and leave it unscheduled until those scopes are
+  granted and a new live acceptance run passes.
 - Raw table: `fulfillments` (+ `shopify_fulfillments/ingestion_runs` asset).
 - Staging: `stg_shopify__fulfillments` (macro `shopify_fulfillment_pages.sql`).
 - Assets: `shopify_capture/fulfillment_pages`, `shopify/fulfillments`.

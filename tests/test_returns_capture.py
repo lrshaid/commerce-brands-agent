@@ -85,6 +85,7 @@ def pages(empty_orders=False, duplicate=False):
     for oid, rid in ((order1, ret1), (order2, ret2)):
         out[("returns", oid, None)] = response({"node": {"id": oid, "returns": conn([{"id": rid}], False, None)}})
         out[("returnLineItems", rid, None)] = response({"node": {"id": rid, "returnLineItems": conn([{"id": rid + "/line/1", "quantity": 1}], False, None)}})
+        out[("exchangeLineItems", rid, None)] = response({"node": {"id": rid, "exchangeLineItems": conn([], False, None)}})
         out[("refunds", rid, None)] = response({"node": {"id": rid, "refunds": conn([{"id": rid + "/refund/1"}], False, None)}})
     if duplicate:
         out[("orders", None, "o1")] = response({"orders": conn([{"id": order1}], False, None)})
@@ -103,12 +104,12 @@ class ReturnsCaptureTests(unittest.TestCase):
         capture = make()
         seal = capture.collect()
         self.assertEqual(seal["status"], "captured")
-        self.assertEqual(seal["counts"], {"orders": 2, "returns": 2, "returnLineItems": 2, "refunds": 2})
-        self.assertEqual({p["operation"] for p in seal["pages"]}, {"orders", "returns", "returnLineItems", "refunds"})
+        self.assertEqual(seal["counts"], {"orders": 2, "returns": 2, "returnLineItems": 2, "exchangeLineItems": 0, "refunds": 2})
+        self.assertEqual({p["operation"] for p in seal["pages"]}, {"orders", "returns", "returnLineItems", "exchangeLineItems", "refunds"})
 
     def test_empty_orders_is_valid(self):
         capture = make(pages(empty_orders=True))
-        self.assertEqual(capture.collect()["counts"], {"orders": 0, "returns": 0, "returnLineItems": 0, "refunds": 0})
+        self.assertEqual(capture.collect()["counts"], {"orders": 0, "returns": 0, "returnLineItems": 0, "exchangeLineItems": 0, "refunds": 0})
 
     def test_owner_mismatch_missing_page_malformed_and_duplicate_fail_closed(self):
         base = pages()

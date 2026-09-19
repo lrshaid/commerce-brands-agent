@@ -21,6 +21,7 @@ class ReturnQueryPlan:
     orders: str
     returns: str
     return_line_items: str
+    exchange_line_items: str
     refunds: str
 
     def documents(self):
@@ -99,18 +100,27 @@ def compile_return_queries(source: str) -> ReturnQueryPlan:
         _source_connection_args(returns)
         return_node = _node(returns)
         allowed_return = {"id", "name", "status", "totalQuantity", "closedAt", "requestApprovedAt",
-                          "returnLineItems", "refunds"}
+                          "returnLineItems", "exchangeLineItems", "refunds"}
         if any(not isinstance(s, FieldNode) or s.name.value not in allowed_return
                or s.alias or s.directives for s in return_node.selection_set.selections):
             raise ReturnProjectionError("Return projection changed; review transport split")
         _field(return_node.selection_set, "id")
         line_items = _field(return_node.selection_set, "returnLineItems")
+        exchange_items = _field(return_node.selection_set, "exchangeLineItems")
         refunds = _field(return_node.selection_set, "refunds")
-        if line_items.directives or refunds.directives:
+        if line_items.directives or exchange_items.directives or refunds.directives:
             raise ReturnProjectionError("Nested connections must not carry directives")
         _source_connection_args(line_items)
+        exchange_arguments = {argument.name.value for argument in exchange_items.arguments}
+        if exchange_arguments != {"first", "includeRemovedItems"}:
+            raise ReturnProjectionError("Exchange lines require first and includeRemovedItems")
+        include_removed = next(argument.value for argument in exchange_items.arguments
+                               if argument.name.value == "includeRemovedItems")
+        if getattr(include_removed, "value", None) is not True:
+            raise ReturnProjectionError("Exchange lines must include removed items")
         _source_connection_args(refunds)
         line_node = _node(line_items)
+        exchange_node = _node(exchange_items)
         refund_node = _node(refunds)
         # ReturnLineItemType lost lineItem/subtotalSet/totalTaxSet in API 2026-04;
         # the original-line link comes from fulfillmentLineItem.lineItem and the
@@ -148,6 +158,9 @@ def compile_return_queries(source: str) -> ReturnQueryPlan:
             print_ast(order_doc),
             print_ast(returns_doc),
             _page_document("Return", "returnLineItems", line_node.selection_set, "Return"),
+            _page_document("Return", "exchangeLineItems", exchange_node.selection_set, "Return")
+                .replace("exchangeLineItems(first: $first, after: $after)",
+                         "exchangeLineItems(first: $first, after: $after, includeRemovedItems: true)"),
             _page_document("Return", "refunds", refund_node.selection_set, "Return"),
         )
     except ReturnProjectionError:

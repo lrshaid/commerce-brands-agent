@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from agent.warehouse.entity_contract import load_entity_contract
+from agent.warehouse.entity_contract import contracts_for_stream, load_entity_contract
 from agent.warehouse.entity_landing import land_entity_artifacts
 from agent.warehouse.entity_parquet import EntityArtifact, EntityBatchArtifacts
 from agent.warehouse.entity_publication import (
@@ -18,6 +18,10 @@ from tests.test_raw_landing import Bucket
 
 
 NOW = datetime(2026, 9, 17, tzinfo=timezone.utc)
+
+
+def _contracts():
+    return contracts_for_stream(load_entity_contract(), "orders")
 
 
 class Job:
@@ -80,7 +84,7 @@ def _manifest(contracts):
 
 
 def test_contract_drives_arrow_temp_and_target_json_types():
-    contracts = load_entity_contract()
+    contracts = _contracts()
     order = contracts.entities["orders"]
     assert order.key == ("shop_key", "order_gid")
     assert "extracted_at" not in order.arrow_schema().names
@@ -110,7 +114,7 @@ def test_schema_signature_normalizes_bigquery_type_aliases():
 
 
 def test_merge_sql_updates_all_fields_inserts_and_never_deletes():
-    contracts = load_entity_contract()
+    contracts = _contracts()
     stages = {entity: f"_entity_{entity}_{'a' * 32}" for entity in contracts.entities}
     sql = entity_batch_merge_sql("commerce-agents-dev.raw_shopify_shadow", contracts, stages)
     assert "BEGIN TRANSACTION" in sql and sql.rstrip().endswith("COMMIT TRANSACTION;")
@@ -125,7 +129,7 @@ def test_merge_sql_updates_all_fields_inserts_and_never_deletes():
 
 
 def test_publication_loads_every_exact_uri_merges_then_cleans_stages():
-    contracts = load_entity_contract()
+    contracts = _contracts()
     client = Client()
     result = publish_entity_batch(
         client, "commerce-agents-dev.raw_shopify_shadow", _manifest(contracts), contracts
@@ -146,7 +150,7 @@ def test_publication_loads_every_exact_uri_merges_then_cleans_stages():
 
 
 def test_publication_failure_never_merges_and_still_cleans_every_stage():
-    contracts = load_entity_contract()
+    contracts = _contracts()
     client = Client(load_error=RuntimeError("load failed"))
     with pytest.raises(RuntimeError, match="load failed"):
         publish_entity_batch(
@@ -157,7 +161,7 @@ def test_publication_failure_never_merges_and_still_cleans_every_stage():
 
 
 def test_publication_rejects_naive_manifest_windows_before_merge():
-    contracts = load_entity_contract()
+    contracts = _contracts()
     manifest = _manifest(contracts)
     manifest["window_start"] = "2026-09-10T00:00:00"
     client = Client()
@@ -173,7 +177,7 @@ def test_entity_landing_is_create_only_and_seals_manifest(tmp_path):
     path = tmp_path / "part-00000.parquet"
     path.write_bytes(body)
     digest = hashlib.sha256(body).hexdigest()
-    contracts = load_entity_contract()
+    contracts = _contracts()
     files = tuple(EntityArtifact(entity, str(path), 1, len(body), digest)
                   for entity in contracts.entities)
     artifacts = EntityBatchArtifacts(

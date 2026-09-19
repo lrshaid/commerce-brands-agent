@@ -20,6 +20,119 @@ entries about entries.
 
 ## Change ledger
 
+### 2026-09-19 — stream-scoped entity publication
+
+- `agent/warehouse/entity_contract.py` — added source-stream contract selection
+  so each Shopify pipeline stages and merges only the entities it owns.
+- `agent/warehouse/entity_parquet.py` — namespaced local immutable manifests by
+  stream, preventing extraction-ID collisions across ingestion families.
+- `agent/warehouse/entity_landing.py` — namespaced landed GCS manifests by
+  stream for the same cross-family collision guarantee.
+- `agent/warehouse/orders_entity_pipeline.py` — selected the orders-owned
+  contract subset explicitly after the shared contract became multi-family.
+- `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — recorded the start of the
+  all-Shopify-family flatten/MERGE implementation.
+
+### 2026-09-19 — shared flatten pipeline
+
+- `agent/warehouse/replayable_records.py` — added a disk-backed replay adapter
+  so one validated capture can feed the immutable transport publisher and the
+  canonical entity writer without holding the extraction in memory.
+- `agent/warehouse/shopify_entities.py` — added stream-aware flattening for
+  order transactions, refunds, returns, catalog, payments, fulfillments,
+  fulfillment orders and inventory, including disk-backed duplicate-key checks.
+- `agent/warehouse/stream_entity_pipeline.py` — composed the shared contracted
+  flatten, streaming Parquet, immutable landing and atomic BigQuery MERGE path.
+
+### 2026-09-19 — all-family executable entity contract
+
+- `warehouse/contracts/shopify_entities_v1.yaml` — expanded the executable
+  contract from the three-entity orders pilot to 22 current-state Shopify
+  entities across orders, transactions, refunds, returns, catalog, payments,
+  fulfillments, fulfillment orders and inventory, preserving current dbt fields
+  and shop-scoped merge keys.
+
+### 2026-09-19 — transactions, refunds and returns dual-write
+
+- `orchestration/shopify_order_transactions.py` — flattened the accepted Bulk
+  orders payload into canonical transaction Parquet and merged by Shopify
+  transaction GID after transport publication.
+- `orchestration/shopify_refunds_raw.py` — added disk-backed replay and one
+  atomic five-table canonical refund-family MERGE.
+- `orchestration/shopify_returns_raw.py` — added disk-backed replay and one
+  atomic canonical returns/return-lines MERGE.
+
+### 2026-09-19 — catalog, balance and fulfillments dual-write
+
+- `orchestration/shopify_catalog_raw.py` — added canonical customer, product
+  and variant Parquet/MERGE publication after each accepted raw stream.
+- `orchestration/shopify_balance_transactions_raw.py` — added canonical
+  balance-transaction publication keyed by Shopify balance transaction GID.
+- `orchestration/shopify_fulfillments_raw.py` — added canonical fulfillment
+  publication keyed by Shopify fulfillment GID.
+
+### 2026-09-19 — fulfillment-orders and inventory dual-write
+
+- `orchestration/shopify_fulfillment_orders_raw.py` — added separate canonical
+  MERGEs for fulfillment orders and fulfillment-order lines.
+- `orchestration/shopify_inventory_raw.py` — added canonical inventory-item and
+  inventory-level/quantity MERGEs using the accepted composite level grain.
+
+### 2026-09-19 — return exchange-line ownership
+
+- `queries/shopify/return_line_items_bulk.graphql` — added exchange-line fields
+  to the standalone Return projection, including removed items.
+- `agent/warehouse/returns_queries.py` — compiled exchange lines into their own
+  independently paginated Return connection.
+- `agent/warehouse/returns_capture.py` — captured and counted every exchange
+  line page under the owning Return.
+- `agent/warehouse/shopify_entities.py` — assembled paginated exchange lines
+  back onto the canonical Return row without creating another raw table.
+- `queries/shopify/MANIFEST.json` — pinned the reviewed Return projection hash.
+- `tests/test_returns_capture.py` — extended capture fixtures and count checks
+  to the exchange-line connection.
+- `tests/test_returns_queries.py` — locked five independently paginated Return
+  documents and the include-removed-items argument.
+
+### 2026-09-19 — all-entity dbt contracts and unit coverage
+
+- `dbt/models/staging/shopify_shadow/schema.yml` — expanded shadow sources,
+  enforced output types, required-field tests and shop-scoped uniqueness tests
+  to all 22 canonical tables.
+- `dbt/models/staging/shopify_shadow/stg_shopify_shadow__orders.sql`,
+  `stg_shopify_shadow__order_line_items.sql`,
+  `stg_shopify_shadow__order_shipping_lines.sql`,
+  `stg_shopify_shadow__order_transactions.sql`,
+  `stg_shopify_shadow__refunds.sql`,
+  `stg_shopify_shadow__refund_line_items.sql`,
+  `stg_shopify_shadow__refund_transactions.sql`,
+  `stg_shopify_shadow__refund_shipping_lines.sql`,
+  `stg_shopify_shadow__refund_order_adjustments.sql`,
+  `stg_shopify_shadow__returns.sql`,
+  `stg_shopify_shadow__return_line_items.sql`,
+  `stg_shopify_shadow__customers.sql`, `stg_shopify_shadow__products.sql`,
+  `stg_shopify_shadow__variants.sql`,
+  `stg_shopify_shadow__tender_transactions.sql`,
+  `stg_shopify_shadow__balance_transactions.sql`,
+  `stg_shopify_shadow__disputes.sql`, `stg_shopify_shadow__fulfillments.sql`,
+  `stg_shopify_shadow__fulfillment_orders.sql`,
+  `stg_shopify_shadow__fulfillment_order_line_items.sql`,
+  `stg_shopify_shadow__inventory_items.sql` and
+  `stg_shopify_shadow__inventory_levels.sql` — generated thin contracted views
+  over the canonical current-state tables.
+- `tests/test_orders_entities.py` and `tests/test_entity_publication.py` — scoped
+  the original orders-pilot tests to the orders-owned contract subset.
+- `tests/test_shopify_entities.py` — added flatten-path coverage for transaction,
+  catalog, payments, fulfillment, inventory, refund ownership and nested Return
+  exchange-line assembly.
+
+### 2026-09-19 — complete shadow surface initialization
+
+- `agent/warehouse/orders_entity_pipeline.py` and
+  `agent/warehouse/stream_entity_pipeline.py` — initialize and schema-check all
+  22 target tables before merging the current stream subset, keeping the shared
+  dbt shadow build runnable even when one family is the first to land.
+
 ### 2026-09-17 — bootstrap
 
 - `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — created the required progress
@@ -382,7 +495,7 @@ entries about entries.
   Shopify Admin GraphQL 2026-04 documents `processed_at` as a
   `balanceTransactions` search filter and `PROCESSED_AT` as its default sort.
 - 2026-09-19: the revised balance query validated successfully against the
-  Shopify Admin GraphQL schema and requires `read_shopify_payments` plus
+  Shopify Admin GraphQL schema and requires either `read_shopify_payments` or
   `read_shopify_payments_accounts`; focused tests passed `19/19`, the full
   Python suite passed with 416 tests, 1 skipped and 27 subtests, `dbt parse
   --no-partial-parse` passed, and `git diff --check` passed.
@@ -398,3 +511,21 @@ entries about entries.
   `0162add4-b0a3-40a4-9f49-cbed71f56c98` with extraction identity
   `balance-transactions-2d-20260919-01` for the half-open window
   `[2026-09-16T00:00:00Z, 2026-09-18T00:00:00Z)`.
+- 2026-09-19: documented the fulfillment-orders permission blocker in
+  `docs/2026-09-09_payments_fulfillments_inventory.md`. Two-day run
+  `38e630f4-0a3a-4b67-aa9a-02cbbc0be4c6` / Cloud Run execution
+  `dagster-worker-swq5z` failed on its first GraphQL response before raw
+  publication. The app still needs a verified fulfillment-order read scope;
+  the pipeline remains unchanged and unscheduled for now.
+- 2026-09-19: `docs/2026-09-09_payments_fulfillments_inventory.md` — marked
+  Balance Transactions disabled after two-day run
+  `0162add4-b0a3-40a4-9f49-cbed71f56c98` / Cloud Run execution
+  `dagster-worker-28prc` failed on its first GraphQL response. Shopify denied
+  `shopifyPaymentsAccount` because the connected app has neither
+  `read_shopify_payments` nor `read_shopify_payments_accounts`; no raw or
+  canonical publication ran. The implementation remains available for a future
+  acceptance retry, but the pipeline stays blocked and unscheduled like
+  fulfillment orders.
+- 2026-09-19: `docs/SHOPIFY_RAW_ENTITY_REFACTOR_PROGRESS.md` — corrected the
+  balance-transactions permission contract from requiring both Shopify scopes
+  to requiring either accepted scope, and recorded the disabled state.

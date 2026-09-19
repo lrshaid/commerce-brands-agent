@@ -92,6 +92,22 @@ class EntityContractSet:
     temporary_table_ttl_hours: int
 
 
+def contracts_for_stream(contracts: EntityContractSet, stream: str):
+    """Return the exact entity subset owned by one ingestion stream."""
+    selected = {
+        name: contract for name, contract in contracts.entities.items()
+        if contract.source_stream == stream
+    }
+    if not selected:
+        raise ValueError(f"Entity contract has no entities for stream: {stream}")
+    return EntityContractSet(
+        version=contracts.version,
+        digest=contracts.digest,
+        entities=selected,
+        temporary_table_ttl_hours=contracts.temporary_table_ttl_hours,
+    )
+
+
 def _column(name, document):
     if not _IDENTIFIER.fullmatch(name) or not isinstance(document, dict):
         raise ValueError(f"Invalid entity column contract: {name}")

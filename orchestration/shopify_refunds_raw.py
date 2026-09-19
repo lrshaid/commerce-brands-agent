@@ -10,6 +10,9 @@ from google.cloud import bigquery, storage
 
 from agent.warehouse.refund_raw_v2 import prepare_refund_raw_v2 as prepare_refund_raw
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
+from agent.warehouse.raw_records import ExtractionIdentity
+from agent.warehouse.replayable_records import replayable_records
+from agent.warehouse.stream_entity_pipeline import publish_stream_entity_shadow
 from orchestration.shopify_orders import OrdersConfig, extraction_window
 
 QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/order_refunds_bulk.graphql"
@@ -18,6 +21,8 @@ QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/order_refund
 @dg.multi_asset(specs=[
     dg.AssetSpec(key=["shopify", "order_refunds"], deps=[["shopify_capture", "refund_pages"]], group_name="shopify_raw"),
     dg.AssetSpec(key=["shopify_refunds", "ingestion_runs"], deps=[["shopify_capture", "refund_pages"]], group_name="shopify_raw"),
+    *[dg.AssetSpec(key=["shopify_entities_shadow", name], deps=[["shopify_capture", "refund_pages"]], group_name="shopify_raw")
+      for name in ("refunds", "refund_line_items", "refund_transactions", "refund_shipping_lines", "refund_order_adjustments")],
 ])
 def shopify_refunds_raw(context: dg.AssetExecutionContext, config: RefundsConfig):
     start, end, search_filter = extraction_window(config)
@@ -47,9 +52,26 @@ def shopify_refunds_raw(context: dg.AssetExecutionContext, config: RefundsConfig
     bq = bigquery.Client(project=project, location=os.environ.get("GOOGLE_CLOUD_REGION", "us-central1"))
     dataset = project + ".raw_shopify"
     initialize_tables(bq, dataset, "order_refunds")
-    publication = publish_records(bq, dataset, "order_refunds", prepared["records"], manifest,
-                                  transport_validated=True)
-    for key in (["shopify", "order_refunds"], ["shopify_refunds", "ingestion_runs"]):
-        yield dg.MaterializeResult(asset_key=key, metadata={"raw_pages": prepared["raw_record_count"],
+    identity = ExtractionIdentity(config.expected_shop_gid, config.extraction_id, "entity",
+        prepared["query_sha256"], prepared["request_sha256"], os.environ["SHOPIFY_API_VERSION"], now)
+    with replayable_records(prepared["records"]) as (record_factory, record_count):
+        if record_count != prepared["raw_record_count"]:
+            raise ValueError("Refund replay count changed before publication")
+        publication = publish_records(bq, dataset, "order_refunds", record_factory(), manifest,
+                                      transport_validated=True)
+        entity_shadow = publish_stream_entity_shadow(record_factory,
+            storage.Client(project=project).bucket(project + "-landing"), bq,
+            project + ".raw_shopify_shadow", identity, stream="order_refunds",
+            source_files=prepared["files"], window_start=start, window_end=end,
+            published_at=prepared["completed_at"])
+    metadata = {"raw_pages": prepared["raw_record_count"],
             "orders": prepared["counts"]["orders"], "refunds": prepared["counts"]["refunds"],
-            "publication_job_id": publication["publication_job_id"], "extraction_id": config.extraction_id})
+            "publication_job_id": publication["publication_job_id"], "extraction_id": config.extraction_id,
+            "entity_manifest_uri": entity_shadow["manifest"]["manifest"]["uri"],
+            "entity_merge_job_id": entity_shadow["publication"].merge_job_id,
+            "entity_counts": entity_shadow["publication"].entity_counts}
+    keys = (["shopify", "order_refunds"], ["shopify_refunds", "ingestion_runs"])
+    keys += tuple(["shopify_entities_shadow", name] for name in
+                  ("refunds", "refund_line_items", "refund_transactions", "refund_shipping_lines", "refund_order_adjustments"))
+    for key in keys:
+        yield dg.MaterializeResult(asset_key=key, metadata=metadata)
