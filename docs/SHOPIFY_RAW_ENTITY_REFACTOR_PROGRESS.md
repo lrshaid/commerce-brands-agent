@@ -555,3 +555,27 @@ entries about entries.
   `tests/test_refund_raw_pipeline.py`, `tests/test_new_streams_pipeline.py`,
   `warehouse/contracts/shopify_raw_v1.yaml` — updated the stale locks to the
   five-operation return plan and re-pinned the returns query hash.
+- 2026-09-19: full Python suite passed with 416 tests, 1 skipped and 27
+  subtests after the from-zero restart fixes; `git diff --check` passed.
+- 2026-09-19: Cloud Build `d10e72aa-4be5-4fce-984c-3bc52abfaef2`
+  completed `SUCCESS` for commit `c9258a3`, producing digest
+  `sha256:9278e20fc2f6209e3fc85ce156e29e48a20f0b87fd3aa707104de11c0bbc8628`.
+- 2026-09-19: Terraform applied the entity-fixes runtime with exactly
+  `0 added, 2 changed, 0 destroyed`; the Dagster VM restarted onto the new
+  digest and all four containers reported healthy with no daemon errors.
+- 2026-09-19: after deleting every `raw_shopify_shadow` table (from-zero
+  restart), the seven unblocked two-day acceptance runs all completed
+  `SUCCESS` on the fixed runtime: orders
+  (`e4c89646-49d3-45e9-ab1b-c4d515625d55`, PASS), refunds
+  (`9946d01b-c49b-401f-a22c-6156672ea7f1`, PASS), returns
+  (`729acfb8-5e3b-4a40-9227-69edddf932a6`, PASS), catalog
+  (`02fa7799-34bf-4d73-a7af-7ac72804955c`, PASS after retry
+  `catalog-entity-2d-20260919-02`), order transactions
+  (`f499fbd1-028f-4d9b-8a36-b9e56134c5a2`, PASS), fulfillments
+  (`e27b17c4-6c79-4dc6-8362-2125dee9dcb9`, PASS) and inventory
+  (`3fd4e9b1-21b7-48b1-828a-f46c15287c1f`, PASS after retry
+  `inventory-entity-2d-20260919-02`). All 22 canonical tables initialized;
+  the two-day windows populated orders 127, line items 151, shipping lines
+  114, transactions 187, refunds family 6/6/6/2/0, customers 168, products
+  158, variants 169, fulfillments 102 and inventory levels 340 with no
+  stale-key rejections.
