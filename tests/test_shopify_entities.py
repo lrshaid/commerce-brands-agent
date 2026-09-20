@@ -82,3 +82,20 @@ def test_returns_assemble_exchange_lines_on_owner():
                        files, NOW))
     assert fact[0] == "returns"
     assert fact[1]["exchangeLineItems"]["nodes"][0]["id"] == "x1"
+
+
+def test_metafield_pages_flatten_to_metafield_grain():
+    page = {"data": {"node": {"metafields": {"nodes": [
+        {"id": "gid://shopify/Metafield/9", "namespace": "facts", "key": "k",
+         "value": "v", "type": "single_line_text_field", "updatedAt": NOW.isoformat()}
+    ]}}}}
+    for stream, operation, entity, owner_gid in (
+            ("metafield_orders", "orderMetafields", "order_metafields", "o1"),
+            ("metafield_products", "productMetafields", "product_metafields", "p1"),
+            ("metafield_product_variants", "variantMetafields", "variant_metafields", "v1")):
+        fact = next(_facts(stream, _factory(_record(page)),
+                           [_file(operation, owner=owner_gid)], NOW))
+        assert fact[0] == entity
+        assert fact[1]["id"] == "gid://shopify/Metafield/9"
+        assert fact[2]["owner_gid"] == owner_gid
+        assert fact[2]["source_updated_at"] == NOW.isoformat()

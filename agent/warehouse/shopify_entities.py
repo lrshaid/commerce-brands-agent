@@ -135,6 +135,24 @@ def _facts(stream, record_factory, files, published_at):
             owner = _at(meta, "variables", "id")
             for node in _nodes(_at(body, "data", "node", "variants")):
                 yield "variants", node, {"product_gid": owner, "source_updated_at": stamp}
+        elif stream == "metafield_orders" and operation == "orderMetafields":
+            for node in _nodes(_at(body, "data", "node", "metafields")):
+                yield "order_metafields", node, {
+                    "owner_gid": _at(meta, "variables", "id"),
+                    "source_updated_at": _iso(node.get("updatedAt"), stamp),
+                }
+        elif stream == "metafield_products" and operation == "productMetafields":
+            for node in _nodes(_at(body, "data", "node", "metafields")):
+                yield "product_metafields", node, {
+                    "owner_gid": _at(meta, "variables", "id"),
+                    "source_updated_at": _iso(node.get("updatedAt"), stamp),
+                }
+        elif stream == "metafield_product_variants" and operation == "variantMetafields":
+            for node in _nodes(_at(body, "data", "node", "metafields")):
+                yield "variant_metafields", node, {
+                    "owner_gid": _at(meta, "variables", "id"),
+                    "source_updated_at": _iso(node.get("updatedAt"), stamp),
+                }
         elif stream in ("tender_transactions", "balance_transactions", "disputes"):
             paths = {
                 "tender_transactions": ("data", "tenderTransactions"),

@@ -579,3 +579,35 @@ entries about entries.
   114, transactions 187, refunds family 6/6/6/2/0, customers 168, products
   158, variants 169, fulfillments 102 and inventory levels 340 with no
   stale-key rejections.
+
+### 2026-09-19 — metafields stream family
+
+- `queries/shopify/metafield_orders_bulk.graphql`,
+  `metafield_products_bulk.graphql` and
+  `metafield_product_variants_bulk.graphql` — rewritten as paginated
+  identity-root snapshots (UPDATED_AT scope) feeding owner-scoped metafield
+  pages; `queries/shopify/MANIFEST.json` — re-pinned.
+- `agent/warehouse/metafield_queries.py` — validates the three roots and
+  derives the Order/Product/ProductVariant owner-scoped metafield page
+  documents with a compiler-locked metafield projection.
+- `agent/warehouse/metafield_capture.py` — immutable paginated capture:
+  identity roots plus owner-scoped metafield pages, one-owner-per-metafield
+  invariant, sealed completion.
+- `agent/warehouse/metafield_raw.py` — read-only sealed replay exposing the
+  three metafield streams; identity pages stay seal-only.
+- `agent/warehouse/shopify_entities.py` — stream-aware flattening for
+  order/product/variant metafields keyed by owner.
+- `warehouse/contracts/shopify_entities_v1.yaml` — three new canonical
+  entities (order_metafields, product_metafields, variant_metafields), 25
+  total; `agent/warehouse/raw_publication.py` — stream whitelist extended.
+- `orchestration/shopify_metafields.py` and
+  `orchestration/shopify_metafields_raw.py` — capture asset and dual-write
+  multi-asset publisher; `orchestration/definitions.py` — new
+  `shopify_metafields_ingestion` job; `infra/scripts/launch_orders_ingestion.py`
+  — launcher entries.
+- `dbt/models/staging/shopify_shadow/schema.yml` — three shadow sources and
+  enforced contracts; three thin `stg_shopify_shadow__*_metafields` views.
+- `tests/test_metafield_queries.py`, `tests/test_metafield_capture.py`,
+  `tests/test_metafield_raw.py`, `tests/test_shopify_entities.py`,
+  `tests/test_new_streams_pipeline.py` — compiler, capture, raw replay,
+  flatten and launcher coverage.

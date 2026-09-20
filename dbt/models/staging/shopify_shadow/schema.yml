@@ -26,6 +26,9 @@ sources:
   - name: fulfillment_order_line_items
   - name: inventory_items
   - name: inventory_levels
+  - name: order_metafields
+  - name: product_metafields
+  - name: variant_metafields
   - name: entity_ingestion_runs
 models:
 - name: stg_shopify_shadow__orders
@@ -1371,6 +1374,171 @@ models:
     data_type: boolean
   - name: deactivation_alert
     data_type: string
+  - name: updated_at
+    data_type: timestamp
+  - name: original_payload
+    data_type: json
+    data_tests:
+    - not_null
+  - name: source_extraction_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: source_updated_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+  - name: source_published_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+  - name: extracted_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+- name: stg_shopify_shadow__order_metafields
+  description: Canonical current Shopify order metafields state.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - metafield_gid
+  columns:
+  - name: shop_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: metafield_gid
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_gid
+    data_type: string
+    data_tests:
+    - not_null
+  - name: namespace
+    data_type: string
+  - name: key
+    data_type: string
+  - name: value
+    data_type: string
+  - name: type
+    data_type: string
+  - name: description
+    data_type: string
+  - name: created_at
+    data_type: timestamp
+  - name: updated_at
+    data_type: timestamp
+  - name: original_payload
+    data_type: json
+    data_tests:
+    - not_null
+  - name: source_extraction_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: source_updated_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+  - name: source_published_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+  - name: extracted_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+- name: stg_shopify_shadow__product_metafields
+  description: Canonical current Shopify product metafields state.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - metafield_gid
+  columns:
+  - name: shop_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: metafield_gid
+    data_type: string
+    data_tests:
+    - not_null
+  - name: product_gid
+    data_type: string
+    data_tests:
+    - not_null
+  - name: namespace
+    data_type: string
+  - name: key
+    data_type: string
+  - name: value
+    data_type: string
+  - name: type
+    data_type: string
+  - name: description
+    data_type: string
+  - name: created_at
+    data_type: timestamp
+  - name: updated_at
+    data_type: timestamp
+  - name: original_payload
+    data_type: json
+    data_tests:
+    - not_null
+  - name: source_extraction_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: source_updated_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+  - name: source_published_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+  - name: extracted_at
+    data_type: timestamp
+    data_tests:
+    - not_null
+- name: stg_shopify_shadow__variant_metafields
+  description: Canonical current Shopify variant metafields state.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - metafield_gid
+  columns:
+  - name: shop_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: metafield_gid
+    data_type: string
+    data_tests:
+    - not_null
+  - name: variant_gid
+    data_type: string
+    data_tests:
+    - not_null
+  - name: namespace
+    data_type: string
+  - name: key
+    data_type: string
+  - name: value
+    data_type: string
+  - name: type
+    data_type: string
+  - name: description
+    data_type: string
+  - name: created_at
+    data_type: timestamp
   - name: updated_at
     data_type: timestamp
   - name: original_payload

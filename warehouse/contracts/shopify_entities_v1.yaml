@@ -565,3 +565,66 @@ entities:
       source_updated_at: {type: TIMESTAMP, required: true, source: $context.source_updated_at}
       source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
       extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}
+
+  order_metafields:
+    source_stream: metafield_orders
+    key: [shop_key, metafield_gid]
+    cluster_by: [shop_key, metafield_gid]
+    columns:
+      shop_key: {type: STRING, required: true, source: $context.shop_key}
+      metafield_gid: {type: STRING, required: true, source: $.id}
+      order_gid: {type: STRING, required: true, source: $context.owner_gid}
+      namespace: {type: STRING, source: $.namespace}
+      key: {type: STRING, source: $.key}
+      value: {type: STRING, source: $.value}
+      type: {type: STRING, source: $.type}
+      description: {type: STRING, source: $.description}
+      created_at: {type: TIMESTAMP, source: $.createdAt}
+      updated_at: {type: TIMESTAMP, source: $.updatedAt}
+      original_payload: {type: JSON, required: true, source: $}
+      source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+      source_updated_at: {type: TIMESTAMP, required: true, source: $context.source_updated_at}
+      source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+      extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}
+
+  product_metafields:
+    source_stream: metafield_products
+    key: [shop_key, metafield_gid]
+    cluster_by: [shop_key, metafield_gid]
+    columns:
+      shop_key: {type: STRING, required: true, source: $context.shop_key}
+      metafield_gid: {type: STRING, required: true, source: $.id}
+      product_gid: {type: STRING, required: true, source: $context.owner_gid}
+      namespace: {type: STRING, source: $.namespace}
+      key: {type: STRING, source: $.key}
+      value: {type: STRING, source: $.value}
+      type: {type: STRING, source: $.type}
+      description: {type: STRING, source: $.description}
+      created_at: {type: TIMESTAMP, source: $.createdAt}
+      updated_at: {type: TIMESTAMP, source: $.updatedAt}
+      original_payload: {type: JSON, required: true, source: $}
+      source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+      source_updated_at: {type: TIMESTAMP, required: true, source: $context.source_updated_at}
+      source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+      extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}
+
+  variant_metafields:
+    source_stream: metafield_product_variants
+    key: [shop_key, metafield_gid]
+    cluster_by: [shop_key, metafield_gid]
+    columns:
+      shop_key: {type: STRING, required: true, source: $context.shop_key}
+      metafield_gid: {type: STRING, required: true, source: $.id}
+      variant_gid: {type: STRING, required: true, source: $context.owner_gid}
+      namespace: {type: STRING, source: $.namespace}
+      key: {type: STRING, source: $.key}
+      value: {type: STRING, source: $.value}
+      type: {type: STRING, source: $.type}
+      description: {type: STRING, source: $.description}
+      created_at: {type: TIMESTAMP, source: $.createdAt}
+      updated_at: {type: TIMESTAMP, source: $.updatedAt}
+      original_payload: {type: JSON, required: true, source: $}
+      source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+      source_updated_at: {type: TIMESTAMP, required: true, source: $context.source_updated_at}
+      source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+      extracted_at: {type: TIMESTAMP, required: true, generated: merge_timestamp}

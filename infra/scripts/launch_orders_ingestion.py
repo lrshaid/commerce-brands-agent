@@ -26,7 +26,7 @@ LAUNCH = """mutation Launch($params: ExecutionParams!) {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job", choices=("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_balance_transactions_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
+    parser.add_argument("--job", choices=("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion", "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_balance_transactions_ingestion", "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion", "shopify_inventory_ingestion", "shopify_metafields_ingestion", "klaviyo_events_ingestion", "klaviyo_campaigns_ingestion", "shopify_marts_build"),
                         default="shopify_orders_ingestion")
     parser.add_argument("--extraction-id", required=True)
     parser.add_argument("--refund-capture-version", type=int, choices=(1, 2), default=2)
@@ -42,7 +42,7 @@ def main():
     windowed_jobs = ("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion",
                      "shopify_returns_ingestion", "shopify_catalog_ingestion", "shopify_balance_transactions_ingestion",
                      "shopify_fulfillments_ingestion", "shopify_fulfillment_orders_ingestion",
-                     "shopify_inventory_ingestion", "klaviyo_events_ingestion")
+                     "shopify_inventory_ingestion", "shopify_metafields_ingestion", "klaviyo_events_ingestion")
     if args.job in windowed_jobs and (not args.window_start or not args.window_end):
         parser.error(f"{args.job} requires --window-start and --window-end")
     if args.job in windowed_jobs and args.job != "klaviyo_events_ingestion" and not args.expected_shop_gid:
@@ -95,6 +95,9 @@ def main():
     if args.job == "shopify_inventory_ingestion":
         operations = {"shopify_capture__inventory_pages": {"config": config},
                       "shopify_inventory_raw": {"config": config}}
+    if args.job == "shopify_metafields_ingestion":
+        operations = {"shopify_capture__metafield_pages": {"config": config},
+                      "shopify_metafields_raw": {"config": config}}
     if args.job == "klaviyo_events_ingestion":
         if not args.account_key or not args.metric:
             parser.error("klaviyo_events_ingestion requires --account-key and at least one --metric")

@@ -784,7 +784,8 @@ def _publication_contract(dataset, stream):
     if stream not in ('orders', 'order_refunds', 'returns', 'customers', 'products', 'variants',
                       'tender_transactions', 'balance_transactions', 'order_transactions', 'disputes', 'fulfillments',
                       'fulfillment_orders', 'fulfillment_order_line_items',
-                      'inventory_items', 'inventory_levels', 'events', 'campaigns', 'acceptance'):
+                      'inventory_items', 'inventory_levels', 'events', 'campaigns', 'acceptance',
+                      'metafield_orders', 'metafield_products', 'metafield_product_variants'):
         raise ValueError('Stream has no publication contract')
     return contract_columns()
 

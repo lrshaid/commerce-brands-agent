@@ -28,6 +28,8 @@ from orchestration.shopify_fulfillment_orders import shopify_fulfillment_orders
 from orchestration.shopify_fulfillment_orders_raw import shopify_fulfillment_orders_raw
 from orchestration.shopify_inventory import shopify_inventory
 from orchestration.shopify_inventory_raw import shopify_inventory_raw
+from orchestration.shopify_metafields import shopify_metafields
+from orchestration.shopify_metafields_raw import shopify_metafields_raw
 from orchestration.klaviyo_events import klaviyo_events
 from orchestration.klaviyo_events_raw import klaviyo_events_raw
 from orchestration.klaviyo_campaigns import klaviyo_campaigns
@@ -157,6 +159,7 @@ defs = dg.Definitions(
             shopify_fulfillments, shopify_fulfillments_raw,
             shopify_fulfillment_orders, shopify_fulfillment_orders_raw,
             shopify_inventory, shopify_inventory_raw, intermediate_dbt, marts_dbt,
+            shopify_metafields, shopify_metafields_raw,
             klaviyo_events, klaviyo_events_raw, klaviyo_dbt,
             klaviyo_campaigns, klaviyo_campaigns_raw],
     jobs=[dg.define_asset_job(
@@ -184,6 +187,10 @@ defs = dg.Definitions(
         executor_def=dg.in_process_executor), dg.define_asset_job(
         "shopify_inventory_ingestion", selection=dg.AssetSelection.assets(shopify_inventory, shopify_inventory_raw),
         tags={"dagster/max_retries": "0", "purpose": "shopify_inventory_ingestion"},
+        executor_def=dg.in_process_executor),
+    dg.define_asset_job(
+        "shopify_metafields_ingestion", selection=dg.AssetSelection.assets(shopify_metafields, shopify_metafields_raw),
+        tags={"dagster/max_retries": "0", "purpose": "shopify_metafields_ingestion"},
         executor_def=dg.in_process_executor),
     dg.define_asset_job(
         "klaviyo_events_ingestion", selection=dg.AssetSelection.assets(klaviyo_events, klaviyo_events_raw),

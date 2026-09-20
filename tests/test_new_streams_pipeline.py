@@ -41,7 +41,8 @@ class NewStreamPipelineTests(unittest.TestCase):
         for job, ops in (("shopify_balance_transactions_ingestion", {"shopify_capture__balance_transaction_pages", "shopify_balance_transactions_raw"}),
                          ("shopify_fulfillments_ingestion", {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"}),
                          ("shopify_fulfillment_orders_ingestion", {"shopify_capture__fulfillment_order_pages", "shopify_fulfillment_orders_raw"}),
-                         ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"})):
+                         ("shopify_inventory_ingestion", {"shopify_capture__inventory_pages", "shopify_inventory_raw"}),
+                         ("shopify_metafields_ingestion", {"shopify_capture__metafield_pages", "shopify_metafields_raw"})):
             dg.validate_run_config(defs.resolve_job_def(job), {"ops": {op: {"config": CONFIG} for op in ops}})
 
     def test_verified_shop_capture_only_and_default_page_size(self):

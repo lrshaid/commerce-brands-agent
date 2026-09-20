@@ -1,10 +1,6 @@
-query MetafieldProductsBulk ($query: String) {
-  products(query: $query) {
-    edges { node {
-      id
-      metafields {
-        edges { node { id namespace key value type description createdAt updatedAt } }
-      }
-    } }
+query MetafieldProductsSnapshot($first: Int!, $after: String, $query: String) {
+  products(first: $first, after: $after, query: $query, sortKey: UPDATED_AT) {
+    pageInfo { hasNextPage endCursor }
+    nodes { id updatedAt }
   }
 }
