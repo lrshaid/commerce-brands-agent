@@ -10,16 +10,21 @@ WINTER_TICK = datetime(2026, 1, 15, 2, 0, tzinfo=SCHEDULE_TZ)
 UTC = ZoneInfo("UTC")
 
 
-def test_closed_day_window_handles_dst():
+def test_closed_day_window_is_pinned_to_05_utc():
+    # Summer: the window closes at 05:00Z, one hour before the 02:00 ET tick.
     start, end, day = closed_day_window(SUMMER_TICK)
     assert day == "2026-07-15"
-    assert start == datetime(2026, 7, 15, 4, 0, tzinfo=UTC)
-    assert end == datetime(2026, 7, 16, 4, 0, tzinfo=UTC)
+    assert start == datetime(2026, 7, 15, 5, 0, tzinfo=UTC)
+    assert end == datetime(2026, 7, 16, 5, 0, tzinfo=UTC)
 
+    # Winter: 05:00Z is exactly midnight ET; two hours before the tick.
     start, end, day = closed_day_window(WINTER_TICK)
     assert day == "2026-01-14"
     assert start == datetime(2026, 1, 14, 5, 0, tzinfo=UTC)
     assert end == datetime(2026, 1, 15, 5, 0, tzinfo=UTC)
+
+    # The boundary never shifts with DST: same UTC wall clock all year.
+    assert start.hour == 5 and end.hour == 5
 
 
 def test_daily_schedules_are_staggered_in_et():
@@ -40,8 +45,8 @@ def test_scheduled_run_config_is_valid_and_raw_only():
         assert request.tags["commerce/extraction_id"] == "daily-shopify-2026-07-15"
         for op, value in request.run_config["ops"].items():
             assert value["config"]["extraction_id"] == "daily-shopify-2026-07-15"
-            assert value["config"]["window_start"] == "2026-07-15T04:00:00Z"
-            assert value["config"]["window_end"] == "2026-07-16T04:00:00Z"
+            assert value["config"]["window_start"] == "2026-07-15T05:00:00Z"
+            assert value["config"]["window_end"] == "2026-07-16T05:00:00Z"
             assert value["config"]["expected_shop_gid"] == "gid://shopify/Shop/12345794"
         dg.validate_run_config(schedule.job.resolve(defs.get_repository_def().asset_graph),
                                run_config=request.run_config)

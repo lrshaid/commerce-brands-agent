@@ -61,16 +61,19 @@ _RAW_ONLY_OPS = {
 
 
 def closed_day_window(scheduled_ts: datetime) -> tuple[datetime, datetime, str]:
-    """Return the closed previous ET day as half-open UTC bounds.
+    """Return the closed previous day as fixed half-open UTC bounds.
 
-    A tick on day D closes the ET day D-1: the window is
-    [D-1 00:00 ET, D 00:00 ET) converted to UTC, handling DST correctly.
+    The day boundary is pinned at 05:00 UTC every day of the year: in winter
+    (EST) that is exactly midnight ET, and in summer (EDT) the window closes
+    one hour before the 02:00 ET tick, always leaving buffer after close. For
+    a tick on ET date D the window is [D-1 05:00Z, D 05:00Z) and the batch
+    identity uses the window-start date D-1.
     """
     local = scheduled_ts.astimezone(SCHEDULE_TZ)
-    day = (local - timedelta(days=1)).date()
-    start = datetime(day.year, day.month, day.day, tzinfo=SCHEDULE_TZ)
-    end = start + timedelta(days=1)
-    return start.astimezone(UTC), end.astimezone(UTC), day.isoformat()
+    day = (local.date() - timedelta(days=1))
+    start = datetime(day.year, day.month, day.day, 5, 0, tzinfo=UTC)
+    end = datetime(local.year, local.month, local.day, 5, 0, tzinfo=UTC)
+    return start, end, day.isoformat()
 
 
 def make_daily_schedule(family: str, capture_asset, raw_asset, job_name: str, minute: int):

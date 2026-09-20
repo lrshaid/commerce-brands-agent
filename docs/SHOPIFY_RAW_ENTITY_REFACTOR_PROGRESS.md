@@ -624,3 +624,7 @@ entries about entries.
   Shopify scopes; Klaviyo stays manual until the metric registry lands.
 - `tests/test_schedules.py` — DST-safe window conversion, stagger, raw-only
   selection (no dbt nodes), run-config validation and registration.
+- 2026-09-20: the daily closed-day window boundary is pinned at 05:00 UTC
+  year-round ([D-1 05:00Z, D 05:00Z)) instead of following ET midnight across
+  DST; winter is exact midnight ET and summer keeps a one-hour close buffer
+  before the 02:00 ET tick.
