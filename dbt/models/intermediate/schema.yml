@@ -60,7 +60,7 @@ models:
   - name: order_gid
     data_tests: [not_null]
 - name: int_shopify__refunds
-  description: Refund-line grain with denormalised refund header, nested transactions and nested adjustments (incl. synthetic shipping rows).
+  description: Refund-line grain with denormalised refund header (no nested arrays; order-level adjustments live in int_refund_adjustments_by_order).
   columns:
   - name: shop_key
     data_tests: [not_null]
@@ -74,8 +74,6 @@ models:
     - unique
   - name: order_line_item_id
     data_tests: [not_null]
-  - name: transactions
-  - name: adjustments
 - name: int_shopify__return_line_items
   description: Return-line grain with denormalised return header and linked refund gids.
   columns:
