@@ -8,8 +8,6 @@ models:
     columns:
       - name: shop_key
         data_tests: [not_null]
-      - name: extraction_id
-        data_tests: [not_null]
       - name: order_gid
         data_tests: [not_null]
       - name: order_line_item_id
@@ -33,8 +31,6 @@ models:
     description: Daily revenue-core metrics. EMV is intentionally absent until a valid exchange contract exists.
     columns:
       - name: shop_key
-        data_tests: [not_null]
-      - name: extraction_id
         data_tests: [not_null]
       - name: metric_date
         data_tests: [not_null]
@@ -92,8 +88,6 @@ models:
     columns:
       - name: shop_key
         data_tests: [not_null]
-      - name: extraction_id
-        data_tests: [not_null]
       - name: order_gid
         data_tests: [not_null]
       - name: purchase_observation_key
@@ -133,13 +127,11 @@ models:
 
   - name: fct_order_sale_line
     description: >-
-      Order sale line fact: one row per order line (sale side), versioned per
-      extraction. Post-promotion shop amounts; cancelled orders flagged (not
-      filtered); gift-card lines flagged for merchandise-only reporting.
+      Order sale line fact: one row per order line (sale side). Post-promotion
+      shop amounts; cancelled orders flagged (not filtered); gift-card lines
+      flagged for merchandise-only reporting.
     columns:
       - name: shop_key
-        data_tests: [not_null]
-      - name: extraction_id
         data_tests: [not_null]
       - name: order_gid
         data_tests: [not_null]
