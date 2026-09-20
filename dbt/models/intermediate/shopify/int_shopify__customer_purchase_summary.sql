@@ -1,7 +1,4 @@
-{{ config(
-    materialized='view',
-    tags=['intermediate_view']
-) }}
+{{ config(materialized='view', tags=['intermediate_view']) }}
 
 -- Per-customer-identity purchase summary (single shop). Grain is the resolved
 -- identity (sha256(lower(trim(email)))); orders map to identity through their
@@ -14,7 +11,6 @@
 with purchases as (
     select
         o.shop_key,
-        o.extraction_id,
         o.order_gid,
         o.customer_gid,
         o.processed_at,
@@ -23,32 +19,28 @@ with purchases as (
     from {{ ref('int_shopify__orders') }} o
     join {{ ref('int_shopify__order_line_items') }} l
         on o.shop_key = l.shop_key
-        and o.extraction_id = l.extraction_id
         and o.order_gid = l.order_gid
     where o.processed_at is not null
       and o.cancelled_at is null
-    group by o.shop_key, o.extraction_id, o.order_gid, o.customer_gid, o.processed_at
+    group by o.shop_key, o.order_gid, o.customer_gid, o.processed_at
 ),
 recognized_refunds as (
     select
-        o.shop_key,
-        o.extraction_id,
-        o.order_gid,
+        r.shop_key,
+        r.order_gid,
         o.customer_gid,
         sum(-abs(r.subtotal_amount)) as order_rmv
     from {{ ref('int_shopify__refunds') }} r
     join {{ ref('int_shopify__orders') }} o
         on r.shop_key = o.shop_key
-        and r.extraction_id = o.extraction_id
         and r.order_gid = o.order_gid
     where r.refund_created_at is not null
       and o.cancelled_at is null
-    group by o.shop_key, o.extraction_id, o.order_gid, o.customer_gid
+    group by r.shop_key, r.order_gid, o.customer_gid
 ),
 purchase_identity as (
     select
         p.shop_key,
-        p.extraction_id,
         p.order_gid,
         p.processed_at,
         p.order_spend,
@@ -56,7 +48,8 @@ purchase_identity as (
         i.customer_identity_id
     from purchases p
     join {{ ref('int_shopify__customer_identity') }} i
-        on p.customer_gid in unnest(i.linked_customer_gids)
+        on p.shop_key = i.shop_key
+        and p.customer_gid in unnest(i.linked_customer_gids)
 ),
 refund_identity as (
     select
@@ -64,7 +57,8 @@ refund_identity as (
         i.customer_identity_id
     from recognized_refunds r
     join {{ ref('int_shopify__customer_identity') }} i
-        on r.customer_gid in unnest(i.linked_customer_gids)
+        on r.shop_key = i.shop_key
+        and r.customer_gid in unnest(i.linked_customer_gids)
 ),
 summary as (
     select

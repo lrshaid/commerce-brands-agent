@@ -29,9 +29,9 @@ class DbtSelectionDisjointnessTests(unittest.TestCase):
             self.assertTrue("ga4" in key or "platform" in key,
                             f"model matches no stream selection and is not a disabled GA4/platform model: {key}")
 
-    def test_new_stream_tags_are_declared_as_dagster_selections(self):
+    def test_stream_tags_are_declared_as_dagster_selections(self):
         selects = re.findall(r'select="tag:([a-z_]+)"', DBT_MODULE.read_text())
-        for tag in ("payments_staging", "fulfillments_staging", "inventory_staging", "klaviyo_staging"):
+        for tag in ("shopify_entity_shadow", "klaviyo_staging", "intermediate_view", "business_marts"):
             self.assertIn(tag, selects)
 
 

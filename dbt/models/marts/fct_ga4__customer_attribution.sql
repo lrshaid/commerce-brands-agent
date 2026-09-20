@@ -46,7 +46,6 @@ attributed as (
 orders as (
     select
         shop_key,
-        extraction_id,
         order_gid,
         order_name,
         customer_gid,
@@ -56,7 +55,6 @@ orders as (
 )
 select
     o.shop_key,
-    o.extraction_id,
     c.matched_order_gid as order_gid,
     c.matched_order_name as order_name,
     o.customer_gid,

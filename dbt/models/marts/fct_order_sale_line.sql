@@ -1,12 +1,10 @@
 {{ config(tags=['business_marts']) }}
--- Order sale line fact: one row per order line (sale side), versioned per
--- extraction. Amounts are post-promotion shop totals (already net value).
--- is_gift_card marks prepaid liabilities; cancelled orders are flagged, not
--- filtered here — metric-level exclusions stay in the metric marts
--- (decisions.yaml exclusions_mart_level).
+-- Order sale line fact: one row per order line. Amounts are post-promotion
+-- shop totals (already net value). is_gift_card marks prepaid liabilities;
+-- cancelled orders are flagged, not filtered here — metric-level exclusions
+-- stay in the metric marts (decisions.yaml exclusions_mart_level).
 select
     o.shop_key,
-    o.extraction_id,
     o.order_gid,
     l.line_item_gid as order_line_item_id,
     date(o.processed_at) as metric_date,
@@ -24,6 +22,5 @@ select
 from {{ ref('int_shopify__orders') }} o
 join {{ ref('int_shopify__order_line_items') }} l
     on o.shop_key = l.shop_key
-    and o.extraction_id = l.extraction_id
     and o.order_gid = l.order_gid
 where o.processed_at is not null

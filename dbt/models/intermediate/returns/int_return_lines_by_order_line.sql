@@ -1,13 +1,14 @@
-{{ config(tags=['intermediate_view']) }}
--- Aggregate return line items to order-line grain before joining to refunds.
+{{ config(materialized='view', tags=['intermediate_view']) }}
+-- Return lines aggregated to original order-line grain. The returns entity
+-- carries no merchandise value (that arrives with the refund), so the
+-- return-side subtotal is zero by policy: return-only rows are pending
+-- recognition until a refund exists.
 select
     shop_key,
-    extraction_id,
     order_gid,
-    order_line_item_id,
-    sum(quantity) as returned_quantity,
-    sum(subtotal_amount) as return_subtotal_amount,
-    sum(total_tax_amount) as return_tax_amount,
-    count(*) as return_line_count
-from {{ ref('int_shopify__return_line_items') }}
-group by shop_key, extraction_id, order_gid, order_line_item_id
+    order_line_item_gid as order_line_item_id,
+    0 as return_subtotal_amount,
+    0 as return_tax_amount,
+    sum(quantity) as returned_quantity
+from {{ ref('stg_shopify__return_line_items') }}
+group by shop_key, order_gid, order_line_item_gid

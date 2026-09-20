@@ -106,32 +106,9 @@ models:
     +persist_docs: {relation: true, columns: true}
     +materialized: view
     staging:
-      refunds:
-        +schema: analytics
-        +tags: [refund_staging]
-      returns:
-        +schema: analytics
-        +tags: [returns_staging]
       shopify:
-        +schema: analytics
-        +tags: [shopify_staging]
-      shopify_shadow:
         +schema: analytics_shadow
         +tags: [shopify_entity_shadow]
-      customers:
-        +schema: analytics
-        +tags: [customers_staging]
-      products:
-        +schema: analytics
-        +tags: [products_staging]
-      payments:
-        +schema: analytics
-      fulfillments:
-        +schema: analytics
-      fulfillment_orders:
-        +schema: analytics
-      inventory:
-        +schema: analytics
       klaviyo:
         +schema: analytics
       platform:

@@ -1,14 +1,11 @@
-{{ config(tags=['intermediate_view']) }}
--- Read the flat adjustment grain so shipping-only refunds survive without line items.
-with adjustment_rows as (
-    select shop_key, extraction_id, order_gid, adjustment_gid, amount
-    from {{ ref('stg_shopify__refund_adjustments') }}
-)
+{{ config(materialized='view', tags=['intermediate_view']) }}
+-- Order-level refund adjustments (shipping refunds + discrepancy) aggregated
+-- to one row per order, from the refund-line intermediate grain.
 select
     shop_key,
-    extraction_id,
     order_gid,
-    sum(amount) as adjustment_amount,
-    count(*) as adjustment_count
-from adjustment_rows
-group by shop_key, extraction_id, order_gid
+    sum(adj.amount) as adjustment_amount
+from {{ ref('int_shopify__refunds') }} r,
+unnest(r.adjustments) as adj
+where adj.reason in ('shipping_refund', 'remainder', 'external')
+group by shop_key, order_gid

@@ -1,7 +1,4 @@
-{{ config(materialized='view', tags=['intermediate_view']) }}
-
--- Transaction grain: one row per order transaction (kind SALE, CAPTURE, REFUND
--- and friends), straight from the entity staging table.
+{{ config(materialized='view', contract={'enforced': true}) }}
 select
     shop_key,
     transaction_gid,
@@ -31,5 +28,10 @@ select
     device_gid,
     payment_details,
     fees,
-    acquirer_reference_number
-from {{ ref('stg_shopify__order_transactions') }}
+    acquirer_reference_number,
+    original_payload,
+    source_extraction_id,
+    source_updated_at,
+    source_published_at,
+    extracted_at
+from {{ source('shopify_entities', 'order_transactions') }}

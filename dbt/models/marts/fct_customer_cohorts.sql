@@ -16,7 +16,6 @@ with purchases as (
     from {{ ref('int_shopify__orders') }} o
     join {{ ref('int_shopify__order_line_items') }} l
         on o.shop_key = l.shop_key
-        and o.extraction_id = l.extraction_id
         and o.order_gid = l.order_gid
     where o.processed_at is not null
       and o.cancelled_at is null
