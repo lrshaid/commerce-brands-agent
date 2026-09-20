@@ -20,6 +20,9 @@ COPY queries/shopify/inventory_items_bulk.graphql /app/queries/shopify/inventory
 COPY queries/shopify/inventory_levels_bulk.graphql /app/queries/shopify/inventory_levels_bulk.graphql
 COPY queries/shopify/customers_query.graphql /app/queries/shopify/customers_query.graphql
 COPY queries/shopify/products_query.graphql /app/queries/shopify/products_query.graphql
+COPY queries/shopify/metafield_orders_bulk.graphql /app/queries/shopify/metafield_orders_bulk.graphql
+COPY queries/shopify/metafield_products_bulk.graphql /app/queries/shopify/metafield_products_bulk.graphql
+COPY queries/shopify/metafield_product_variants_bulk.graphql /app/queries/shopify/metafield_product_variants_bulk.graphql
 COPY warehouse/contracts/shopify_raw_v1.yaml /app/warehouse/contracts/shopify_raw_v1.yaml
 COPY warehouse/contracts/shopify_entities_v1.yaml /app/warehouse/contracts/shopify_entities_v1.yaml
 COPY warehouse/contracts/returns_pages_v1.yaml /app/warehouse/contracts/returns_pages_v1.yaml
