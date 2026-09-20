@@ -611,3 +611,16 @@ entries about entries.
   `tests/test_metafield_raw.py`, `tests/test_shopify_entities.py`,
   `tests/test_new_streams_pipeline.py` — compiler, capture, raw replay,
   flatten and launcher coverage.
+
+### 2026-09-20 — daily closed-day raw schedules
+
+- `orchestration/schedules.py` — eight staggered daily schedules (02:00-02:07
+  America/New_York, one minute apart) launching raw-only jobs without dbt
+  assets, for the closed previous ET day: half-open UTC window from the ET
+  day boundary, shared batch extraction ID `daily-shopify-<date>`, dedup tag
+  matching the launcher. Deployed STOPPED per the rollout plan.
+- `orchestration/definitions.py` — registered the eight daily schedules;
+  balance transactions and fulfillment orders remain unscheduled pending
+  Shopify scopes; Klaviyo stays manual until the metric registry lands.
+- `tests/test_schedules.py` — DST-safe window conversion, stagger, raw-only
+  selection (no dbt nodes), run-config validation and registration.

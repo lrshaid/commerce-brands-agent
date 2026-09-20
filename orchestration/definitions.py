@@ -1,4 +1,5 @@
 from orchestration.shopify_order_transactions import shopify_order_transactions
+from orchestration.schedules import daily_schedules
 from orchestration.shopify_dbt import order_transactions_dbt
 import json
 import os
@@ -202,5 +203,8 @@ defs = dg.Definitions(
         executor_def=dg.in_process_executor),
     marts_job],
     resources={"dbt": DbtCliResource(project_dir=DBT_DIR, profiles_dir=DBT_DIR)},
-    # No recurring data schedule until live-source and acceptance gates pass.
+    schedules=daily_schedules(),
+    # Manual windowed jobs stay available for replay and incident recovery;
+    # balance transactions and fulfillment orders remain unscheduled until
+    # their Shopify scopes are granted.
 )
