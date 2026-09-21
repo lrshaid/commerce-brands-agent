@@ -12,7 +12,7 @@ run_coordinator:
   module: dagster._core.run_coordinator
   class: QueuedRunCoordinator
   config:
-    max_concurrent_runs: 1
+    max_concurrent_runs: 2
 run_launcher:
   module: dagster_contrib_gcp.cloud_run.run_launcher
   class: CloudRunRunLauncher
