@@ -126,8 +126,12 @@ def compile_metafield_queries(orders_source: str, products_source: str,
                 (variants_source, _ROOTS[2])):
             documents[root_name] = _check_root(source, root_name, expected_operation,
                                                expected_arguments)
+        # sorted(): the set's iteration order is process-randomized
+        # (PYTHONHASHSEED); the compiled page document must be byte-stable
+        # across processes or the raw step's binding hash never matches the
+        # capture step's intent.
         metafield_selection = parse(
-            "{ " + " ".join(_METAFIELD_FIELDS) + " }"
+            "{ " + " ".join(sorted(_METAFIELD_FIELDS)) + " }"
         ).definitions[0].selection_set
         return MetafieldQueryPlan(
             orders=orders_source,
