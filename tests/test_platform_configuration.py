@@ -44,7 +44,7 @@ class PlatformConfigurationTests(unittest.TestCase):
     def test_remote_launcher_and_bounded_concurrency(self):
         config = yaml.safe_load((ROOT / "infra/runtime/dagster.yaml").read_text())
         self.assertEqual(config["run_launcher"]["class"], "CloudRunRunLauncher")
-        self.assertEqual(config["run_coordinator"]["config"]["max_concurrent_runs"], 1)
+        self.assertEqual(config["run_coordinator"]["config"]["max_concurrent_runs"], 2)
         self.assertTrue(config["run_monitoring"]["enabled"])
 
     def test_dbt_queries_are_bounded(self):

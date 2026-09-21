@@ -118,13 +118,12 @@ def test_merge_sql_updates_all_fields_inserts_and_never_deletes():
     stages = {entity: f"_entity_{entity}_{'a' * 32}" for entity in contracts.entities}
     sql = entity_batch_merge_sql("commerce-agents-dev.raw_shopify_shadow", contracts, stages)
     assert "BEGIN TRANSACTION" in sql and sql.rstrip().endswith("COMMIT TRANSACTION;")
-    assert "WHEN MATCHED THEN UPDATE SET" in sql
+    assert "WHEN MATCHED AND S.source_updated_at >= T.source_updated_at THEN UPDATE SET" in sql
     assert "WHEN NOT MATCHED BY TARGET THEN INSERT" in sql
     assert "NOT MATCHED BY SOURCE" not in sql
     assert "DELETE FROM" not in sql and "WHEN MATCHED THEN DELETE" not in sql
     assert "extracted_at = CURRENT_TIMESTAMP()" in sql
     assert "PARSE_JSON(S.original_payload" in sql
-    assert "S.source_updated_at < T.source_updated_at" in sql
     assert "PARSE_JSON(@entity_counts)\nFROM UNNEST([1])\nWHERE NOT EXISTS" in sql
 
 

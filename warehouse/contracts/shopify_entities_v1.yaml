@@ -6,9 +6,9 @@ source_contract: shopify_raw_v1
 publication:
   mode: current_state_merge
   absent_source: do_nothing
-  matched: update_all_non_key_columns
+  matched: update_non_key_columns_if_newer
   new_key: insert
-  stale_source: reject_batch
+  stale_source: ignore_row
   extracted_at: merge_statement_current_timestamp
   temporary_table_ttl_hours: 18
 

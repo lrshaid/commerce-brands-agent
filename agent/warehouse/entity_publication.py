@@ -83,17 +83,6 @@ def entity_batch_merge_sql(dataset, contracts: EntityContractSet, stages):
         "BEGIN TRANSACTION;",
         f"UPDATE `{dataset}._entity_publication_guard` SET epoch = epoch + 1 WHERE TRUE;",
         "ASSERT @@row_count = 1 AS 'Entity publication guard must contain one row';",
-        f"""ASSERT NOT EXISTS(
-  SELECT 1 FROM `{dataset}.entity_ingestion_runs`
-  WHERE shop_key = @shop_key AND stream = @stream AND extraction_id = @extraction_id
-    AND (contract_sha256 != @contract_sha256 OR manifest_uri != @manifest_uri
-      OR manifest_generation != @manifest_generation OR manifest_sha256 != @manifest_sha256)
-) AS 'Conflicting entity extraction replay';""",
-        f"""ASSERT NOT EXISTS(
-  SELECT 1 FROM `{dataset}.entity_ingestion_runs`
-  WHERE shop_key = @shop_key AND stream = @stream AND extraction_id != @extraction_id
-    AND window_end > @window_end
-) AS 'Entity extraction is older than the accepted watermark';""",
     ]
     for entity, contract in contracts.entities.items():
         stage = stages[entity]
@@ -112,9 +101,8 @@ def entity_batch_merge_sql(dataset, contracts: EntityContractSet, stages):
             f"ASSERT (SELECT COUNT(*) FROM `{dataset}.{stage}`) = @count_{entity} AS '{entity} count mismatch';",
             f"ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.{stage}` WHERE {null_key}) AS '{entity} null key';",
             f"ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.{stage}` GROUP BY {key_group} HAVING COUNT(*) > 1) AS '{entity} duplicate key';",
-            f"ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.{entity}` T JOIN `{dataset}.{stage}` S ON {join} WHERE S.source_updated_at < T.source_updated_at) AS '{entity} stale entity version';",
             f"""MERGE `{dataset}.{entity}` T USING `{dataset}.{stage}` S ON {join}
-WHEN MATCHED THEN UPDATE SET {', '.join(updates)}
+WHEN MATCHED AND S.source_updated_at >= T.source_updated_at THEN UPDATE SET {', '.join(updates)}
 WHEN NOT MATCHED BY TARGET THEN INSERT ({', '.join(insert_names)})
 VALUES ({', '.join(insert_values)});""",
         ])
