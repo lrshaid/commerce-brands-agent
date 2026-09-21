@@ -1,0 +1,83 @@
+# TEMPLATE cube — Retail / Stylist productivity (company-agnostic)
+#
+# Store x stylist daily productivity. Source of truth = dbt marts. NMV = GMV+EMV+RMV.
+# Hours come from a WFM vendor: selling_hrs (active selling) vs total_hrs (all scheduled).
+# Always surface nps_responses next to nps.
+#
+# Grain: one row per (shop_key, metric_date, store, stylist).
+cubes:
+  - name: retail_stylist
+    sql_table: analytics.metric_retail_stylist_daily   # <-- placeholder
+
+    dimensions:
+      - name: shop_key
+        sql: shop_key
+        type: string
+      - name: metric_date
+        sql: metric_date
+        type: time
+      - name: store
+        sql: store_code
+        type: string
+      - name: stylist
+        sql: stylist_email
+        type: string
+      - name: region
+        sql: region
+        type: string
+      - name: district
+        sql: district
+        type: string
+
+    measures:
+      # --- base, additive ---
+      - name: nmv
+        sql: nmv_amount
+        type: sum
+        format: currency
+      - name: total_hrs
+        sql: total_hrs
+        type: sum
+        description: "All scheduled hours (selling + opening/closing/inventory/SFS)."
+      - name: selling_hrs
+        sql: selling_hrs
+        type: sum
+      - name: orders
+        sql: orders
+        type: sum
+      - name: multi_unit_orders
+        sql: multi_unit_orders
+        type: sum
+      - name: nps_promoters
+        sql: nps_promoters
+        type: sum
+      - name: nps_detractors
+        sql: nps_detractors
+        type: sum
+      - name: nps_responses
+        sql: nps_responses
+        type: sum
+
+      # --- derived ---
+      - name: sph
+        sql: "{nmv} / NULLIF({total_hrs}, 0)"
+        type: number
+        format: currency
+        description: "Sales per (scheduled) hour — headline."
+      - name: ssph
+        sql: "{nmv} / NULLIF({selling_hrs}, 0)"
+        type: number
+        format: currency
+        description: "Sales per selling hour."
+      - name: selling_rate
+        sql: "{selling_hrs} / NULLIF({total_hrs}, 0)"
+        type: number
+        format: percent
+      - name: muo
+        sql: "{multi_unit_orders} / NULLIF({orders}, 0)"
+        type: number
+        format: percent
+      - name: nps
+        sql: "({nps_promoters} - {nps_detractors}) / NULLIF({nps_responses}, 0) * 100"
+        type: number
+        description: "Promoters minus detractors over responses (-100..100). Always show nps_responses."

@@ -1,0 +1,80 @@
+# TEMPLATE cube — Operations / Shipment OTIF (company-agnostic)
+#
+# On-Time-In-Full at shipment-line grain. Source of truth = dbt marts.
+# OTIF = DISPATCH (not delivery); "in full" = no warehouse change. is_otif_line =
+# shipped & planned_dt >= shipped_ts & no warehouse change (business logic in mart).
+#
+# Grain: one row per (shop_key, metric_date, warehouse_group, carrier_group).
+cubes:
+  - name: operations_otif
+    sql_table: analytics.metric_otif_daily          # <-- placeholder
+
+    dimensions:
+      - name: shop_key
+        sql: shop_key
+        type: string
+      - name: metric_date
+        sql: attempt_planned_date
+        type: time
+      - name: warehouse_group
+        sql: warehouse_group
+        type: string
+      - name: carrier_group
+        sql: carrier_group
+        type: string
+
+    measures:
+      # --- base, additive ---
+      - name: total_lines
+        sql: total_lines
+        type: sum
+      - name: otif_lines
+        sql: otif_lines
+        type: sum
+      - name: otif_shipments
+        sql: otif_shipments
+        type: sum
+      - name: delayed_lines
+        sql: delayed_lines
+        type: sum
+      - name: warehouse_changed_lines
+        sql: warehouse_changed_lines
+        type: sum
+      - name: on_time_shipments
+        sql: on_time_shipments
+        type: sum
+      - name: completed_shipments
+        sql: completed_shipments
+        type: sum
+      - name: shipment_cost_usd
+        sql: shipment_cost_usd
+        type: sum
+        format: currency
+
+      # --- derived ---
+      - name: otif_line_rate
+        sql: "{otif_lines} / NULLIF({total_lines}, 0)"
+        type: number
+        format: percent
+        description: "Primary OTIF."
+      - name: otif_shipping_rate
+        sql: "{otif_shipments} / NULLIF({total_lines}, 0)"
+        type: number
+        format: percent
+        description: "Stricter: all lines in the shipment OTIF."
+      - name: delay_rate
+        sql: "{delayed_lines} / NULLIF({total_lines}, 0)"
+        type: number
+        format: percent
+      - name: warehouse_change_rate
+        sql: "{warehouse_changed_lines} / NULLIF({total_lines}, 0)"
+        type: number
+        format: percent
+      - name: percent_on_time_shipments
+        sql: "{on_time_shipments} / NULLIF({completed_shipments}, 0)"
+        type: number
+        format: percent
+      - name: cost_per_shipment
+        sql: "{shipment_cost_usd} / NULLIF({completed_shipments}, 0)"
+        type: number
+        format: currency

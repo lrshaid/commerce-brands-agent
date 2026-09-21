@@ -1,0 +1,177 @@
+# TEMPLATE cube — Commercial / Revenue (company-agnostic)
+#
+# SECOND expression of the metrics. SOURCE OF TRUTH = the dbt marts +
+# semantic/serving_contract.yaml. Hard business math (NMV = GMV + EMV + RMV with
+# stored-NEGATIVE RMV, cancelled-order exclusion, refund fan-out fix) lives in the
+# mart; this cube only routes columns and rolls them up.
+#
+# To activate: point `sql_table` at a real daily commercial mart, drop unservable
+# measures, move the file into cube/model/cubes/, and expose a governed subset via
+# a view. Additive because each order belongs to exactly one metric_date.
+#
+# Grain: one row per (shop_key, metric_date, sales_channel, market, user_type, is_comp).
+cubes:
+  - name: commercial_revenue
+    sql_table: analytics.metric_commercial_daily   # <-- placeholder: wire to real mart
+
+    dimensions:
+      - name: shop_key            # tenant key — filter via securityContext, not the caller
+        sql: shop_key
+        type: string
+      - name: metric_date
+        sql: metric_date
+        type: time
+      - name: sales_channel       # Web | Retail
+        sql: sales_channel
+        type: string
+      - name: market              # brand-defined markets
+        sql: market
+        type: string
+      - name: user_type           # Prospect (New) | Customer (Existing)
+        sql: user_type
+        type: string
+      - name: is_comp             # same-store flag
+        sql: is_comp
+        type: boolean
+
+    measures:
+      # --- base, additive (stored, summed from the mart) ---
+      - name: nmv
+        sql: nmv_amount
+        type: sum
+        format: currency
+        description: "Net merchandise value = GMV + EMV + RMV (RMV stored negative). Sum of the net-of-returns column; never reconstruct from GMV/EMV/RMV separately."
+      - name: gmv
+        sql: gmv_amount
+        type: sum
+        format: currency
+      - name: emv
+        sql: emv_amount
+        type: sum
+        format: currency
+      - name: rmv
+        sql: rmv_amount
+        type: sum
+        format: currency
+        description: "Return merchandise value, stored NEGATIVE so it nets in NMV."
+      - name: orders
+        sql: orders
+        type: sum
+      - name: booked_orders
+        sql: booked_orders
+        type: sum
+        description: "Orders on real booked sale lines (excludes exchange-only orders)."
+      - name: traffic
+        sql: traffic
+        type: sum
+        description: "Web sessions or retail foot traffic."
+      - name: qualified_traffic
+        sql: qualified_traffic
+        type: sum
+        description: "Sessions 8s+ active (bounce/bot filtered)."
+      - name: units_sold
+        sql: units_sold
+        type: sum
+      - name: units_returned
+        sql: units_returned
+        type: sum
+        description: "Stored negative."
+      - name: multi_unit_orders
+        sql: multi_unit_orders
+        type: sum
+      - name: gross_sales
+        sql: gross_sales
+        type: sum
+        format: currency
+        description: "List/booked sale $ before discount."
+      - name: promo_amount
+        sql: promo_amount
+        type: sum
+        format: currency
+        description: "Discount, stored negative."
+      - name: actual_spend
+        sql: actual_spend
+        type: sum
+        format: currency
+      - name: orders_new
+        sql: orders_new
+        type: sum
+
+      # --- derived ratios (ratio-of-sums; computed, not stored) ---
+      - name: aov
+        sql: "{gmv} / NULLIF({orders}, 0)"
+        type: number
+        format: currency
+      - name: booked_aov
+        sql: "{gmv} / NULLIF({booked_orders}, 0)"
+        type: number
+        format: currency
+      - name: cvr
+        sql: "{orders} / NULLIF({traffic}, 0)"
+        type: number
+        format: percent
+      - name: booked_cvr
+        sql: "{booked_orders} / NULLIF({traffic}, 0)"
+        type: number
+        format: percent
+      - name: qualified_cvr
+        sql: "{orders} / NULLIF({qualified_traffic}, 0)"
+        type: number
+        format: percent
+      - name: spv
+        sql: "{gmv} / NULLIF({traffic}, 0)"
+        type: number
+        format: currency
+        description: "Sales per visit."
+      - name: aup
+        sql: "{gross_sales} / NULLIF({units_sold}, 0)"
+        type: number
+        format: currency
+      - name: upo
+        sql: "{units_sold} / NULLIF({booked_orders}, 0)"
+        type: number
+      - name: muo
+        sql: "{multi_unit_orders} / NULLIF({orders}, 0)"
+        type: number
+        format: percent
+        description: "Multi-unit order rate."
+      - name: discount_rate
+        sql: "({promo_amount} * -1) / NULLIF({gross_sales}, 0)"
+        type: number
+        format: percent
+      - name: return_rate
+        sql: "({units_returned} * -1) / NULLIF({units_sold}, 0)"
+        type: number
+        format: percent
+        description: "Unit-based return rate. For order-cohort rr30 see returns_economics cube."
+      - name: spend_to_revenue
+        sql: "{actual_spend} / NULLIF({gross_sales}, 0)"
+        type: number
+        format: percent
+      - name: cac
+        sql: "{actual_spend} / NULLIF({orders_new}, 0)"
+        type: number
+        format: currency
+
+    pre_aggregations:
+      - name: daily_rollup
+        measures:
+          - nmv
+          - gmv
+          - emv
+          - rmv
+          - orders
+          - booked_orders
+          - traffic
+          - qualified_traffic
+          - units_sold
+          - gross_sales
+        dimensions:
+          - shop_key
+          - sales_channel
+          - market
+          - user_type
+        time_dimension: metric_date
+        granularity: day
+        refresh_key:
+          sql: SELECT MAX(computed_at) FROM analytics.metric_commercial_daily

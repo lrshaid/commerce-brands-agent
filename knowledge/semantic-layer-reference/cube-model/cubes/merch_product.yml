@@ -1,0 +1,114 @@
+# TEMPLATE cube — Product / Merchandising (company-agnostic)
+#
+# SKU/style daily performance. Source of truth = dbt marts.
+# BUNDLE TRAP: in the merch-explorer mart bundle revenue rolls to the bundle PARENT
+# SKU (components get $0); in the transaction-line mart it stays on component SKUs.
+# Style/SKU totals diverge for bundles; company aggregate reconciles. This cube
+# assumes the merch-explorer (parent-rollup) grain.
+#
+# Grain: one row per (shop_key, metric_date, unit_code, sales_channel, market, user_type).
+cubes:
+  - name: merch_product
+    sql_table: analytics.metric_merch_daily         # <-- placeholder
+
+    dimensions:
+      - name: shop_key
+        sql: shop_key
+        type: string
+      - name: metric_date
+        sql: metric_date
+        type: time
+      - name: unit_code           # SKU
+        sql: unit_code
+        type: string
+      - name: pillar              # brand-defined merch pillars
+        sql: pillar
+        type: string
+      - name: collection
+        sql: collection
+        type: string
+      - name: material            # brand-defined material tiers
+        sql: material
+        type: string
+      - name: unit_category
+        sql: unit_category_1
+        type: string
+      - name: price_band
+        sql: price_band
+        type: string
+      - name: product_segmentation   # Core|Core+|Carryover|New|Disco
+        sql: product_segmentation
+        type: string
+      - name: sales_channel
+        sql: sales_channel
+        type: string
+
+    measures:
+      # --- base, additive ---
+      - name: gmv
+        sql: gmv_amount
+        type: sum
+        format: currency
+      - name: nmv
+        sql: nmv_amount
+        type: sum
+        format: currency
+      - name: gross_sales
+        sql: gross_sales
+        type: sum
+        format: currency
+      - name: cost_sales
+        sql: cost_sales
+        type: sum
+        format: currency
+      - name: quantity
+        sql: quantity
+        type: sum
+      - name: net_merch_quantity
+        sql: net_merchandise_quantity
+        type: sum
+      - name: page_views
+        sql: page_views
+        type: sum
+      - name: atc
+        sql: atc
+        type: sum
+      - name: orders
+        sql: orders
+        type: sum
+      - name: avg_daily_quantity_available
+        sql: avg_daily_quantity_available
+        type: sum
+        description: "Snapshot-derived; keep on a pinned period for sell-through."
+
+      # --- derived ---
+      - name: aup
+        sql: "{gross_sales} / NULLIF({quantity}, 0)"
+        type: number
+        format: currency
+        description: "Avg unit price, ex-promo."
+      - name: aur
+        sql: "{nmv} / NULLIF({net_merch_quantity}, 0)"
+        type: number
+        format: currency
+        description: "Avg unit retail, net basis."
+      - name: gross_margin
+        sql: "{gross_sales} - {cost_sales}"
+        type: number
+        format: currency
+      - name: gross_margin_rate
+        sql: "({gross_sales} - {cost_sales}) / NULLIF({gross_sales}, 0)"
+        type: number
+        format: percent
+      - name: cvr
+        sql: "{orders} / NULLIF({page_views}, 0)"
+        type: number
+        format: percent
+      - name: atc_rate
+        sql: "{atc} / NULLIF({page_views}, 0)"
+        type: number
+        format: percent
+      - name: sell_through
+        sql: "{net_merch_quantity} / NULLIF({net_merch_quantity} + {avg_daily_quantity_available}, 0)"
+        type: number
+        format: percent
