@@ -1,4 +1,7 @@
-{{ config(materialized='view', contract={'enforced': true}) }}
+{{ config(materialized='view', tags=['intermediate_view']) }}
+
+-- Current-state order grain: one row per order, straight from the entity
+-- staging table (which is already deduplicated by the raw ingestion contract).
 select
     shop_key,
     order_gid,
@@ -12,7 +15,6 @@ select
     fulfillment_status,
     customer_gid,
     email,
-    note,
     tags,
     shipping_address,
     billing_address,
@@ -28,10 +30,5 @@ select
     total_shipping_price_shop_currency,
     total_price_presentment_amount,
     total_price_presentment_currency,
-    discount_applications,
-    original_payload,
-    source_extraction_id,
-    source_updated_at,
-    source_published_at,
-    extracted_at
-from {{ source('shopify_entities', 'orders') }}
+    discount_applications
+from {{ ref('stg_shopify__orders') }}

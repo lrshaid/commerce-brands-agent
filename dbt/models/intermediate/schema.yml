@@ -1,0 +1,98 @@
+version: 2
+models:
+- name: int_shopify__customer_identity
+  description: One row per resolved customer identity (sha256 of canonical email), linking all customer gids that share an email. Guests without email fall back to their own gid.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - customer_identity_id
+  columns:
+  - name: shop_key
+    data_tests: [not_null]
+  - name: customer_identity_id
+    data_tests: [not_null]
+  - name: canonical_customer_gid
+    data_tests: [not_null]
+  - name: is_email_based
+    data_tests: [not_null]
+  - name: linked_customer_count
+    data_tests: [not_null]
+- name: int_shopify__customer_purchase_summary
+  description: Per-identity purchase summary (first/last purchase, orders, gross spend, recognized refunds, net contribution).
+  columns:
+  - name: customer_identity_id
+    data_tests: [not_null, unique]
+  - name: first_purchase_ts
+    data_tests: [not_null]
+  - name: last_purchase_ts
+    data_tests: [not_null]
+  - name: order_count
+    data_tests: [not_null]
+  - name: net_contribution
+    data_tests: [not_null]
+- name: int_shopify__orders
+  description: Current-state orders, one row per order gid.
+  columns:
+  - name: shop_key
+    data_tests: [not_null]
+  - name: order_gid
+    data_tests:
+    - not_null
+    - unique
+  - name: discount_applications
+- name: int_shopify__order_line_items
+  description: Current-state order line items, one row per line item gid.
+  columns:
+  - name: shop_key
+    data_tests: [not_null]
+  - name: line_item_gid
+    data_tests:
+    - not_null
+    - unique
+  - name: order_gid
+    data_tests: [not_null]
+  - name: discount_allocations
+- name: int_shopify__shipping_lines
+  description: Current-state order shipping lines, one row per shipping line gid.
+  columns:
+  - name: shop_key
+    data_tests: [not_null]
+  - name: shipping_line_gid
+    data_tests:
+    - not_null
+    - unique
+  - name: order_gid
+    data_tests: [not_null]
+- name: int_shopify__refunds
+  description: Refund-line grain with denormalised refund header (no nested arrays; order-level adjustments live in int_refund_adjustments_by_order).
+  columns:
+  - name: shop_key
+    data_tests: [not_null]
+  - name: refund_gid
+    data_tests: [not_null]
+  - name: order_gid
+    data_tests: [not_null]
+  - name: refund_line_item_gid
+    data_tests:
+    - not_null
+    - unique
+  - name: order_line_item_id
+    data_tests: [not_null]
+- name: int_shopify__return_line_items
+  description: Return-line grain with denormalised return header and linked refund gids.
+  columns:
+  - name: shop_key
+    data_tests: [not_null]
+  - name: return_gid
+    data_tests: [not_null]
+  - name: order_gid
+    data_tests: [not_null]
+  - name: return_line_item_gid
+    data_tests:
+    - not_null
+    - unique
+  - name: order_line_item_id
+    data_tests: [not_null]
+  - name: return_refunds

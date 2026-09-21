@@ -1,4 +1,7 @@
-{{ config(materialized='view', contract={'enforced': true}) }}
+{{ config(materialized='view', tags=['intermediate_view']) }}
+
+-- Line-item grain: one row per line item, with discount allocations preserved
+-- as captured (nested array, no unnest needed in the new world).
 select
     shop_key,
     line_item_gid,
@@ -14,10 +17,5 @@ select
     original_total_shop_currency,
     discounted_total_shop_amount,
     discounted_total_shop_currency,
-    discount_allocations,
-    original_payload,
-    source_extraction_id,
-    source_updated_at,
-    source_published_at,
-    extracted_at
-from {{ source('shopify_entities', 'order_line_items') }}
+    discount_allocations
+from {{ ref('stg_shopify__order_line_items') }}

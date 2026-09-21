@@ -10,7 +10,6 @@
 with gmv as (
     select
         o.shop_key,
-        o.extraction_id,
         date(o.processed_at) as metric_date,
         -- Cancelled orders contribute nothing: CASE inside the sum so the
         -- joined rows stay visible while only valid orders count. Amounts are
@@ -21,15 +20,13 @@ with gmv as (
     from {{ ref('int_shopify__orders') }} o
     join {{ ref('int_shopify__order_line_items') }} l
         on o.shop_key = l.shop_key
-        and o.extraction_id = l.extraction_id
         and o.order_gid = l.order_gid
     where o.processed_at is not null
-    group by o.shop_key, o.extraction_id, date(o.processed_at)
+    group by o.shop_key, date(o.processed_at)
 )
 , rmv as (
     select
         r.shop_key,
-        r.extraction_id,
         date(r.rmv_recognition_ts_utc) as metric_date,
         -- Refunds of cancelled orders are cancellation of the sale (the sale
         -- never entered GMV), so they are excluded to keep NMV consistent.
@@ -38,14 +35,12 @@ with gmv as (
     from {{ ref('fct_returns') }} r
     join {{ ref('int_shopify__orders') }} o
         on r.shop_key = o.shop_key
-        and r.extraction_id = o.extraction_id
         and r.order_gid = o.order_gid
     where r.rmv_recognition_ts_utc is not null
-    group by r.shop_key, r.extraction_id, date(r.rmv_recognition_ts_utc)
+    group by r.shop_key, date(r.rmv_recognition_ts_utc)
 )
 select
     coalesce(g.shop_key, r.shop_key) as shop_key,
-    coalesce(g.extraction_id, r.extraction_id) as extraction_id,
     coalesce(g.metric_date, r.metric_date) as metric_date,
     'all' as sales_channel,
     coalesce(g.gmv_amount, 0) as gmv_amount,
@@ -62,5 +57,4 @@ select
 from gmv g
 full outer join rmv r
     on g.shop_key = r.shop_key
-    and g.extraction_id = r.extraction_id
     and g.metric_date = r.metric_date

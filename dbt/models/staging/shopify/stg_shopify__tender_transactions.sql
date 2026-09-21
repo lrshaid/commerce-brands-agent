@@ -1,15 +1,17 @@
 {{ config(materialized='view', contract={'enforced': true}) }}
 select
     shop_key,
-    shipping_line_gid,
+    tender_transaction_gid,
+    amount,
+    currency_code,
+    is_test,
+    payment_method,
+    processed_at,
+    remote_reference,
     order_gid,
-    title,
-    code,
-    original_price_shop_amount,
-    original_price_shop_currency,
     original_payload,
     source_extraction_id,
     source_updated_at,
     source_published_at,
     extracted_at
-from {{ source('shopify_entities', 'order_shipping_lines') }}
+from {{ source('shopify_entities', 'tender_transactions') }}

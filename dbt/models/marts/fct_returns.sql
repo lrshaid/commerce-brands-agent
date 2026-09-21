@@ -6,13 +6,12 @@
 -- Recognition date = the associated refund created date; return-only rows stay
 -- null (not yet recognized) until a refund exists.
 --
--- FAN-OUT FIX: refund and return lines are aggregated to order-line grain
--- (one row per original order line) before the FULL OUTER JOIN. This prevents
--- duplicate RMV when multiple refund/return events exist for the same line.
+-- Refund and return lines are aggregated to order-line grain (one row per
+-- original order line) before the FULL OUTER JOIN. This prevents duplicate RMV
+-- when multiple refund/return events exist for the same line.
 with refund_lines as (
     select
         shop_key,
-        extraction_id,
         order_gid,
         order_line_item_id,
         refund_subtotal_amount,
@@ -24,7 +23,6 @@ with refund_lines as (
 , return_lines as (
     select
         shop_key,
-        extraction_id,
         order_gid,
         order_line_item_id,
         return_subtotal_amount,
@@ -35,7 +33,6 @@ with refund_lines as (
 , combined as (
     select
         coalesce(rf.shop_key, rt.shop_key) as shop_key,
-        coalesce(rf.extraction_id, rt.extraction_id) as extraction_id,
         coalesce(rf.order_gid, rt.order_gid) as order_gid,
         coalesce(rf.order_line_item_id, rt.order_line_item_id) as order_line_item_id,
         case
@@ -56,17 +53,15 @@ with refund_lines as (
     from refund_lines rf
     full outer join return_lines rt
         on rf.shop_key = rt.shop_key
-        and rf.extraction_id = rt.extraction_id
         and rf.order_line_item_id = rt.order_line_item_id
 )
 , lines_per_order as (
-    select shop_key, extraction_id, order_gid, count(*) as lines_per_order
+    select shop_key, order_gid, count(*) as lines_per_order
     from combined
-    group by shop_key, extraction_id, order_gid
+    group by shop_key, order_gid
 )
 select
     c.shop_key,
-    c.extraction_id,
     c.order_gid,
     c.order_line_item_id,
     c.match_status,
@@ -84,9 +79,7 @@ select
 from combined c
 left join {{ ref('int_refund_adjustments_by_order') }} a
     on c.shop_key = a.shop_key
-    and c.extraction_id = a.extraction_id
     and c.order_gid = a.order_gid
 left join lines_per_order lpo
     on c.shop_key = lpo.shop_key
-    and c.extraction_id = lpo.extraction_id
     and c.order_gid = lpo.order_gid
