@@ -9,5 +9,4 @@ select
     sum(quantity) as refunded_quantity,
     max(refund_created_at) as latest_refund_created_at
 from {{ ref('int_shopify__refunds') }}
-where subtotal_amount is not null
 group by shop_key, order_gid, order_line_item_id

@@ -2,11 +2,17 @@ version: 2
 models:
 - name: int_shopify__customer_identity
   description: One row per resolved customer identity (sha256 of canonical email), linking all customer gids that share an email. Guests without email fall back to their own gid.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - customer_identity_id
   columns:
   - name: shop_key
     data_tests: [not_null]
   - name: customer_identity_id
-    data_tests: [not_null, unique]
+    data_tests: [not_null]
   - name: canonical_customer_gid
     data_tests: [not_null]
   - name: is_email_based

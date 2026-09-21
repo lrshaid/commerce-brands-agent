@@ -5,6 +5,10 @@ models:
       Shopify-native RMV fact at original-order-line grain. Refund values win;
       RMV stored negative. Recognition date = refund created date; return-only
       rows stay null until a refund exists.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [shop_key, order_line_item_id]
     columns:
       - name: shop_key
         data_tests: [not_null]
@@ -29,6 +33,10 @@ models:
 
   - name: metric_revenue_daily
     description: Daily revenue-core metrics. EMV is intentionally absent until a valid exchange contract exists.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [shop_key, metric_date]
     columns:
       - name: shop_key
         data_tests: [not_null]

@@ -14,9 +14,9 @@ with customers as (
         created_at,
         number_of_orders,
         amount_spent_amount,
-        email is not null as is_email_based,
+        not (email is null or trim(email) = '') as is_email_based,
         case
-            when email is null then customer_gid
+            when email is null or trim(email) = '' then customer_gid
             else to_hex(sha256(lower(trim(email))))
         end as customer_identity_id
     from {{ ref('stg_shopify__customers') }}
