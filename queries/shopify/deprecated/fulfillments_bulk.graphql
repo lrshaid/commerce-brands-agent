@@ -2,7 +2,7 @@ query FulfillmentsBulk ($query: String) {
   orders(query: $query) {
     edges { node {
       id
-      fulfillments {
+      fulfillments(first: 50) {
         id
         name
         status

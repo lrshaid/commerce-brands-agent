@@ -61,6 +61,29 @@ def _facts(stream, record_factory, files, published_at):
     file_meta = _metadata(files)
     fallback = published_at.isoformat()
 
+    if any(f.get("role") == "bulk_jsonl" for f in files):
+        for record in record_factory():
+            meta = file_meta[str(record["file_id"])]
+            node = json.loads(record["record_text"])
+            parent = node.pop("__parentId", None)
+            stamp = _iso(node.get("updatedAt"), fallback)
+            if stream in ("customers", "products") and parent is None:
+                yield stream, node, {"source_updated_at": stamp}
+            elif stream == "variants" and parent is not None:
+                yield stream, node, {"product_gid": parent, "source_updated_at": stamp}
+            elif stream == "fulfillments":
+                for fulfillment in node["fulfillments"]:
+                    yield stream, fulfillment, {"order_gid": node["id"],
+                        "source_updated_at": _iso(fulfillment.get("updatedAt"), fallback)}
+            elif stream == "inventory_items":
+                node["countryHarmonizedSystemCodes"] = meta["country_codes"][node["id"]]
+                yield stream, node, {"source_updated_at": stamp}
+            elif stream == "inventory_levels" and parent is not None:
+                for quantity in node["quantities"]:
+                    yield stream, dict(node, quantityName=quantity["name"], quantity=quantity["quantity"]), {
+                        "location_gid": parent, "source_updated_at": stamp}
+        return
+
     if stream == "returns":
         return_orders = {}
         exchange_lines = {}

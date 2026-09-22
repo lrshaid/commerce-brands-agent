@@ -2,7 +2,7 @@ query InventoryLevelsBulk {
   locations(includeInactive: true) {
     edges { node {
       id
-      inventoryLevels {
+      inventoryLevels(first: 250) {
         edges { node {
           id
           item { id }

@@ -5,7 +5,7 @@ from agent.warehouse.fulfillments_queries import FulfillmentProjectionError, com
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / "queries/shopify/fulfillments_bulk.graphql").read_text()
+SOURCE = (ROOT / "queries/shopify/deprecated/fulfillments_bulk.graphql").read_text()
 
 
 class FulfillmentQueryTests(unittest.TestCase):

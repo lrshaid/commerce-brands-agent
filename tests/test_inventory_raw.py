@@ -9,8 +9,8 @@ from agent.warehouse.refund_capture import CaptureError
 from tests.test_inventory_capture import Blob, Bucket, connection, response
 
 ROOT = Path(__file__).resolve().parents[1]
-ITEMS = (ROOT / "queries/shopify/inventory_items_bulk.graphql").read_text()
-LEVELS = (ROOT / "queries/shopify/inventory_levels_bulk.graphql").read_text()
+ITEMS = (ROOT / "queries/shopify/deprecated/inventory_items_bulk.graphql").read_text()
+LEVELS = (ROOT / "queries/shopify/deprecated/inventory_levels_bulk.graphql").read_text()
 
 
 class UniqueGenerationBucket(Bucket):

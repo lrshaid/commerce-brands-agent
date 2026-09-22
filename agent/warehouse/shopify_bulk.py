@@ -50,7 +50,13 @@ class SubmissionUncertain(BulkError):
 
 
 def bind_orders_query(source: str, search_filter: str) -> str:
+    return bind_bulk_query(source, search_filter, root="orders")
+
+
+def bind_bulk_query(source: str, search_filter: str, *, root: str) -> str:
     """Bind the existing query using the AST, preserving its full projection."""
+    if root not in {"orders", "customers", "products", "inventoryItems", "locations"}:
+        raise BulkError("Unsupported bulk root")
     if not isinstance(search_filter, str) or not search_filter.strip():
         raise BulkError("An explicit orders search filter is required")
     try:
@@ -63,8 +69,12 @@ def bind_orders_query(source: str, search_filter: str) -> str:
     if not isinstance(operation, OperationDefinitionNode) or operation.operation != OperationType.QUERY:
         raise BulkError("Only an orders query is allowed")
     roots = operation.selection_set.selections
-    if len(roots) != 1 or getattr(getattr(roots[0], "name", None), "value", None) != "orders":
+    if len(roots) != 1 or getattr(getattr(roots[0], "name", None), "value", None) != root:
         raise BulkError("Expected orders as the only root")
+    if root == "locations":
+        if operation.variable_definitions:
+            raise BulkError("Locations snapshot must not have variables")
+        return print_ast(document)
     if len(operation.variable_definitions) != 1 or operation.variable_definitions[0].variable.name.value != "query":
         raise BulkError("Expected only the query variable")
     operation.variable_definitions = ()
@@ -149,7 +159,7 @@ class BulkClient:
             raise BulkError("Authenticated shop does not match configured identity")
         return expected_shop_gid
 
-    def submit_once(self, *, bucket, extraction_id: str, query_source: str, search_filter: str):
+    def submit_once(self, *, bucket, extraction_id: str, query_source: str, search_filter: str, query_root: str = "orders"):
         """Create a durable intent before submission; resume only a saved exact ID.
 
         The same extraction_id must be retained on retries. GCS generation
@@ -157,7 +167,7 @@ class BulkClient:
         """
         if not extraction_id or not isinstance(extraction_id, str):
             raise BulkError("An extraction identity is required")
-        document = bind_orders_query(query_source, search_filter)
+        document = bind_bulk_query(query_source, search_filter, root=query_root)
         binding = {
             "shop_domain": self.shop_domain, "api_version": self.api_version,
             "extraction_id": extraction_id,

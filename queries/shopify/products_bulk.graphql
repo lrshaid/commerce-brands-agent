@@ -1,27 +1,8 @@
-query ProductsBulk ($query: String) {
-  products(query: $query) {
-    edges { node {
-      id
-      title
-      handle
-      descriptionHtml
-      productType
-      vendor
-      status
-      tags
-      createdAt
-      updatedAt
-      publishedAt
-      templateSuffix
-      totalInventory
-      tracksInventory
-      variantsCount { count }
-      mediaCount { count }
-      priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
-      seo { title description }
-      options { id name values }
-      variants { edges { node { id } } }
-      media { edges { node { id } } }
-    } }
-  }
+query ProductsBulk($query: String) {
+  products(query: $query, sortKey: UPDATED_AT) { edges { node {
+    id title productType vendor createdAt updatedAt
+    variants { edges { node {
+      id sku price inventoryQuantity inventoryItem { id }
+    } } }
+  } } }
 }

@@ -19,7 +19,6 @@ from orchestration.shopify_dbt import (
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
-from orchestration.shopify_returns_raw import shopify_returns_raw
 from orchestration.shopify_catalog import shopify_catalog
 from orchestration.shopify_catalog_raw import shopify_catalog_raw
 from orchestration.shopify_balance_transactions import shopify_balance_transactions
@@ -133,7 +132,7 @@ refunds_job = dg.define_asset_job(
 )
 
 returns_job = dg.define_asset_job(
-    "shopify_returns_ingestion", selection=dg.AssetSelection.assets(shopify_returns, shopify_returns_raw, shopify_entity_shadow_dbt),
+    "shopify_returns_ingestion", selection=dg.AssetSelection.assets(shopify_returns, shopify_entity_shadow_dbt),
     tags={"dagster/max_retries": "0", "purpose": "shopify_returns_ingestion"},
     executor_def=dg.in_process_executor)
 
@@ -149,7 +148,7 @@ marts_job = dg.define_asset_job(
 
 defs = dg.Definitions(
     assets=[shopify_order_transactions, probe_input, ingestion_probe, smoke_dbt, shopify_orders, shopify_entity_shadow_dbt,
-            shopify_refunds, shopify_refunds_raw, shopify_returns, shopify_returns_raw,
+            shopify_refunds, shopify_refunds_raw, shopify_returns,
             shopify_catalog, shopify_catalog_raw,
             shopify_balance_transactions, shopify_balance_transactions_raw,
             shopify_fulfillments, shopify_fulfillments_raw,

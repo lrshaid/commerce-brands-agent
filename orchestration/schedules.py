@@ -27,7 +27,6 @@ from orchestration.shopify_orders import shopify_orders
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
-from orchestration.shopify_returns_raw import shopify_returns_raw
 
 SCHEDULE_TZ = ZoneInfo("America/New_York")
 UTC = ZoneInfo("UTC")
@@ -38,7 +37,7 @@ _FAMILIES = (
     ("orders", shopify_orders, None, "shopify_orders_raw_daily", 0),
     ("order_transactions", shopify_order_transactions, None, "shopify_order_transactions_raw_daily", 1),
     ("refunds", shopify_refunds, shopify_refunds_raw, "shopify_refunds_raw_daily", 2),
-    ("returns", shopify_returns, shopify_returns_raw, "shopify_returns_raw_daily", 3),
+    ("returns", shopify_returns, None, "shopify_returns_raw_daily", 3),
     ("catalog", shopify_catalog, shopify_catalog_raw, "shopify_catalog_raw_daily", 4),
     ("metafields", shopify_metafields, shopify_metafields_raw, "shopify_metafields_raw_daily", 5),
     ("fulfillments", shopify_fulfillments, shopify_fulfillments_raw, "shopify_fulfillments_raw_daily", 6),
@@ -52,7 +51,7 @@ _RAW_ONLY_OPS = {
     "orders": {"shopify_orders"},
     "order_transactions": {"shopify_order_transactions"},
     "refunds": {"shopify_capture__refund_pages", "shopify_refunds_raw"},
-    "returns": {"shopify_capture__return_pages", "shopify_returns_raw"},
+    "returns": {"shopify_returns"},
     "catalog": {"shopify_capture__catalog_pages", "shopify_catalog_raw"},
     "metafields": {"shopify_capture__metafield_pages", "shopify_metafields_raw"},
     "fulfillments": {"shopify_capture__fulfillment_pages", "shopify_fulfillments_raw"},

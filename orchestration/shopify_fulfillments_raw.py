@@ -6,12 +6,12 @@ from pathlib import Path
 import dagster as dg
 from google.cloud import bigquery, storage
 
-from agent.warehouse.fulfillments_raw import prepare_fulfillments_raw
+from agent.warehouse.family_bulk import FamilyBulkCapture
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from agent.warehouse.raw_records import ExtractionIdentity
 from agent.warehouse.replayable_records import replayable_records
 from agent.warehouse.stream_entity_pipeline import publish_stream_entity_shadow
-from orchestration.shopify_fulfillments import FulfillmentsConfig, QUERY_PATH
+from orchestration.shopify_fulfillments import FulfillmentsConfig
 from orchestration.shopify_orders import extraction_window
 
 
@@ -24,20 +24,21 @@ def shopify_fulfillments_raw(context: dg.AssetExecutionContext, config: Fulfillm
     start, end, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     now = datetime.now(timezone.utc)
-    prepared = prepare_fulfillments_raw(
+    streams = FamilyBulkCapture(
         bucket=storage.Client(project=project).bucket(project + "-landing"),
         domain=os.environ["SHOPIFY_SHOP_DOMAIN"], api_version=os.environ["SHOPIFY_API_VERSION"],
         shop_gid=config.expected_shop_gid, extraction_id=config.extraction_id,
-        query_source=QUERY_PATH.read_text(), search_filter=search_filter, ingested_at=now)
+        family="fulfillments", search_filter=search_filter).prepare(now)
+    prepared = streams["fulfillments"]
     _, fields = contract_columns()
     manifest = dict.fromkeys(fields)
     manifest.update(shop_key=config.expected_shop_gid, stream="fulfillments", extraction_id=config.extraction_id,
         contract_version=1, query_sha256=prepared["query_sha256"], request_sha256=prepared["request_sha256"],
         requested_api_version=os.environ["SHOPIFY_API_VERSION"], actual_api_version=os.environ["SHOPIFY_API_VERSION"],
-        transport="shopify_graphql_pages", window_start=start, window_end=end,
+        transport=prepared["transport"], bulk_operation_gid=prepared["bulk_operation_id"], window_start=start, window_end=end,
         started_at=prepared["started_at"], completed_at=prepared["completed_at"], published_at=now,
-        status="published", raw_record_count=prepared["raw_record_count"], provider_object_count=None,
-        root_object_count=prepared["counts"]["orders"], files=prepared["files"],
+        status="published", raw_record_count=prepared["raw_record_count"], provider_object_count=prepared["provider_object_count"],
+        root_object_count=prepared["root_object_count"], files=prepared["files"],
         dagster_job_name=context.job_name, dagster_run_id=context.run_id,
         dagster_step_key=context.op_execution_context.get_step_execution_context().step.key,
         dagster_retry_number=context.retry_number, cloud_run_execution_name=os.environ.get("CLOUD_RUN_EXECUTION"),
@@ -56,8 +57,8 @@ def shopify_fulfillments_raw(context: dg.AssetExecutionContext, config: Fulfillm
             project + ".raw_shopify_shadow", identity, stream="fulfillments",
             source_files=prepared["files"], window_start=start, window_end=end,
             published_at=prepared["completed_at"])
-    metadata = {"raw_pages": prepared["raw_record_count"],
-            "orders": prepared["counts"]["orders"], "fulfillments": prepared["counts"]["fulfillments"],
+    metadata = {"raw_records": prepared["raw_record_count"],
+            "orders": prepared["root_object_count"],
             "publication_job_id": publication["publication_job_id"], "extraction_id": config.extraction_id,
             "entity_manifest_uri": entity_shadow["manifest"]["manifest"]["uri"],
             "entity_merge_job_id": entity_shadow["publication"].merge_job_id,

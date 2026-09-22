@@ -3,8 +3,8 @@ import unittest
 from agent.warehouse.catalog_queries import CatalogProjectionError, compile_catalog_queries
 
 
-CUSTOMERS = open("queries/shopify/customers_query.graphql", encoding="utf-8").read()
-PRODUCTS = open("queries/shopify/products_query.graphql", encoding="utf-8").read()
+CUSTOMERS = open("queries/shopify/deprecated/customers_query.graphql", encoding="utf-8").read()
+PRODUCTS = open("queries/shopify/deprecated/products_query.graphql", encoding="utf-8").read()
 
 
 class CatalogQueryTests(unittest.TestCase):

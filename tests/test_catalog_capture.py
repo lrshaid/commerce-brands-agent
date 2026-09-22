@@ -5,8 +5,8 @@ from agent.warehouse.catalog_capture import CatalogCapture
 from agent.warehouse.refund_capture import CaptureError
 
 
-CUSTOMERS = open("queries/shopify/customers_query.graphql", encoding="utf-8").read()
-PRODUCTS = open("queries/shopify/products_query.graphql", encoding="utf-8").read()
+CUSTOMERS = open("queries/shopify/deprecated/customers_query.graphql", encoding="utf-8").read()
+PRODUCTS = open("queries/shopify/deprecated/products_query.graphql", encoding="utf-8").read()
 
 
 class Blob:

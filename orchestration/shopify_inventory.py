@@ -1,17 +1,11 @@
-"""Manual Shopify inventory page capture; publication is a downstream asset."""
+"""Capture inventory through Shopify bulk operations; publication is downstream."""
 import os
-from pathlib import Path
-
 import dagster as dg
 from google.cloud import storage
-
-from agent.warehouse.inventory_capture import InventoryCapture
+from agent.warehouse.family_bulk import FamilyBulkCapture
 from agent.warehouse.shopify_bulk import BulkClient
 from agent.warehouse.shopify_token import shopify_access_token
 from orchestration.shopify_orders import extraction_window
-
-ITEMS_QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/inventory_items_bulk.graphql"
-LEVELS_QUERY_PATH = Path(__file__).resolve().parents[1] / "queries/shopify/inventory_levels_bulk.graphql"
 
 
 class InventoryConfig(dg.Config):
@@ -29,16 +23,13 @@ def shopify_inventory(context: dg.AssetExecutionContext, config: InventoryConfig
                         os.environ["SHOPIFY_API_VERSION"])
     shop_gid = client.verify_shop(config.expected_shop_gid)
     bucket = storage.Client(project=project).bucket(project + "-landing")
-    capture = InventoryCapture(
-        bucket=bucket, domain=os.environ["SHOPIFY_SHOP_DOMAIN"],
-        token=shopify_access_token(), api_version=client.api_version,
-        shop_gid=shop_gid, extraction_id=config.extraction_id,
-        items_source=ITEMS_QUERY_PATH.read_text(), levels_source=LEVELS_QUERY_PATH.read_text(),
-        search_filter=search_filter, page_size=50,
-    )
+    capture = FamilyBulkCapture(bucket=bucket, domain=client.shop_domain,
+        api_version=client.api_version, shop_gid=shop_gid,
+        extraction_id=config.extraction_id, family="inventory",
+        search_filter=search_filter, client=client)
     seal = capture.collect()
-    return dg.MaterializeResult(metadata={**seal["counts"], "pages": len(seal["pages"]),
-        "response_bytes": seal["response_bytes"],
+    return dg.MaterializeResult(metadata={
+        "bulk_operations": len(seal["exports"]),
+        "provider_objects": {op: ref["object_count"] for op, ref in seal["exports"].items()},
         "seal_uri": f"gs://{bucket.name}/{capture.prefix}/complete.json",
-        "extraction_id": config.extraction_id, "warehouse_published": False,
-        "consistency": seal["consistency"]})
+        "extraction_id": config.extraction_id, "warehouse_published": False})

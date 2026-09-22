@@ -1,0 +1,9 @@
+query InventoryCountryCodes($id: ID!, $after: String) {
+  inventoryItem(id: $id) {
+    id
+    countryHarmonizedSystemCodes(first: 250, after: $after) {
+      edges { node { countryCode harmonizedSystemCode } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

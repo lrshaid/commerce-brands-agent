@@ -9,8 +9,8 @@ from agent.warehouse.raw_publication import _validate_catalog_page_publication
 from tests.test_catalog_capture import Blob, Bucket, make, response, connection
 
 ROOT = Path(__file__).parents[1]
-CUSTOMERS = (ROOT / "queries/shopify/customers_query.graphql").read_text()
-PRODUCTS = (ROOT / "queries/shopify/products_query.graphql").read_text()
+CUSTOMERS = (ROOT / "queries/shopify/deprecated/customers_query.graphql").read_text()
+PRODUCTS = (ROOT / "queries/shopify/deprecated/products_query.graphql").read_text()
 VARIANT_QUERY_SHA = hashlib.sha256(
     compile_catalog_queries(CUSTOMERS, PRODUCTS).variants.encode()).hexdigest()
 

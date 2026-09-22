@@ -5,12 +5,12 @@ import os
 import dagster as dg
 from google.cloud import bigquery, storage
 
-from agent.warehouse.inventory_raw import prepare_inventory_raw
+from agent.warehouse.family_bulk import FamilyBulkCapture
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from agent.warehouse.raw_records import ExtractionIdentity
 from agent.warehouse.replayable_records import replayable_records
 from agent.warehouse.stream_entity_pipeline import publish_stream_entity_shadow
-from orchestration.shopify_inventory import ITEMS_QUERY_PATH, InventoryConfig, LEVELS_QUERY_PATH
+from orchestration.shopify_inventory import InventoryConfig
 from orchestration.shopify_orders import extraction_window
 
 STREAMS = ("inventory_items", "inventory_levels")
@@ -26,24 +26,23 @@ def shopify_inventory_raw(context: dg.AssetExecutionContext, config: InventoryCo
     start, end, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     now = datetime.now(timezone.utc)
-    prepared = prepare_inventory_raw(
+    streams = FamilyBulkCapture(
         bucket=storage.Client(project=project).bucket(project + "-landing"),
         domain=os.environ["SHOPIFY_SHOP_DOMAIN"], api_version=os.environ["SHOPIFY_API_VERSION"],
         shop_gid=config.expected_shop_gid, extraction_id=config.extraction_id,
-        items_source=ITEMS_QUERY_PATH.read_text(), levels_source=LEVELS_QUERY_PATH.read_text(),
-        search_filter=search_filter, ingested_at=now)
+        family="inventory", search_filter=search_filter).prepare(now)
     _, fields = contract_columns()
     bq = bigquery.Client(project=project, location=os.environ.get("GOOGLE_CLOUD_REGION", "us-central1"))
     for stream in STREAMS:
-        result = prepared["streams"][stream]
+        result = streams[stream]
         manifest = dict.fromkeys(fields)
         manifest.update(shop_key=config.expected_shop_gid, stream=stream, extraction_id=config.extraction_id,
             contract_version=1, query_sha256=result["query_sha256"], request_sha256=result["request_sha256"],
             requested_api_version=os.environ["SHOPIFY_API_VERSION"], actual_api_version=os.environ["SHOPIFY_API_VERSION"],
-            transport="shopify_graphql_pages", window_start=start, window_end=end,
+            transport=result["transport"], bulk_operation_gid=result["bulk_operation_id"], window_start=start, window_end=end,
             started_at=result["started_at"], completed_at=result["completed_at"], published_at=now,
-            status="published", raw_record_count=result["raw_record_count"], provider_object_count=None,
-            root_object_count=result["counts"].get("inventoryItems" if stream == "inventory_items" else "locations", 0),
+            status="published", raw_record_count=result["raw_record_count"], provider_object_count=result["provider_object_count"],
+            root_object_count=result["root_object_count"],
             files=result["files"],
             dagster_job_name=context.job_name, dagster_run_id=context.run_id,
             dagster_step_key=context.op_execution_context.get_step_execution_context().step.key,
@@ -63,7 +62,7 @@ def shopify_inventory_raw(context: dg.AssetExecutionContext, config: InventoryCo
                 source_files=result["files"], window_start=start, window_end=end,
                 published_at=result["completed_at"])
         metadata = {
-            "raw_pages": result["raw_record_count"], "publication_job_id": publication["publication_job_id"],
+            "raw_records": result["raw_record_count"], "publication_job_id": publication["publication_job_id"],
             "extraction_id": config.extraction_id,
             "entity_manifest_uri": entity_shadow["manifest"]["manifest"]["uri"],
             "entity_merge_job_id": entity_shadow["publication"].merge_job_id,

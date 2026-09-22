@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from agent.warehouse.inventory_capture import InventoryCapture, CaptureError
 
 
-ITEMS = open("queries/shopify/inventory_items_bulk.graphql").read()
-LEVELS = open("queries/shopify/inventory_levels_bulk.graphql").read()
+ITEMS = open("queries/shopify/deprecated/inventory_items_bulk.graphql").read()
+LEVELS = open("queries/shopify/deprecated/inventory_levels_bulk.graphql").read()
 
 
 class Blob:

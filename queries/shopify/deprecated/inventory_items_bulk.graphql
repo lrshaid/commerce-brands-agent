@@ -12,6 +12,7 @@ query InventoryItemsBulk ($query: String) {
       provinceCodeOfOrigin
       harmonizedSystemCode
       duplicateSkuCount
+      countryHarmonizedSystemCodes(first: 50) { edges { node { countryCode harmonizedSystemCode } } }
     } }
   }
 }

@@ -1,0 +1,46 @@
+# Returns family bulk export (v2). Replaces the per-order page walk:
+# one bulkOperationRunQuery materializes the whole window server-side.
+# The search filter (built by the orchestration layer) excludes orders
+# without returns via return_status, cutting export size ~50x.
+query ReturnsBulk ($query: String) {
+  orders(query: $query) {
+    edges { node {
+      __typename
+      id
+      updatedAt
+      returns {
+        edges { node {
+          __typename
+          id
+          name
+          status
+          totalQuantity
+          closedAt
+          requestApprovedAt
+          returnLineItems {
+            edges { node {
+              __typename
+              id
+              quantity
+              customerNote
+              returnReasonNote
+              ... on ReturnLineItem { fulfillmentLineItem { id lineItem { id } } }
+            } }
+          }
+          exchangeLineItems(includeRemovedItems: true) {
+            edges { node {
+              __typename
+              id
+              quantity
+              processedQuantity
+              processableQuantity
+              unprocessedQuantity
+              variantId
+              lineItems { id }
+            } }
+          }
+        } }
+      }
+    } }
+  }
+}

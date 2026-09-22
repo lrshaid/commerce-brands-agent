@@ -10,7 +10,7 @@ from agent.warehouse.refund_capture import CaptureError
 from tests.test_fulfillments_capture import Blob, Bucket, connection, response
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / "queries/shopify/fulfillments_bulk.graphql").read_text()
+SOURCE = (ROOT / "queries/shopify/deprecated/fulfillments_bulk.graphql").read_text()
 ORDER = "gid://shopify/Order/1"
 FULFILLMENT = "gid://shopify/Fulfillment/10"
 

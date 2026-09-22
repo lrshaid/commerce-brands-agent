@@ -1,17 +1,11 @@
-"""Manual Shopify customers/products/variants capture; publication is downstream."""
+"""Capture catalog through Shopify bulk operations; publication is downstream."""
 import os
-from pathlib import Path
-
 import dagster as dg
 from google.cloud import storage
-
-from agent.warehouse.catalog_capture import CatalogCapture
+from agent.warehouse.family_bulk import FamilyBulkCapture
 from agent.warehouse.shopify_bulk import BulkClient
 from agent.warehouse.shopify_token import shopify_access_token
 from orchestration.shopify_orders import extraction_window
-
-CUSTOMER_QUERY = Path(__file__).resolve().parents[1] / "queries/shopify/customers_query.graphql"
-PRODUCT_QUERY = Path(__file__).resolve().parents[1] / "queries/shopify/products_query.graphql"
 
 
 class CatalogConfig(dg.Config):
@@ -29,16 +23,13 @@ def shopify_catalog(context: dg.AssetExecutionContext, config: CatalogConfig):
                         os.environ["SHOPIFY_API_VERSION"])
     shop_gid = client.verify_shop(config.expected_shop_gid)
     bucket = storage.Client(project=project).bucket(project + "-landing")
-    capture = CatalogCapture(
-        bucket=bucket, domain=os.environ["SHOPIFY_SHOP_DOMAIN"],
-        token=shopify_access_token(), api_version=client.api_version,
-        shop_gid=shop_gid, extraction_id=config.extraction_id,
-        customer_query=CUSTOMER_QUERY.read_text(), product_query=PRODUCT_QUERY.read_text(),
-        search_filter=search_filter, page_size=50,
-    )
+    capture = FamilyBulkCapture(bucket=bucket, domain=client.shop_domain,
+        api_version=client.api_version, shop_gid=shop_gid,
+        extraction_id=config.extraction_id, family="catalog",
+        search_filter=search_filter, client=client)
     seal = capture.collect()
-    return dg.MaterializeResult(metadata={**seal["counts"], "pages": len(seal["pages"]),
-        "response_bytes": seal["response_bytes"],
+    return dg.MaterializeResult(metadata={
+        "bulk_operations": len(seal["exports"]),
+        "provider_objects": {op: ref["object_count"] for op, ref in seal["exports"].items()},
         "seal_uri": f"gs://{bucket.name}/{capture.prefix}/complete.json",
-        "extraction_id": config.extraction_id, "warehouse_published": False,
-        "consistency": seal["consistency"]})
+        "extraction_id": config.extraction_id, "warehouse_published": False})

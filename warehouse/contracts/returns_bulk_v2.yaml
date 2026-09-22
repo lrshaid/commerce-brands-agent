@@ -1,0 +1,30 @@
+version: 2
+status: implemented_offline_validation_only
+stream: returns
+api_version: '2026-04'
+projection: queries/shopify/returns_bulk.graphql
+transport: shopify_bulk_query
+envelope: shopify_raw_v1.record_envelope
+manifest_contract_version: 1
+raw_table: returns
+scope: parent_order_updated_at_half_open_interval
+return_status_filter: '-return_status:no_return'
+transport:
+  single_pass: true
+  grain: one_original_jsonl_line
+  nesting: orders_to_returns_to_returnLineItems_exchangeLineItems_with_explicit_parent_ids
+  pagination_args: none_bulk_exports_complete_connections
+  exchange_children_grain: once_per_exchange_line_per_extraction
+publication:
+  gate: provider_counts_and_explicit_parent_ids_then_lww_merge
+  file_roles: [bulk_returns, completion_seal]
+  entity_normalizer: agent.warehouse.returns_bulk_entities
+  money: preserve_shop_and_presentment_amounts_and_currencies
+legacy:
+  capture_version: 1
+  projection: queries/shopify/return_line_items_bulk.graphql
+  prefix: pages/v1/returns
+  transport: shopify_graphql_pages
+  contract: returns_pages_v1
+  reuse_extraction_id_across_versions: forbidden_use_new_identity_for_v2
+live_acceptance: pending_nonempty_returns_bulk_fixture

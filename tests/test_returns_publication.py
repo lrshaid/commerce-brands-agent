@@ -103,8 +103,8 @@ class ReturnsPublicationTests(unittest.TestCase):
 
     def test_rejects_wrong_transport_without_bq(self):
         rows, manifest = _returns_fixture()
-        manifest["transport"] = "shopify_bulk_query"
-        with self.assertRaisesRegex(ValueError, "shopify_graphql_pages"):
+        manifest["transport"] = "shopify_foo"
+        with self.assertRaisesRegex(ValueError, "shopify_graphql_pages or shopify_bulk_query"):
             publish_records(_NoMutationClient(), "commerce-agents-dev.raw_shopify", "returns",
                             rows, manifest, transport_validated=True)
 

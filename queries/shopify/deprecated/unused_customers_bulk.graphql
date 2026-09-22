@@ -1,0 +1,24 @@
+query CustomersBulk ($query: String) {
+  customers(query: $query) {
+    edges { node {
+      id
+      createdAt
+      updatedAt
+      numberOfOrders
+      amountSpent { amount currencyCode }
+      defaultEmailAddress { emailAddress }
+      defaultPhoneNumber { phoneNumber }
+      firstName
+      lastName
+      state
+      note
+      verifiedEmail
+      taxExempt
+      tags
+      defaultAddress { id }
+      addressesV2(first: 100) {
+        edges { node { id city province provinceCode country countryCodeV2 zip } }
+      }
+    } }
+  }
+}

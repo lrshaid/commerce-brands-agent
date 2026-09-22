@@ -63,7 +63,7 @@ class LauncherTests(unittest.TestCase):
         params = calls[1].kwargs["json"]["variables"]["params"]
         self.assertEqual(params["selector"]["pipelineName"], "shopify_returns_ingestion")
         self.assertEqual(set(params["runConfigData"]["ops"]),
-                         {"shopify_capture__return_pages", "shopify_returns_raw"})
+                         {"shopify_returns"})
 
     def test_klaviyo_job_maps_capture_and_raw_assets_in_priority_order(self):
         calls = self.invoke([], ["--job", "klaviyo_events_ingestion", "--account-key", "klaviyo-main",

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from agent.warehouse.fulfillments_capture import FulfillmentsCapture, CaptureError
 
 
-SOURCE = open("queries/shopify/fulfillments_bulk.graphql").read()
+SOURCE = open("queries/shopify/deprecated/fulfillments_bulk.graphql").read()
 
 
 class Blob:
