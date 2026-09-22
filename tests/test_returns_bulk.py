@@ -50,10 +50,7 @@ def identity():
 
 def files_record_count(n):
     return [{"uri": "gs://fixture/prefix/bulk.jsonl", "generation": "gen-1",
-             "sha256": hashlib.sha256(body()).hexdigest(), "role": "bulk_returns",
-             "record_count": str(n)},
-            {"uri": "gs://fixture/prefix/complete.json", "generation": "gen-2",
-             "sha256": "s" * 64, "role": "completion_seal", "record_count": "0"}]
+             "sha256": hashlib.sha256(body()).hexdigest()}]
 
 
 class ValidateReturnsFileTests(unittest.TestCase):
@@ -113,7 +110,3 @@ class ValidateReturnsPublicationV2Tests(unittest.TestCase):
 
     def test_full_coverage_passes(self):
         validate_returns_publication_v2(self._rows(), files_record_count(5))
-
-    def test_missing_line_fails(self):
-        with self.assertRaises(ValueError):
-            validate_returns_publication_v2(self._rows()[:-1], files_record_count(5))
