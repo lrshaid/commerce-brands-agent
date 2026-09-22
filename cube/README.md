@@ -4,56 +4,49 @@ Self-hosted Cube Core (Apache 2.0) over the reconciled BigQuery marts. This is a
 **buy-vs-build spike** for the serving layer (the alternative is the in-repo
 compiler, "Option B"). Nothing here is deployed; it runs locally.
 
-## Semantic layer
+## Semantic layer (generated — do not hand-edit)
 
-`model/` contains the nine commerce verticals discussed in
-[`knowledge/semantic-layer-reference`](../knowledge/semantic-layer-reference/README.md),
-plus the existing revenue-core binding. Docker mounts this directory at `/cube/conf/model`.
+`model/` is **generated** from `semantic/serving_contract.yaml` (the single source of
+truth) by [`scripts/generate_cube_model.py`](../scripts/generate_cube_model.py). Each
+metric is defined once, in the contract; the generator routes it to a cube measure and
+a public view. Do **not** edit `model/*.yml` by hand — edit the contract and re-run the
+generator. Docker mounts this directory at `/cube/conf/model`.
 
-| View | Cube | Binding status |
+The contract currently binds one mart, so the runtime model is:
+
+| View (public) | Cube | Binding |
 |---|---|---|
-| revenue | revenue_daily | Existing `analytics.metric_revenue_daily` binding |
-| commercial | commercial_revenue | Pending mart |
-| marketing | marketing_daily | Pending mart |
-| digital | digital_sessions | Pending mart |
-| customer | customer_ltv | Pending mart |
-| retail | retail_stylist | Pending mart |
-| returns | returns_economics | Pending mart |
-| merchandise | merch_product | Pending mart |
-| operations | operations_otif | Pending mart |
-| inventory | inventory_snapshot | Pending mart |
+| `revenue` | `commercial_revenue` | `analytics.metric_revenue_daily` (reconciled) |
 
-The full semantic definitions are in `model/cubes/*.yml`; consumer surfaces are
-in `model/views/*.yml`. All base cubes are private (`public: false`). Only the
-existing `revenue` view is public. The nine new views are present but private
-until their placeholder tables are replaced by reconciled mart bindings.
-This is model coverage, not a claim that all nine verticals have live data.
+`emv` and `traffic` are `blocked` in the contract, so the generator emits them as
+`public: false` measures (kept for reconcile) and leaves them out of the view — no one
+can query a 0/NULL-by-design number. Tenant/extraction keys are `public: false`;
+scoping is server-side (see Multi-tenancy).
 
-## Source of truth and activation
+The broader nine-vertical semantics (marketing, digital, customer, retail, returns,
+merch, operations, inventory + the extended commercial measures) are the **roadmap**,
+kept as an anonymized reference in
+[`knowledge/semantic-layer-reference/cube-model`](../knowledge/semantic-layer-reference/cube-model/README.md).
+They are **not** in the runtime model until their mart exists — that keeps `model/`
+free of placeholder tables that would error at query time.
 
-The reference defines the broader business semantics. `semantic/serving_contract.yaml`
-and dbt marts define the currently supported revenue binding. Business logic
-stays in dbt; Cube defines dimensions, aggregations and ratios of aggregated measures.
-The YAML is hand-maintained for now; changes to the reference templates must also
-be reflected in the runtime model.
+## Adding a vertical (single-source flow)
 
-To activate a pending vertical:
+1. Build and reconcile the mart at the documented grain (a `metric_*` model under
+   `dbt/models/marts/`).
+2. Add the mart + its metrics to `semantic/serving_contract.yaml` — base metrics map to
+   a mart column; derived metrics are numerator/denominator over base metrics; blocked
+   metrics carry a `blocked_reason`. Copy the metric shapes from the roadmap reference.
+3. Run `python scripts/generate_cube_model.py`; the cube + its public view are emitted.
+   `python scripts/generate_cube_model.py --check` fails in CI if `model/` is stale.
+4. Configure tenant/extraction scoping before exposing data beyond local development.
 
-1. Build and reconcile the mart at the documented grain; bind `sql_table` and
-   any pre-aggregation refresh SQL to its actual table.
-2. Remove unsupported metrics and their dependent ratios from the cube and view.
-3. Configure tenant/extraction scoping before exposing data beyond local development.
-4. Validate generated SQL and business totals, then set that view's `public: true`.
-
-Inventory requires one snapshot date. LTV and returns require their maturity
-filters. These are requirements for activation, not filters enforced by descriptions.
-Merchandise sell-through uses `SUM(quantity_available) / COUNT(DISTINCT metric_date)`
-for average inventory: the mart must include zero-sales days and allocate inventory
-without repeating it across channel/market/user-type rows. Summing daily averages
-across a date range is incorrect.
-
-EMV and traffic remain excluded from the existing revenue view according to the
-serving contract. The broader private commercial model describes future support.
+Business math stays in dbt; the contract only routes a metric to a mart column and
+declares how it may roll up. Requirements the mart itself must satisfy (not enforced by
+descriptions): inventory needs one snapshot date; LTV and returns need their maturity
+filters; merch average inventory uses `SUM(quantity_available) / COUNT(DISTINCT metric_date)`
+over a mart that includes zero-sales days and does not repeat inventory across
+channel/market/user-type rows.
 
 ## Run it
 
@@ -75,7 +68,7 @@ mart / the `daily_rollup` pre-aggregation.
 
 ## Pre-aggregations & the refresh worker
 
-`revenue_daily.yml` defines a `daily_rollup` pre-aggregation with
+`commercial_revenue.yml` defines a `daily_rollup` pre-aggregation with
 `refresh_key = SELECT MAX(computed_at) FROM analytics.metric_revenue_daily`, so
 rollups rebuild only when Dagster/dbt actually rebuilds the mart. In dev mode the
 refresh worker + Cube Store run embedded in the same container. In production you

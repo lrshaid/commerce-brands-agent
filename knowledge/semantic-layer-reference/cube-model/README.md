@@ -1,13 +1,20 @@
-# Cube model — company-agnostic TEMPLATE (generated from the semantic-layer reference)
+# Cube model — company-agnostic TEMPLATE / ROADMAP
 
 A Cube data model that expresses the metrics in this reference (`../00_semantic_layer_consolidated.md`)
-as Cube **cubes** (mart → measures + dimensions) and **views** (governed consumer surfaces).
-The nine verticals are also included in `cube/model/` (see `cube/README.md`), with
-private views until their mart bindings are implemented and reconciled.
+as Cube **cubes** (mart → measures + dimensions) and **views** (governed consumer surfaces),
+across nine commerce verticals.
 
-> **This is a template, not a live model.** Every `sql_table` is a placeholder
-> (`analytics.metric_<vertical>_*`) and nothing is wired to a real warehouse. The copy under
-> `cube/model/` keeps these views private; only the existing revenue-core view is public.
+> **This is the roadmap, not the runtime model.** The live `cube/model/` is **generated**
+> from `semantic/serving_contract.yaml` by `scripts/generate_cube_model.py` and contains only
+> what is servable today (the `commercial_revenue` cube over the reconciled
+> `analytics.metric_revenue_daily`). Every `sql_table` in *this* folder is a placeholder
+> (`analytics.metric_<vertical>_*`) whose mart does not exist yet.
+>
+> **To promote a vertical:** build its `metric_*` mart, add the mart + its metrics to
+> `semantic/serving_contract.yaml` (copy the measure shapes from the matching cube here),
+> then run `python scripts/generate_cube_model.py`. The generator emits the cube + public
+> view into `cube/model/`. Do not hand-copy these files into `cube/model/` — that reintroduces
+> the drift the generator exists to remove.
 
 ## Layout
 

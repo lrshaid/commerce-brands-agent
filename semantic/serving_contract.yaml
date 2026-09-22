@@ -26,6 +26,9 @@ marts:
     time_column: metric_date
     grain: day
     dimensions: [sales_channel]
+    # How the generated Cube model names this mart's cube + public view.
+    cube_name: commercial_revenue
+    view_name: revenue
 
 # NOTE on "sales_revenue": intentionally NOT aliased to any single metric. It is
 # ambiguous (gross-booked vs gmv vs nmv); the API must force a basis choice
