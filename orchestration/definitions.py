@@ -119,7 +119,7 @@ smoke_job = dg.define_asset_job(
 
 orders_job = dg.define_asset_job(
     "shopify_orders_ingestion",
-    selection=dg.AssetSelection.assets(shopify_orders, shopify_entity_shadow_dbt),
+    selection=dg.AssetSelection.assets(shopify_orders),
     tags={"dagster/max_retries": "0", "purpose": "shopify_orders"},
     executor_def=dg.in_process_executor,
 )
@@ -132,7 +132,7 @@ refunds_job = dg.define_asset_job(
 )
 
 returns_job = dg.define_asset_job(
-    "shopify_returns_ingestion", selection=dg.AssetSelection.assets(shopify_returns, shopify_entity_shadow_dbt),
+    "shopify_returns_ingestion", selection=dg.AssetSelection.assets(shopify_returns),
     tags={"dagster/max_retries": "0", "purpose": "shopify_returns_ingestion"},
     executor_def=dg.in_process_executor)
 
@@ -159,10 +159,10 @@ defs = dg.Definitions(
             klaviyo_campaigns, klaviyo_campaigns_raw],
     jobs=[dg.define_asset_job(
         "shopify_order_transactions_ingestion",
-        selection=dg.AssetSelection.assets(shopify_order_transactions, shopify_entity_shadow_dbt),
+        selection=dg.AssetSelection.assets(shopify_order_transactions),
         tags={"dagster/max_retries": "0", "purpose": "shopify_order_transactions"},
         executor_def=dg.in_process_executor), smoke_job, orders_job, refunds_job, dg.define_asset_job(
-        "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw, shopify_entity_shadow_dbt),
+        "shopify_refunds_ingestion", selection=dg.AssetSelection.assets(shopify_refunds, shopify_refunds_raw),
         tags={"dagster/max_retries": "0", "purpose": "shopify_refunds_ingestion"},
         executor_def=dg.in_process_executor), returns_job, dg.define_asset_job(
         "shopify_catalog_ingestion", selection=dg.AssetSelection.assets(shopify_catalog, shopify_catalog_raw),

@@ -28,7 +28,7 @@ def test_closed_day_window_is_pinned_to_05_utc():
 
 
 def test_daily_schedules_are_staggered_in_et():
-    schedules = daily_schedules()
+    schedules = [s for s in daily_schedules() if s.name != "shopify_marts_build_daily"]
     assert len(schedules) == 8
     minutes = sorted(int(s.cron_schedule.split(" ")[0]) for s in schedules)
     assert minutes == list(range(0, 8))
@@ -37,8 +37,19 @@ def test_daily_schedules_are_staggered_in_et():
         assert schedule.cron_schedule.endswith("2 * * *")
 
 
+def test_marts_build_schedule_runs_after_the_raw_dailies():
+    schedules = {s.name: s for s in daily_schedules()}
+    marts = schedules["shopify_marts_build_daily"]
+    assert marts.cron_schedule == "10 2 * * *"
+    assert marts.execution_timezone == "America/New_York"
+    family_minutes = [int(schedules[f"shopify_{f}_raw_daily_schedule"].cron_schedule.split(" ")[0])
+                      for f in ("orders", "order_transactions", "refunds", "returns",
+                                "catalog", "metafields", "fulfillments", "inventory")]
+    assert max(family_minutes) < 10
+
+
 def test_scheduled_run_config_is_valid_and_raw_only():
-    for schedule in daily_schedules():
+    for schedule in [x for x in daily_schedules() if x.name != "shopify_marts_build_daily"]:
         context = dg.build_schedule_context(scheduled_execution_time=SUMMER_TICK)
         result = schedule.evaluate_tick(context)
         request = result.run_requests[0]
@@ -53,10 +64,18 @@ def test_scheduled_run_config_is_valid_and_raw_only():
 
 
 def test_raw_only_jobs_do_not_select_dbt_assets():
-    for schedule in daily_schedules():
+    for schedule in [x for x in daily_schedules() if x.name != "shopify_marts_build_daily"]:
         job = schedule.job.resolve(defs.get_repository_def().asset_graph)
         for node in job.graph.nodes:
             assert "dbt" not in node.name.lower(), schedule.name
+
+
+def test_marts_build_daily_only_selects_dbt_assets():
+    schedules = {s.name: s for s in daily_schedules()}
+    job = schedules["shopify_marts_build_daily"].job.resolve(defs.get_repository_def().asset_graph)
+    names = {node.name for node in job.graph.nodes}
+    assert names and all(("dbt" in n or n.startswith(("int_", "fct_", "metric_", "dim_", "stg_", "rpt_", "semantic")))
+                         for n in names), names
 
 
 def test_definitions_register_all_daily_schedules():

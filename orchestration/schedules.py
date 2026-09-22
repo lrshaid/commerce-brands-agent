@@ -27,6 +27,8 @@ from orchestration.shopify_orders import shopify_orders
 from orchestration.shopify_refunds import shopify_refunds
 from orchestration.shopify_refunds_raw import shopify_refunds_raw
 from orchestration.shopify_returns import shopify_returns
+from orchestration.shopify_dbt import (
+    intermediate_dbt, klaviyo_dbt, marts_dbt, shopify_entity_shadow_dbt)
 
 SCHEDULE_TZ = ZoneInfo("America/New_York")
 UTC = ZoneInfo("UTC")
@@ -108,6 +110,28 @@ def make_daily_schedule(family: str, capture_asset, raw_asset, job_name: str, mi
     )
 
 
+def marts_build_schedule() -> dg.ScheduleDefinition:
+    """Daily dbt build over everything landed the previous day.
+
+    Runs strictly after the eight raw-only family schedules (02:00-02:07 ET):
+    one pass covers every family — entity-shadow staging, intermediate views
+    and business marts. Ingestion runs never carry dbt; failures here leave
+    the landing intact for the next tick.
+    """
+    job = dg.define_asset_job(
+        "shopify_marts_build_daily",
+        selection=dg.AssetSelection.assets(
+            shopify_entity_shadow_dbt, klaviyo_dbt, intermediate_dbt, marts_dbt).without_checks(),
+    )
+    return dg.ScheduleDefinition(
+        name="shopify_marts_build_daily",
+        job=job,
+        cron_schedule="10 2 * * *",
+        execution_timezone="America/New_York",
+        description="Daily dbt build: shadow staging, intermediate views and marts (no capture).",
+    )
+
+
 def daily_schedules() -> list[dg.ScheduleDefinition]:
     return [make_daily_schedule(family, capture, raw, job_name, minute)
-            for family, capture, raw, job_name, minute in _FAMILIES]
+            for family, capture, raw, job_name, minute in _FAMILIES] + [marts_build_schedule()]
