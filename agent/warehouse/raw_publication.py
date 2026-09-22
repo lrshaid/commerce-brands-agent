@@ -940,9 +940,9 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             raise ValueError('Source file must include GCS URI, generation and SHA256')
         file_ids.add(str(source['generation']))
     if stream == 'order_refunds' and manifest['transport'] == 'shopify_bulk_and_graphql_pages_v2':
-        from .refund_publication_v2 import validate_refund_publication_v2
+        from .refund_publication_v2 import validate_refund_publication
         records = list(records)
-        validate_refund_publication_v2(records, files)
+        validate_refund_publication(records, files)
     if stream == 'order_refunds' and manifest['transport'] == 'shopify_graphql_pages':
         # Materialize and validate this small page-grain stream before creating a
         # staging table. Orders/Bulk keeps its existing streaming behavior.
@@ -956,9 +956,9 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
         _validate_refund_page_publication(refund_rows, files)
         records = refund_rows
     if stream == 'returns' and manifest['transport'] == 'shopify_bulk_query':
-        from .returns_publication_v2 import validate_returns_publication_v2
+        from .returns_publication_v2 import validate_returns_publication
         records = list(records)
-        validate_returns_publication_v2(records, files)
+        validate_returns_publication(records, files)
     if stream == 'returns' and manifest['transport'] not in ('shopify_graphql_pages', 'shopify_bulk_query'):
         raise ValueError('Returns publication requires shopify_graphql_pages or shopify_bulk_query transport')
     if stream == 'returns' and manifest['transport'] == 'shopify_graphql_pages':

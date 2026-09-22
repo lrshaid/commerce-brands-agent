@@ -6,7 +6,7 @@ import dagster as dg
 from google.cloud import storage
 
 from agent.warehouse.refund_capture import RefundCapture as LegacyRefundCapture
-from agent.warehouse.refund_capture_v2 import RefundCaptureV2 as RefundCapture
+from agent.warehouse.refund_engine import RefundEngine as RefundCapture
 from agent.warehouse.shopify_bulk import BulkClient
 from agent.warehouse.shopify_token import shopify_access_token
 from orchestration.shopify_orders import OrdersConfig, extraction_window

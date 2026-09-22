@@ -2,13 +2,13 @@
 from datetime import datetime
 from io import BytesIO
 from .refund_capture import CaptureError, digest, encoded
-from .refund_capture_v2 import RefundCaptureV2
+from .refund_engine import RefundEngine
 from .raw_records import ExtractionIdentity, iter_raw_records
 
 
-def prepare_refund_raw_v2(*, bucket, domain, api_version, shop_gid, extraction_id,
+def prepare_refund_raw(*, bucket, domain, api_version, shop_gid, extraction_id,
                           query_source, search_filter, ingested_at, page_size=50):
-    capture = RefundCaptureV2(bucket=bucket, domain=domain, token="", api_version=api_version,
+    capture = RefundEngine(bucket=bucket, domain=domain, token="", api_version=api_version,
         shop_gid=shop_gid, extraction_id=extraction_id, query_source=query_source,
         search_filter=search_filter, page_size=page_size, read_only=True)
     seal = capture.collect()

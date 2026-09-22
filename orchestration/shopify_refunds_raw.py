@@ -8,7 +8,7 @@ from pathlib import Path
 import dagster as dg
 from google.cloud import bigquery, storage
 
-from agent.warehouse.refund_raw_v2 import prepare_refund_raw_v2 as prepare_refund_raw
+from agent.warehouse.refund_engine_raw import prepare_refund_raw as prepare_refund_raw
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from agent.warehouse.raw_records import ExtractionIdentity
 from agent.warehouse.replayable_records import replayable_records

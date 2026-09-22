@@ -19,7 +19,7 @@ class QueryCostLimit(CaptureError):
     pass
 
 
-class RefundCaptureV2(RefundCapture):
+class RefundEngine(RefundCapture):
     def __init__(self, *, bucket, domain, token, api_version, shop_gid, extraction_id,
                  query_source, search_filter, page_size=50, timeout_seconds=1200,
                  max_pages=10000, max_bytes=256*1024*1024, read_only=False):

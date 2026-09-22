@@ -5,7 +5,7 @@ from .entity_contract import contracts_for_stream, load_entity_contract
 from .entity_landing import land_entity_artifacts
 from .entity_parquet import write_entity_parquet
 from .entity_publication import initialize_entity_tables, publish_entity_batch
-from .orders_entities import iter_order_entities
+from .orders_engine import iter_entities
 
 
 def publish_orders_entity_shadow(source, bucket, bigquery_client, dataset, identity,
@@ -14,7 +14,7 @@ def publish_orders_entity_shadow(source, bucket, bigquery_client, dataset, ident
     all_contracts = load_entity_contract()
     contracts = contracts_for_stream(all_contracts, "orders")
     source.seek(0)
-    rows = iter_order_entities(
+    rows = iter_entities(
         source, identity, published_at, contracts.entities
     )
     with tempfile.TemporaryDirectory(prefix="shopify-entity-parquet-") as directory:

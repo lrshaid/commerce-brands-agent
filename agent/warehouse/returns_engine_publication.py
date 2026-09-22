@@ -7,7 +7,7 @@ import hashlib
 import json
 
 
-def validate_returns_publication_v2(rows, files):
+def validate_returns_publication(rows, files):
     if not isinstance(files, list) or len(files) != 1:
         raise ValueError("Returns v2 requires exactly one bulk file")
     bulk = files[0]

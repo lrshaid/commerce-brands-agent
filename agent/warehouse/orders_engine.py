@@ -1,4 +1,4 @@
-"""Normalize an Orders Bulk JSONL export into canonical entity rows."""
+"""Orders bulk JSONL engine: validate and emit canonical entity rows."""
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -135,7 +135,7 @@ def _row_values(contract, payload, context, assembled):
     return values
 
 
-def iter_order_entities(source: BinaryIO, identity: ExtractionIdentity,
+def iter_entities(source: BinaryIO, identity: ExtractionIdentity,
                         published_at: datetime, contracts: Mapping[str, EntityContract]):
     """Yield three canonical Orders entities with disk-bounded parent assembly.
 

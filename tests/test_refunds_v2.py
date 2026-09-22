@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 from tests.test_refund_capture import Bucket
 from agent.warehouse.refund_capture import CaptureError, digest, encoded
-from agent.warehouse.refund_capture_v2 import RefundCaptureV2
-from agent.warehouse.refund_raw_v2 import prepare_refund_raw_v2
-from agent.warehouse.refund_publication_v2 import validate_refund_publication_v2
+from agent.warehouse.refund_engine import RefundEngine
+from agent.warehouse.refund_engine_raw import prepare_refund_raw
+from agent.warehouse.refund_engine_publication import validate_refund_publication
 from agent.warehouse.refund_queries_v2 import compile_refund_queries_v2, order_transactions_query
 from agent.warehouse.order_transactions import validate_order_transactions_file
 from agent.warehouse.raw_records import ExtractionIdentity
@@ -36,7 +36,7 @@ class RefundV2Tests(unittest.TestCase):
         args = dict(bucket=bucket, domain="test.myshopify.com", api_version="2026-04",
             shop_gid="gid://shopify/Shop/3", extraction_id="v2-test", query_source=SOURCE,
             search_filter="updated_at:>='2026-09-01' updated_at:<'2026-09-02'")
-        capture = RefundCaptureV2(**args, token="test")
+        capture = RefundEngine(**args, token="test")
         order = {"id": "gid://shopify/Order/1", "updatedAt": STAMP,
                  "refunds": [{"id": f"gid://shopify/Refund/{i}", "createdAt": "2020-01-01T00:00:00Z",
                               "return": returned} for i in range(refunds)]}
@@ -60,9 +60,9 @@ class RefundV2Tests(unittest.TestCase):
 
         export = SimpleNamespace(object_count=1, root_count=1,
             created_at=datetime.fromisoformat(STAMP), completed_at=datetime.fromisoformat(STAMP))
-        with patch("agent.warehouse.refund_capture_v2.BulkClient") as client, \
-                patch("agent.warehouse.refund_capture_v2.wait_for_export", return_value=export), \
-                patch("agent.warehouse.refund_capture_v2.download_export", side_effect=download):
+        with patch("agent.warehouse.refund_engine.BulkClient") as client, \
+                patch("agent.warehouse.refund_engine.wait_for_export", return_value=export), \
+                patch("agent.warehouse.refund_engine.download_export", side_effect=download):
             client.return_value.submit_once.return_value = "gid://shopify/BulkOperation/9"
             seal = capture.collect()
             kwargs = client.return_value.submit_once.call_args.kwargs
@@ -91,17 +91,17 @@ class RefundV2Tests(unittest.TestCase):
         self.assertEqual(len(http.call_args_list[0].args[1]["ids"]), 5)
         self.assertEqual(http.call_args_list[1].args[1]["after"], "50")
         before = {k: b.body for k, b in args["bucket"].objects.items()}
-        with patch.object(RefundCaptureV2, "_http", side_effect=AssertionError("No network")):
-            prepared = prepare_refund_raw_v2(**args, ingested_at=datetime.now(timezone.utc))
+        with patch.object(RefundEngine, "_http", side_effect=AssertionError("No network")):
+            prepared = prepare_refund_raw(**args, ingested_at=datetime.now(timezone.utc))
             rows = list(prepared["records"])
-        validate_refund_publication_v2(rows, prepared["files"])
+        validate_refund_publication(rows, prepared["files"])
         self.assertEqual(prepared["raw_record_count"], 4)
         self.assertEqual(rows[1]["record_text"].encode(), bodies[0])
         self.assertEqual(before, {k: b.body for k, b in args["bucket"].objects.items()})
         self.assertIn("2020-01-01", rows[0]["record_text"])  # No refund date exclusion.
         rows.pop()
         with self.assertRaises(ValueError):
-            validate_refund_publication_v2(rows, prepared["files"])
+            validate_refund_publication(rows, prepared["files"])
 
     def test_return_children_topup_once_for_shared_return(self):
         capture, _ = self.fixture(refunds=2, returned={"id": "gid://shopify/Return/7"})
@@ -139,16 +139,16 @@ class RefundV2Tests(unittest.TestCase):
         capture, args = self.fixture(refunds=0)
         with patch.object(capture, "_http", side_effect=AssertionError("No child request")):
             capture.collect()
-        prepared = prepare_refund_raw_v2(**args, ingested_at=datetime.now(timezone.utc))
+        prepared = prepare_refund_raw(**args, ingested_at=datetime.now(timezone.utc))
         self.assertEqual(prepared["raw_record_count"], 1)
-        validate_refund_publication_v2(list(prepared["records"]), prepared["files"])
+        validate_refund_publication(list(prepared["records"]), prepared["files"])
 
     def test_tampered_bulk_rejected(self):
         capture, args = self.fixture(refunds=0)
         capture.collect()
         args["bucket"].objects[capture.prefix+"/orders.jsonl"].body = b"{}"
         with self.assertRaises(CaptureError):
-            prepare_refund_raw_v2(**args, ingested_at=datetime.now(timezone.utc))
+            prepare_refund_raw(**args, ingested_at=datetime.now(timezone.utc))
 
     def test_projections_share_transaction_fields(self):
         expected = order_transactions_query(SOURCE)+"\n"
@@ -177,7 +177,7 @@ class OrderTransactionsTests(unittest.TestCase):
 class RefundCostTests(unittest.TestCase):
     fixture = RefundV2Tests.fixture
     def test_query_cost_reduction_is_replayable_without_failed_requests(self):
-        from agent.warehouse.refund_capture_v2 import QueryCostLimit
+        from agent.warehouse.refund_engine import QueryCostLimit
         capture, args = self.fixture()
         node = refund(0)
         node["transactions"] = connection("OrderTransaction", 25, more=True)
@@ -188,5 +188,5 @@ class RefundCostTests(unittest.TestCase):
         ]):
             seal = capture.collect()
         self.assertEqual(seal["pages"][0]["variables"]["first"], 25)
-        prepared = prepare_refund_raw_v2(**args, ingested_at=datetime.now(timezone.utc))
+        prepared = prepare_refund_raw(**args, ingested_at=datetime.now(timezone.utc))
         self.assertEqual(prepared["counts"]["transactions"], 26)

@@ -4,7 +4,7 @@ import hashlib
 import json
 
 
-def validate_refund_publication_v2(rows, files):
+def validate_refund_publication(rows, files):
     by_generation = {f["generation"]: f for f in files}
     if len(by_generation) != len(files):
         raise ValueError("Duplicate file generations")

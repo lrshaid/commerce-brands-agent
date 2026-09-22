@@ -11,7 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from .entity_contract import EntityContractSet
-from .orders_entities import EntityRow
+from .orders_engine import EntityRow
 
 
 @dataclass(frozen=True)

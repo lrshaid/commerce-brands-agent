@@ -8,7 +8,7 @@ import pytest
 
 from agent.warehouse.entity_contract import contracts_for_stream, load_entity_contract
 from agent.warehouse.entity_parquet import write_entity_parquet
-from agent.warehouse.orders_entities import iter_order_entities
+from agent.warehouse.orders_engine import iter_entities
 from agent.warehouse.raw_records import ExtractionIdentity
 
 
@@ -68,7 +68,7 @@ def _payload():
 
 def _rows(payload=None):
     contracts = contracts_for_stream(load_entity_contract(), "orders")
-    rows = list(iter_order_entities(
+    rows = list(iter_entities(
         io.BytesIO(payload or _payload()), _identity(), NOW, contracts.entities
     ))
     return contracts, rows
@@ -97,7 +97,7 @@ def test_parquet_is_typed_streaming_and_writes_empty_entities(tmp_path):
     contracts, rows = _rows()
     # Duplicate the order with a distinct key to force more than one row group.
     second = dict(rows[0].values, order_gid="gid://shopify/Order/99")
-    from agent.warehouse.orders_entities import EntityRow
+    from agent.warehouse.orders_engine import EntityRow
     artifacts = write_entity_parquet(
         iter([rows[0], EntityRow("orders", second), rows[1]]), contracts, tmp_path,
         shop_key=_identity().shop_key, stream="orders", extraction_id=_identity().extraction_id,

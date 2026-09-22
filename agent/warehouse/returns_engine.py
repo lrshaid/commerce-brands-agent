@@ -1,6 +1,6 @@
 """Validate a Returns Bulk JSONL export and emit canonical entity rows.
 
-Mirrors orders_entities for the returns family: the export carries Order
+Mirrors orders_engine for the returns family: the export carries Order
 roots plus Return / ReturnLineItem / ExchangeLineItem child lines with
 explicit __parentId. No Shopify calls; publication is the caller's job.
 """
@@ -10,7 +10,7 @@ import sqlite3
 import tempfile
 
 from .entity_parquet import EntityRow
-from .orders_entities import _row_values
+from .orders_engine import _row_values
 from .raw_records import iter_raw_records
 from .shopify_bulk import BulkError
 
@@ -53,7 +53,7 @@ def validate_returns_file(source, identity, export):
     return {"record_count": count, "root_count": len(roots)}
 
 
-def iter_returns_entities(source, identity, published_at, contracts):
+def iter_entities(source, identity, published_at, contracts):
     """Yield the two canonical Returns entities with bounded parent assembly.
 
     Shopify Bulk emits each child line with __parentId; exchange lines can be

@@ -8,8 +8,8 @@ import unittest
 
 from agent.warehouse.entity_contract import contracts_for_stream, load_entity_contract
 from agent.warehouse.raw_records import ExtractionIdentity
-from agent.warehouse.returns_bulk_entities import iter_returns_entities, validate_returns_file
-from agent.warehouse.returns_publication_v2 import validate_returns_publication_v2
+from agent.warehouse.returns_engine import iter_entities, validate_returns_file
+from agent.warehouse.returns_engine_publication import validate_returns_publication
 from agent.warehouse.shopify_bulk import BulkError
 
 ORDER = "gid://shopify/Order/1"
@@ -76,7 +76,7 @@ class IterReturnsEntitiesTests(unittest.TestCase):
         return contracts_for_stream(load_entity_contract(), "returns").entities
 
     def test_exchanges_reattached_and_lines_resolved(self):
-        rows = list(iter_returns_entities(BytesIO(body()), identity(),
+        rows = list(iter_entities(BytesIO(body()), identity(),
                                           datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc),
                                           self.contracts()))
         entities = [row.entity for row in rows]
@@ -109,4 +109,4 @@ class ValidateReturnsPublicationV2Tests(unittest.TestCase):
         return rows
 
     def test_full_coverage_passes(self):
-        validate_returns_publication_v2(self._rows(), files_record_count(5))
+        validate_returns_publication(self._rows(), files_record_count(5))

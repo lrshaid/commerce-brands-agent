@@ -17,7 +17,7 @@ from google.cloud import bigquery, storage
 from agent.warehouse.raw_landing import land_jsonl
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from agent.warehouse.raw_records import ExtractionIdentity, iter_raw_records
-from agent.warehouse.returns_bulk_entities import validate_returns_file
+from agent.warehouse.returns_engine import validate_returns_file
 from agent.warehouse.returns_entity_pipeline import publish_returns_entity_shadow
 from agent.warehouse.shopify_bulk import BulkClient, bind_orders_query
 from agent.warehouse.shopify_export import download_export, wait_for_export

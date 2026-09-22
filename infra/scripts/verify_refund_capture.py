@@ -18,10 +18,10 @@ def verify(bucket, prefix):
         raise RuntimeError("Capture is not complete")
     if seal.get("binding", {}).get("format_version") == 2:
         from pathlib import Path
-        from agent.warehouse.refund_capture_v2 import RefundCaptureV2
+        from agent.warehouse.refund_engine import RefundEngine
         binding = seal["binding"]
         source = (Path(__file__).resolve().parents[2] / "queries/shopify/order_refunds_bulk.graphql").read_text()
-        capture = RefundCaptureV2(bucket=bucket, domain=binding["domain"], token="",
+        capture = RefundEngine(bucket=bucket, domain=binding["domain"], token="",
             api_version=binding["api_version"], shop_gid=binding["shop_gid"],
             extraction_id=binding["extraction_id"], query_source=source,
             search_filter=binding["search_filter"], read_only=True)
