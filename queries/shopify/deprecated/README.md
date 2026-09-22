@@ -12,3 +12,7 @@ replay; Dagster now uses `FamilyBulkCapture` and the active bulk projections.
 
 Do not point new scheduled runs at these files. Replaying an old extraction
 requires the legacy modules and its original query/window binding.
+
+- `fulfillment_orders_bulk.graphql`: former source for the paginated
+  fulfillment-order and line-item queries. The active replacement binds an
+  `updated_at` window server-side, includes closed orders and exports all lines.

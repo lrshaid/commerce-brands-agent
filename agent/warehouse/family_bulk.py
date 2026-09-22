@@ -23,14 +23,22 @@ QUERY_DIR = Path(__file__).resolve().parents[2] / "queries/shopify"
 FAMILIES = {
     "catalog": {"customers": ("customers", "customers_bulk.graphql"),
                 "products": ("products", "products_bulk.graphql")},
+    "fulfillment_orders": {"fulfillment_orders": ("fulfillmentOrders", "fulfillment_orders_bulk.graphql")},
     "fulfillments": {"fulfillments": ("orders", "fulfillments_bulk.graphql")},
     "inventory": {"inventory_items": ("inventoryItems", "inventory_items_bulk.graphql"),
                   "inventory_levels": ("locations", "inventory_levels_bulk.graphql")},
 }
-STREAM_OPERATION = {"variants": "products"}
-ROOT_TYPES = {"customers": "Customer", "products": "Product", "variants": "Product",
-              "fulfillments": "Order", "inventory_items": "InventoryItem", "inventory_levels": "Location"}
-CHILD_TYPES = {"products": "ProductVariant", "variants": "ProductVariant", "inventory_levels": "InventoryLevel"}
+STREAM_OPERATION = {"variants": "products", "fulfillment_order_line_items": "fulfillment_orders"}
+ROOT_TYPES = {
+    "customers": "Customer", "products": "Product", "variants": "Product",
+    "fulfillments": "Order", "inventory_items": "InventoryItem", "inventory_levels": "Location",
+    "fulfillment_orders": "FulfillmentOrder", "fulfillment_order_line_items": "FulfillmentOrder",
+}
+CHILD_TYPES = {
+    "products": "ProductVariant", "variants": "ProductVariant", "inventory_levels": "InventoryLevel",
+    "fulfillment_orders": "FulfillmentOrderLineItem",
+    "fulfillment_order_line_items": "FulfillmentOrderLineItem",
+}
 TRANSPORT = "shopify_bulk_query"
 INVENTORY_TRANSPORT = "shopify_bulk_with_country_codes"
 
@@ -65,6 +73,15 @@ def validate_bulk_rows(stream, records, *, object_count, root_count):
             if not _gid(gid, ROOT_TYPES[stream]):
                 raise ValueError("Unexpected bulk root type")
             roots.add(gid)
+            if stream in ("fulfillment_orders", "fulfillment_order_line_items"):
+                if not _gid((body.get("order") or {}).get("id"), "Order"):
+                    raise ValueError("Fulfillment order missing order identity")
+                try:
+                    stamp = datetime.fromisoformat(body["updatedAt"].replace("Z", "+00:00"))
+                    if stamp.utcoffset() is None:
+                        raise ValueError()
+                except (KeyError, ValueError, TypeError, AttributeError):
+                    raise ValueError("Fulfillment order has invalid updatedAt") from None
             if stream == "fulfillments":
                 items = body.get("fulfillments")
                 if not isinstance(items, list):
@@ -279,7 +296,7 @@ class FamilyBulkCapture:
         seal_ref = dict(uri=f"gs://{self.bucket.name}/{seal_blob.name}",
             generation=str(seal_blob.generation), sha256=digest(seal_body), role="completion_seal")
         streams = {}
-        operations = list(self.sources) + (["variants"] if self.family == "catalog" else [])
+        operations = list(self.sources) + [stream for stream, op in STREAM_OPERATION.items() if op in self.sources]
         for stream in operations:
             op = STREAM_OPERATION.get(stream, stream)
             ref = seal["exports"][op]

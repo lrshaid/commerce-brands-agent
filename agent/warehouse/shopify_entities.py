@@ -67,10 +67,12 @@ def _facts(stream, record_factory, files, published_at):
             node = json.loads(record["record_text"])
             parent = node.pop("__parentId", None)
             stamp = _iso(node.get("updatedAt"), fallback)
-            if stream in ("customers", "products") and parent is None:
+            if stream in ("customers", "products", "fulfillment_orders") and parent is None:
                 yield stream, node, {"source_updated_at": stamp}
             elif stream == "variants" and parent is not None:
                 yield stream, node, {"product_gid": parent, "source_updated_at": stamp}
+            elif stream == "fulfillment_order_line_items" and parent is not None:
+                yield stream, node, {"fulfillment_order_gid": parent, "source_updated_at": stamp}
             elif stream == "fulfillments":
                 for fulfillment in node["fulfillments"]:
                     yield stream, fulfillment, {"order_gid": node["id"],

@@ -48,8 +48,7 @@ class NewStreamPipelineTests(unittest.TestCase):
     def test_verified_shop_capture_only_and_default_page_size(self):
         from orchestration.shopify_orders import OrdersConfig
         config = OrdersConfig(**CONFIG)
-        for module, asset, capture_name in (("shopify_balance_transactions", shopify_balance_transactions, "PaymentsCapture"),
-                                            ("shopify_fulfillment_orders", shopify_fulfillment_orders, "FulfillmentOrdersCapture")):
+        for module, asset, capture_name in (("shopify_balance_transactions", shopify_balance_transactions, "PaymentsCapture"),):
             result, capture, page_size, shop_gid = _capture_module(module, asset, capture_name, config)
             self.assertEqual(page_size, 50)
             self.assertEqual(shop_gid, config.expected_shop_gid)

@@ -55,7 +55,7 @@ def bind_orders_query(source: str, search_filter: str) -> str:
 
 def bind_bulk_query(source: str, search_filter: str, *, root: str) -> str:
     """Bind the existing query using the AST, preserving its full projection."""
-    if root not in {"orders", "customers", "products", "inventoryItems", "locations"}:
+    if root not in {"orders", "customers", "products", "inventoryItems", "locations", "fulfillmentOrders"}:
         raise BulkError("Unsupported bulk root")
     if not isinstance(search_filter, str) or not search_filter.strip():
         raise BulkError("An explicit search filter is required")

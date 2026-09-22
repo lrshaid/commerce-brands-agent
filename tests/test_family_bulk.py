@@ -166,7 +166,7 @@ def test_bulk_assets_keep_launcher_keys_verify_shop_and_publish_nothing():
     from tests.test_new_streams_pipeline import ENV, CONFIG
     from orchestration.shopify_orders import OrdersConfig
     config = OrdersConfig(**CONFIG)
-    for family in ('catalog', 'fulfillments', 'inventory'):
+    for family in ('catalog', 'fulfillments', 'inventory', 'fulfillment_orders'):
         module = importlib.import_module('orchestration.shopify_' + family)
         with patch.dict(os.environ, ENV), patch.object(module, 'BulkClient') as client, \
                 patch.object(module.storage, 'Client'), patch.object(module, 'FamilyBulkCapture') as cap:
@@ -206,3 +206,59 @@ def test_incomplete_supplemental_country_codes_fail_closed():
     with pytest.raises(ValueError, match='Incomplete'):
         country_codes({'id': I, 'pages':[{'inventoryItem': {'id':I,
             'countryHarmonizedSystemCodes': {'edges':[], 'pageInfo':{'hasNextPage':True,'endCursor':'x'}}}}]},I)
+
+
+def test_fulfillment_orders_bulk_one_export_two_streams_and_more_than_fifty_lines():
+    order = {'id': 'gid://shopify/FulfillmentOrder/1', 'order': {'id':'gid://shopify/Order/1'},
+             'updatedAt':NOW.isoformat(), 'status':'CLOSED'}
+    children = [{'id':f'gid://shopify/FulfillmentOrderLineItem/{n}', '__parentId':order['id'],
+                 'inventoryItemId': I, 'totalQuantity':2, 'remainingQuantity':0,
+                 'lineItem':{'id':f'gid://shopify/LineItem/{n}'}} for n in range(60)]
+    cap = capture('fulfillment_orders', client=Mock())
+    run_capture(cap, {'fulfillmentOrders': children + [order]})
+    cap.client.submit_once.assert_called_once()
+    submitted = cap.client.submit_once.call_args.kwargs
+    assert submitted['query_root'] == 'fulfillmentOrders'
+    query = parse(bind_bulk_query(submitted['query_source'], submitted['search_filter'], root='fulfillmentOrders'))
+    root = query.definitions[0].selection_set.selections[0]
+    args = {a.name.value:a.value.value for a in root.arguments}
+    assert args['includeClosed'] is True
+    assert args['query'] == cap.search_filter
+    replay = capture('fulfillment_orders', bucket=cap.bucket).prepare(NOW)
+    assert set(replay) == {'fulfillment_orders', 'fulfillment_order_line_items'}
+    assert replay['fulfillment_orders']['files'] == replay['fulfillment_order_line_items']['files']
+    facts = {}
+    for stream, result in replay.items():
+        rows = list(result['records'])
+        manifest = dict(provider_object_count=61, root_object_count=1,
+            bulk_operation_gid=result['bulk_operation_id'], transport=result['transport'],
+            shop_key=cap.shop_gid, extraction_id=cap.extraction_id,
+            query_sha256=result['query_sha256'], request_sha256=result['request_sha256'],
+            actual_api_version=cap.api_version)
+        validate_family_publication(stream, rows, result['files'], manifest)
+        facts[stream] = list(_facts(stream, lambda:iter(rows), result['files'], NOW))
+    assert len(facts['fulfillment_orders']) == 1
+    assert facts['fulfillment_orders'][0][1]['status'] == 'CLOSED'
+    assert len(facts['fulfillment_order_line_items']) == 60
+    assert all(f[2]['fulfillment_order_gid'] == order['id'] for f in facts['fulfillment_order_line_items'])
+    assert all(f[1]['remainingQuantity'] == 0 for f in facts['fulfillment_order_line_items'])
+
+
+def test_empty_fulfillment_orders_bulk_replays_both_empty_streams():
+    cap = capture('fulfillment_orders', client=Mock())
+    run_capture(cap, {'fulfillmentOrders': []})
+    streams = capture('fulfillment_orders', bucket=cap.bucket).prepare(NOW)
+    assert set(streams) == {'fulfillment_orders', 'fulfillment_order_line_items'}
+    assert all(list(result['records']) == [] for result in streams.values())
+
+
+@pytest.mark.parametrize('nodes,error', [
+    ([{'id':'gid://shopify/FulfillmentOrderLineItem/1', '__parentId':'gid://shopify/FulfillmentOrder/99'}], 'Orphan'),
+    ([{'id':'gid://shopify/FulfillmentOrder/1','order':{'id':'gid://shopify/Order/1'},'updatedAt':'bad'}], 'updatedAt'),
+    ([{'id':'gid://shopify/FulfillmentOrder/1','updatedAt':NOW.isoformat()}], 'order identity'),
+])
+def test_fulfillment_orders_bulk_rejects_invalid_ownership_or_timestamp(nodes, error):
+    cap = capture('fulfillment_orders')
+    with pytest.raises(ValueError, match=error):
+        validate_bulk_rows('fulfillment_orders', records(cap,'fulfillment_orders',nodes),
+                           object_count=len(nodes), root_count=sum('__parentId' not in node for node in nodes))

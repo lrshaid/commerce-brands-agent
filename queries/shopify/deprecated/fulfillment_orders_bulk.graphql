@@ -1,5 +1,5 @@
-query FulfillmentOrdersBulk($query: String) {
-  fulfillmentOrders(query: $query, sortKey: UPDATED_AT, includeClosed: true) {
+query FulfillmentOrdersBulk {
+  fulfillmentOrders {
     edges { node {
       id
       order { id }
@@ -12,7 +12,7 @@ query FulfillmentOrdersBulk($query: String) {
       assignedLocation { location { id } }
       destination { city province countryCode zip }
       deliveryMethod { methodType }
-      lineItems {
+      lineItems(first: 50) {
         edges { node {
           id
           inventoryItemId

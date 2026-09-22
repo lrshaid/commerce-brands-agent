@@ -972,6 +972,7 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
         _validate_returns_page_publication(return_rows, files)
         records = return_rows
     family_bulk = stream in ('customers', 'products', 'variants', 'fulfillments',
+                            'fulfillment_orders', 'fulfillment_order_line_items',
                             'inventory_items', 'inventory_levels') and manifest['transport'] in (
                                 'shopify_bulk_query', 'shopify_bulk_with_country_codes')
     if family_bulk:
@@ -1014,7 +1015,7 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             fulfillment_rows.append(row)
         _validate_fulfillments_page_publication(fulfillment_rows, files)
         records = fulfillment_rows
-    if stream in ('fulfillment_orders', 'fulfillment_order_line_items'):
+    if stream in ('fulfillment_orders', 'fulfillment_order_line_items') and not family_bulk:
         if manifest['transport'] != 'shopify_graphql_pages':
             raise ValueError('Fulfillment-order publication requires shopify_graphql_pages transport')
         fulfillment_order_rows = []
