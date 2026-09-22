@@ -49,7 +49,7 @@ def _metadata(files):
     result = {}
     for item in files:
         generation = str(item.get("generation", ""))
-        if generation and item.get("role") != "completion_seal":
+        if generation and item.get("role") not in ("completion_seal", "inventory_country_codes"):
             if generation in result:
                 raise ValueError("Duplicate source-file generation in entity batch")
             result[generation] = item

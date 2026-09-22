@@ -58,19 +58,19 @@ def bind_bulk_query(source: str, search_filter: str, *, root: str) -> str:
     if root not in {"orders", "customers", "products", "inventoryItems", "locations"}:
         raise BulkError("Unsupported bulk root")
     if not isinstance(search_filter, str) or not search_filter.strip():
-        raise BulkError("An explicit orders search filter is required")
+        raise BulkError("An explicit search filter is required")
     try:
         document = parse(source)
     except Exception:
-        raise BulkError("Invalid orders query") from None
+        raise BulkError("Invalid bulk query") from None
     if len(document.definitions) != 1:
-        raise BulkError("Expected exactly one orders query")
+        raise BulkError("Expected exactly one bulk query")
     operation = document.definitions[0]
     if not isinstance(operation, OperationDefinitionNode) or operation.operation != OperationType.QUERY:
-        raise BulkError("Only an orders query is allowed")
+        raise BulkError("Only a read-only bulk query is allowed")
     roots = operation.selection_set.selections
     if len(roots) != 1 or getattr(getattr(roots[0], "name", None), "value", None) != root:
-        raise BulkError("Expected orders as the only root")
+        raise BulkError("Unexpected bulk query root")
     if root == "locations":
         if operation.variable_definitions:
             raise BulkError("Locations snapshot must not have variables")

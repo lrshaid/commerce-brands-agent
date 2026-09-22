@@ -9,7 +9,7 @@ entities:
   customers:
     grain: one row per customer
     primary_key: id
-    source: customers_query
+    source: customers_bulk
     measures: [number_of_orders, amount_spent]
   order_line_items:
     grain: one row per order line
@@ -19,7 +19,7 @@ entities:
   products:
     grain: one row per product
     primary_key: id
-    source: products_query
+    source: products_bulk
     measures: []
   product_variants:
     grain: one row per product variant

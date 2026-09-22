@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import hashlib
 import io
 import json
+import time
 from pathlib import Path
 
 from google.api_core.exceptions import PreconditionFailed
@@ -94,6 +95,35 @@ def validate_bulk_rows(stream, records, *, object_count, root_count):
     return len(roots)
 
 
+def country_codes(observed, gid):
+    """Validate saved supplemental observations before entity publication."""
+    if observed.get("id") != gid or not isinstance(observed.get("pages"), list) or not observed["pages"]:
+        raise ValueError("Invalid country codes observation")
+    all_edges, seen, cursors = [], set(), set()
+    for index, page in enumerate(observed["pages"]):
+        node = page.get("inventoryItem", {})
+        if node.get("id") != gid:
+            raise ValueError("Country codes owner mismatch")
+        connection = node.get("countryHarmonizedSystemCodes", {})
+        edges, info = connection.get("edges"), connection.get("pageInfo", {})
+        expected_more = index < len(observed["pages"]) - 1
+        if not isinstance(edges, list) or info.get("hasNextPage") is not expected_more:
+            raise ValueError("Incomplete country codes pagination")
+        if expected_more:
+            cursor = info.get("endCursor")
+            if not edges or not isinstance(cursor, str) or not cursor or cursor in cursors:
+                raise ValueError("Nonadvancing country codes cursor")
+            cursors.add(cursor)
+        for edge in edges:
+            value = edge.get("node", {})
+            country, code = value.get("countryCode"), value.get("harmonizedSystemCode")
+            if not isinstance(country, str) or not isinstance(code, str) or country in seen:
+                raise ValueError("Invalid or duplicate country customs code")
+            seen.add(country)
+            all_edges.append(edge)
+    return {"edges": all_edges}
+
+
 class FamilyBulkCapture:
     def __init__(self, *, bucket, domain, api_version, shop_gid, extraction_id,
                  family, search_filter, client=None):
@@ -131,6 +161,8 @@ class FamilyBulkCapture:
         blob = self.bucket.get_blob(ref["uri"][len(prefix):])
         if blob is None or str(blob.generation) != ref["generation"]:
             raise ValueError("Bulk source generation changed")
+        if blob.size > 256 * 1024 * 1024:
+            raise ValueError("Bulk source exceeds configured size limit")
         body = blob.download_as_bytes(if_generation_match=int(blob.generation))
         if digest(body) != ref["sha256"]:
             raise ValueError("Bulk source checksum changed")
@@ -149,6 +181,7 @@ class FamilyBulkCapture:
 
     def _codes(self, item_ids):
         result = {}
+        deadline = time.monotonic() + 1200
         for gid in item_ids:
             key = digest(gid.encode())
             saved = self.bucket.get_blob(f"{self.prefix}/codes/{key}.json")
@@ -159,6 +192,8 @@ class FamilyBulkCapture:
                     raise ValueError("Missing inventory country codes capture")
                 pages, after, cursors = [], None, set()
                 while True:
+                    if time.monotonic() >= deadline:
+                        raise ValueError("Country codes capture deadline reached; replay saved items")
                     data = self.client._request(self.codes_source, {"id": gid, "after": after})
                     node = data.get("inventoryItem")
                     if not isinstance(node, dict) or node.get("id") != gid:
@@ -178,6 +213,7 @@ class FamilyBulkCapture:
                 saved = self._immutable(f"{self.prefix}/codes/{key}.json", observed)
             if observed.get("id") != gid:
                 raise ValueError("Country codes identity mismatch")
+            country_codes(observed, gid)
             body = encoded(observed)
             result[gid] = dict(uri=f"gs://{self.bucket.name}/{saved.name}",
                 generation=str(saved.generation), sha256=digest(body), role="inventory_country_codes")
@@ -231,12 +267,17 @@ class FamilyBulkCapture:
             if ids != set(seal["country_codes"]):
                 raise ValueError("Incomplete inventory country codes")
             for gid, ref in seal["country_codes"].items():
-                if json.loads(self._read(ref)).get("id") != gid:
-                    raise ValueError("Country codes owner mismatch")
+                country_codes(json.loads(self._read(ref)), gid)
         return seal
 
     def prepare(self, ingested_at):
         seal = self.collect()
+        seal_blob = self.bucket.get_blob(self.prefix + "/complete.json")
+        seal_body = seal_blob.download_as_bytes(if_generation_match=int(seal_blob.generation))
+        if seal_body != encoded(seal):
+            raise ValueError("Bulk completion seal changed during replay")
+        seal_ref = dict(uri=f"gs://{self.bucket.name}/{seal_blob.name}",
+            generation=str(seal_blob.generation), sha256=digest(seal_body), role="completion_seal")
         streams = {}
         operations = list(self.sources) + (["variants"] if self.family == "catalog" else [])
         for stream in operations:
@@ -247,13 +288,13 @@ class FamilyBulkCapture:
             if stream == "inventory_items":
                 for gid, code_ref in seal["country_codes"].items():
                     data = json.loads(self._read(code_ref))
-                    codes[gid] = {"edges": [edge for page in data["pages"]
-                        for edge in page["inventoryItem"]["countryHarmonizedSystemCodes"]["edges"]]}
+                    codes[gid] = country_codes(data, gid)
             # Supplemental observations are pinned source files; canonical entity
             # normalization consumes them, while raw JSONL remains unmodified.
             files = [dict(ref, country_codes=codes)] if stream == "inventory_items" else [dict(ref)]
             if stream == "inventory_items":
                 files += list(seal["country_codes"].values())
+            files.append(dict(seal_ref))
             streams[stream] = dict(records=self._records(op, ref, ingested_at), files=files,
                 raw_record_count=ref["record_count"], query_sha256=identity.query_sha256,
                 request_sha256=identity.request_sha256, started_at=datetime.fromisoformat(ref["started_at"]),
@@ -273,8 +314,21 @@ def validate_family_publication(stream, records, files, manifest):
             or manifest["root_object_count"] != ref["root_count"]
             or manifest["bulk_operation_gid"] != ref["operation_id"]):
         raise ValueError("Bulk manifest differs from completed capture")
-    if any(row["file_id"] != ref["generation"] for row in records):
-        raise ValueError("Bulk record references another source")
+    expected_transport = INVENTORY_TRANSPORT if stream == "inventory_items" else TRANSPORT
+    if manifest.get("transport") != expected_transport:
+        raise ValueError("Unexpected family bulk transport")
+    for index, row in enumerate(records, 1):
+        if row["file_id"] != ref["generation"] or row["record_index"] != index:
+            raise ValueError("Bulk record references another source or physical position")
+        body = json.loads(row["record_text"])
+        if (digest(row["record_text"].encode()) != row["record_sha256"]
+                or row["object_gid"] != body.get("id") or row["parent_gid"] != body.get("__parentId")):
+            raise ValueError("Bulk envelope differs from original record")
+        for column in ("shop_key", "extraction_id", "query_sha256", "request_sha256"):
+            if row[column] != manifest[column]:
+                raise ValueError("Bulk row binding differs from manifest")
+        if row["api_version"] != manifest["actual_api_version"]:
+            raise ValueError("Bulk row API version differs from manifest")
     validate_bulk_rows(stream, records, object_count=ref["object_count"], root_count=ref["root_count"])
     if stream == "inventory_items":
         ids = {r["object_gid"] for r in records}

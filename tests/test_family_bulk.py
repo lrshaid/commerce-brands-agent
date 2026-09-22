@@ -158,3 +158,51 @@ def test_fulfillments_are_inline_and_not_capped_at_fifty():
     rows = records(cap, 'fulfillments', nodes)
     validate_bulk_rows('fulfillments', rows, object_count=1, root_count=1)
     assert len(list(_facts('fulfillments', lambda:iter(rows), [{'generation':'1','role':'bulk_jsonl'}],NOW))) == 51
+
+
+def test_bulk_assets_keep_launcher_keys_verify_shop_and_publish_nothing():
+    import importlib
+    import os
+    from tests.test_new_streams_pipeline import ENV, CONFIG
+    from orchestration.shopify_orders import OrdersConfig
+    config = OrdersConfig(**CONFIG)
+    for family in ('catalog', 'fulfillments', 'inventory'):
+        module = importlib.import_module('orchestration.shopify_' + family)
+        with patch.dict(os.environ, ENV), patch.object(module, 'BulkClient') as client, \
+                patch.object(module.storage, 'Client'), patch.object(module, 'FamilyBulkCapture') as cap:
+            client.return_value.verify_shop.return_value = config.expected_shop_gid
+            cap.return_value.collect.return_value = {'exports': {'example': {'object_count': 3}}}
+            result = getattr(module, 'shopify_' + family).op.compute_fn.decorated_fn(Mock(), config)
+            client.return_value.verify_shop.assert_called_once_with(config.expected_shop_gid)
+            assert cap.call_args.kwargs['client'] is client.return_value
+            assert cap.call_args.kwargs['family'] == family
+            assert 'page_size' not in cap.call_args.kwargs
+            assert result.metadata['warehouse_published'] is False
+            client.return_value.verify_shop.side_effect = ValueError('Wrong shop')
+            cap.reset_mock()
+            with pytest.raises(ValueError, match='Wrong shop'):
+                getattr(module, 'shopify_' + family).op.compute_fn.decorated_fn(Mock(), config)
+            cap.assert_not_called()
+
+
+def test_publication_rejects_modified_counts_and_missing_inventory_enrichment():
+    cap = capture(client=Mock())
+    run_capture(cap, {'customers': [], 'products': [{'id':P}, {'id':V, '__parentId':P}]})
+    result = capture(bucket=cap.bucket).prepare(NOW)['products']
+    rows = list(result['records'])
+    manifest = dict(provider_object_count=2, root_object_count=1,
+                    bulk_operation_gid=result['bulk_operation_id'], transport=result['transport'],
+                    shop_key=cap.shop_gid, extraction_id=cap.extraction_id,
+                    query_sha256=result['query_sha256'], request_sha256=result['request_sha256'],
+                    actual_api_version=cap.api_version)
+    validate_family_publication('products', rows, result['files'], manifest)
+    manifest['provider_object_count'] = 1
+    with pytest.raises(ValueError, match='manifest'):
+        validate_family_publication('products', rows, result['files'], manifest)
+
+
+def test_incomplete_supplemental_country_codes_fail_closed():
+    from agent.warehouse.family_bulk import country_codes
+    with pytest.raises(ValueError, match='Incomplete'):
+        country_codes({'id': I, 'pages':[{'inventoryItem': {'id':I,
+            'countryHarmonizedSystemCodes': {'edges':[], 'pageInfo':{'hasNextPage':True,'endCursor':'x'}}}}]},I)
