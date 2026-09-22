@@ -18,8 +18,9 @@ COPY queries/shopify/fulfillments_bulk.graphql /app/queries/shopify/fulfillments
 COPY queries/shopify/fulfillment_orders_bulk.graphql /app/queries/shopify/fulfillment_orders_bulk.graphql
 COPY queries/shopify/inventory_items_bulk.graphql /app/queries/shopify/inventory_items_bulk.graphql
 COPY queries/shopify/inventory_levels_bulk.graphql /app/queries/shopify/inventory_levels_bulk.graphql
-COPY queries/shopify/customers_query.graphql /app/queries/shopify/customers_query.graphql
-COPY queries/shopify/products_query.graphql /app/queries/shopify/products_query.graphql
+COPY queries/shopify/inventory_country_codes_query.graphql /app/queries/shopify/inventory_country_codes_query.graphql
+COPY queries/shopify/customers_bulk.graphql /app/queries/shopify/customers_bulk.graphql
+COPY queries/shopify/products_bulk.graphql /app/queries/shopify/products_bulk.graphql
 COPY queries/shopify/metafield_orders_bulk.graphql /app/queries/shopify/metafield_orders_bulk.graphql
 COPY queries/shopify/metafield_products_bulk.graphql /app/queries/shopify/metafield_products_bulk.graphql
 COPY queries/shopify/metafield_product_variants_bulk.graphql /app/queries/shopify/metafield_product_variants_bulk.graphql
