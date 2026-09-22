@@ -2,7 +2,7 @@
 
 These are the exact pre-bulk projections for catalog, fulfillments and inventory.
 The legacy capture/compiler/raw modules and their tests remain for historical
-replay; Dagster now uses `FamilyBulkCapture` and the active bulk projections.
+replay; Dagster now uses `BulkEngine` and the active bulk projections.
 
 - `customers_query.graphql`, `products_query.graphql`: old catalog page queries.
 - `fulfillments_bulk.graphql`, `inventory_*_bulk.graphql`: old source projections

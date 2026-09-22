@@ -2,7 +2,7 @@
 import os
 import dagster as dg
 from google.cloud import storage
-from agent.warehouse.family_bulk import FamilyBulkCapture
+from agent.warehouse.bulk_engine import BulkEngine
 from agent.warehouse.shopify_bulk import BulkClient
 from agent.warehouse.shopify_token import shopify_access_token
 from orchestration.shopify_orders import extraction_window
@@ -23,7 +23,7 @@ def shopify_fulfillments(context: dg.AssetExecutionContext, config: Fulfillments
                         os.environ["SHOPIFY_API_VERSION"])
     shop_gid = client.verify_shop(config.expected_shop_gid)
     bucket = storage.Client(project=project).bucket(project + "-landing")
-    capture = FamilyBulkCapture(bucket=bucket, domain=client.shop_domain,
+    capture = BulkEngine(bucket=bucket, domain=client.shop_domain,
         api_version=client.api_version, shop_gid=shop_gid,
         extraction_id=config.extraction_id, family="fulfillments",
         search_filter=search_filter, client=client)

@@ -2,7 +2,7 @@
 
 Dagster's existing capture asset keys and job configuration stay compatible.
 The `*_pages` asset key suffixes are retained to avoid breaking schedules and
-launchers; their implementations now call `FamilyBulkCapture`.
+launchers; their implementations now call `BulkEngine`.
 
 | Family | Bulk operations | Scope |
 | --- | --- | --- |

@@ -971,15 +971,15 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             return_rows.append(row)
         _validate_returns_page_publication(return_rows, files)
         records = return_rows
-    family_bulk = stream in ('customers', 'products', 'variants', 'fulfillments',
+    bulk_engine = stream in ('customers', 'products', 'variants', 'fulfillments',
                             'fulfillment_orders', 'fulfillment_order_line_items',
                             'inventory_items', 'inventory_levels') and manifest['transport'] in (
                                 'shopify_bulk_query', 'shopify_bulk_with_country_codes')
-    if family_bulk:
-        from .family_bulk import validate_family_publication
+    if bulk_engine:
+        from .bulk_engine import validate_family_publication
         records = list(records)
         validate_family_publication(stream, records, files, manifest)
-    if stream in ('customers', 'products', 'variants') and not family_bulk:
+    if stream in ('customers', 'products', 'variants') and not bulk_engine:
         if manifest['transport'] != 'shopify_graphql_pages':
             raise ValueError('Catalog publication requires shopify_graphql_pages transport')
         catalog_rows = []
@@ -1003,7 +1003,7 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             payment_rows.append(row)
         _validate_payments_page_publication(payment_rows, files, stream)
         records = payment_rows
-    if stream == 'fulfillments' and not family_bulk:
+    if stream == 'fulfillments' and not bulk_engine:
         if manifest['transport'] != 'shopify_graphql_pages':
             raise ValueError('Fulfillments publication requires shopify_graphql_pages transport')
         fulfillment_rows = []
@@ -1015,7 +1015,7 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             fulfillment_rows.append(row)
         _validate_fulfillments_page_publication(fulfillment_rows, files)
         records = fulfillment_rows
-    if stream in ('fulfillment_orders', 'fulfillment_order_line_items') and not family_bulk:
+    if stream in ('fulfillment_orders', 'fulfillment_order_line_items') and not bulk_engine:
         if manifest['transport'] != 'shopify_graphql_pages':
             raise ValueError('Fulfillment-order publication requires shopify_graphql_pages transport')
         fulfillment_order_rows = []
@@ -1027,7 +1027,7 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
             fulfillment_order_rows.append(row)
         _validate_fulfillment_orders_page_publication(fulfillment_order_rows, files, stream)
         records = fulfillment_order_rows
-    if stream in ('inventory_items', 'inventory_levels') and not family_bulk:
+    if stream in ('inventory_items', 'inventory_levels') and not bulk_engine:
         if manifest['transport'] != 'shopify_graphql_pages':
             raise ValueError('Inventory publication requires shopify_graphql_pages transport')
         inventory_rows = []

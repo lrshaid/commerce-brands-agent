@@ -8,7 +8,7 @@ import pytest
 from graphql import parse
 from google.api_core.exceptions import PreconditionFailed
 
-from agent.warehouse.family_bulk import FamilyBulkCapture, validate_bulk_rows, validate_family_publication
+from agent.warehouse.bulk_engine import BulkEngine, validate_bulk_rows, validate_family_publication
 from agent.warehouse.raw_records import iter_raw_records
 from agent.warehouse.shopify_bulk import bind_bulk_query, BulkError
 from agent.warehouse.shopify_entities import _facts
@@ -57,7 +57,7 @@ class Bucket:
 
 
 def capture(family='catalog', **kwargs):
-    return FamilyBulkCapture(bucket=kwargs.pop('bucket', Bucket()), domain='test.myshopify.com',
+    return BulkEngine(bucket=kwargs.pop('bucket', Bucket()), domain='test.myshopify.com',
         api_version='2026-04', shop_gid='gid://shopify/Shop/1', extraction_id='test',
         family=family, search_filter=kwargs.pop('search_filter', 'updated_at:>=2026-09-13 updated_at:<2026-09-20'), **kwargs)
 
@@ -116,7 +116,7 @@ def run_capture(cap, payloads):
     @contextmanager
     def download(export):
         yield io.BytesIO(export.url)
-    with patch('agent.warehouse.family_bulk.wait_for_export', side_effect=wait), patch('agent.warehouse.family_bulk.download_export', download):
+    with patch('agent.warehouse.bulk_engine.wait_for_export', side_effect=wait), patch('agent.warehouse.bulk_engine.download_export', download):
         return cap.collect()
 
 
@@ -169,7 +169,7 @@ def test_bulk_assets_keep_launcher_keys_verify_shop_and_publish_nothing():
     for family in ('catalog', 'fulfillments', 'inventory', 'fulfillment_orders'):
         module = importlib.import_module('orchestration.shopify_' + family)
         with patch.dict(os.environ, ENV), patch.object(module, 'BulkClient') as client, \
-                patch.object(module.storage, 'Client'), patch.object(module, 'FamilyBulkCapture') as cap:
+                patch.object(module.storage, 'Client'), patch.object(module, 'BulkEngine') as cap:
             client.return_value.verify_shop.return_value = config.expected_shop_gid
             cap.return_value.collect.return_value = {'exports': {'example': {'object_count': 3}}}
             result = getattr(module, 'shopify_' + family).op.compute_fn.decorated_fn(Mock(), config)
@@ -202,7 +202,7 @@ def test_publication_rejects_modified_counts_and_missing_inventory_enrichment():
 
 
 def test_incomplete_supplemental_country_codes_fail_closed():
-    from agent.warehouse.family_bulk import country_codes
+    from agent.warehouse.bulk_engine import country_codes
     with pytest.raises(ValueError, match='Incomplete'):
         country_codes({'id': I, 'pages':[{'inventoryItem': {'id':I,
             'countryHarmonizedSystemCodes': {'edges':[], 'pageInfo':{'hasNextPage':True,'endCursor':'x'}}}}]},I)

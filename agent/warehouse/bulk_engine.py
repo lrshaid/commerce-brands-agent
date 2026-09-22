@@ -141,7 +141,7 @@ def country_codes(observed, gid):
     return {"edges": all_edges}
 
 
-class FamilyBulkCapture:
+class BulkEngine:
     def __init__(self, *, bucket, domain, api_version, shop_gid, extraction_id,
                  family, search_filter, client=None):
         self.bucket, self.client, self.family = bucket, client, family

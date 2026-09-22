@@ -5,7 +5,7 @@ import os
 import dagster as dg
 from google.cloud import bigquery, storage
 
-from agent.warehouse.family_bulk import FamilyBulkCapture
+from agent.warehouse.bulk_engine import BulkEngine
 from agent.warehouse.raw_publication import contract_columns, initialize_tables, publish_records
 from agent.warehouse.raw_records import ExtractionIdentity
 from agent.warehouse.replayable_records import replayable_records
@@ -26,7 +26,7 @@ def shopify_inventory_raw(context: dg.AssetExecutionContext, config: InventoryCo
     start, end, search_filter = extraction_window(config)
     project = os.environ["GOOGLE_CLOUD_PROJECT"]
     now = datetime.now(timezone.utc)
-    streams = FamilyBulkCapture(
+    streams = BulkEngine(
         bucket=storage.Client(project=project).bucket(project + "-landing"),
         domain=os.environ["SHOPIFY_SHOP_DOMAIN"], api_version=os.environ["SHOPIFY_API_VERSION"],
         shop_gid=config.expected_shop_gid, extraction_id=config.extraction_id,
