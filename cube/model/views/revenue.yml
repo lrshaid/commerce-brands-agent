@@ -1,0 +1,26 @@
+# View = the governed surface the consumer (agent/MCP, BI tool) actually queries.
+# Cubes are the plumbing; views are the menu. Only what is listed here is exposed.
+views:
+  - name: revenue
+    public: true
+    description: "Revenue-core metrics (Shopify-native) by day and sales channel."
+    cubes:
+      - join_path: revenue_daily
+        includes:
+          # dimensions
+          - metric_date
+          - sales_channel
+          # measures
+          - gmv
+          - nmv
+          - rmv
+          - orders
+          - gross_units
+          - net_units
+          - aov
+          - upt
+          - app
+        # shop_key / extraction_id are intentionally NOT exposed here: tenant
+        # scoping is enforced server-side (securityContext), not chosen by the
+        # caller. EMV and traffic are omitted (blocked: exchangeV2s invalid / no
+        # GA4 export) so no one can query a 0-by-design number as a result.

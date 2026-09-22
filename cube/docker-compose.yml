@@ -1,0 +1,24 @@
+# Cube OSS (Apache 2.0) — local semantic-layer spike over BigQuery.
+# Runs the whole engine in one container: REST/GraphQL/Playground on 4000,
+# SQL API (Postgres wire) on 15432, and the MCP endpoint for agents.
+#
+#   cp .env.example .env          # then fill in values
+#   # put a read-only BigQuery service-account key at ./gcp-key.json
+#   docker compose up
+#
+# Open http://localhost:4000 for the Playground.
+services:
+  cube:
+    image: cubejs/cube:latest
+    ports:
+      - "4000:4000"    # REST + GraphQL + Playground + MCP
+      - "15432:15432"  # SQL API (connect BI tools as if Postgres)
+    env_file: .env
+    volumes:
+      # The semantic layer lives here (see ./model). Mounted read-only into the
+      # container's conf dir so edits on the host hot-reload in dev mode.
+      - ./model:/cube/conf/model:ro
+      # Read-only BigQuery service-account key (gitignored; never commit it).
+      - ./gcp-key.json:/cube/conf/gcp-key.json:ro
+      # Local Cube Store persistence for pre-aggregations (gitignored).
+      - ./.cubestore:/cube/.cubestore

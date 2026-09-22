@@ -2,13 +2,12 @@
 
 A Cube data model that expresses the metrics in this reference (`../00_semantic_layer_consolidated.md`)
 as Cube **cubes** (mart → measures + dimensions) and **views** (governed consumer surfaces).
-It mirrors the conventions of the live spike in `cube/model/` (see `cube/README.md`), so a cube can be
-promoted with minimal edits.
+The nine verticals are also included in `cube/model/` (see `cube/README.md`), with
+private views until their mart bindings are implemented and reconciled.
 
 > **This is a template, not a live model.** Every `sql_table` is a placeholder
-> (`analytics.metric_<vertical>_*`) and nothing is wired to a real warehouse. It is kept **outside**
-> `cube/model/` on purpose: the live model there is governed *servable-only* (only metrics backed by a
-> reconciled mart are exposed). This template is the superset to draw from.
+> (`analytics.metric_<vertical>_*`) and nothing is wired to a real warehouse. The copy under
+> `cube/model/` keeps these views private; only the existing revenue-core view is public.
 
 ## Layout
 
@@ -34,7 +33,7 @@ cube-model/
   exclusion, refund fan-out fix, sessionization, rr30 shelved-date clock). Cubes only **route columns
   and roll up**. Ratios are **ratio-of-sums**: `{a} / NULLIF({b}, 0)` over base `sum` measures — never
   averages of per-row ratios.
-- **Views are the menu**; cubes are plumbing. Only what a view lists is exposed.
+- **Views are the menu**; all base cubes declare `public: false`. Runtime views for pending marts are private too.
 - **Tenant scoping is server-side.** `shop_key` (and other tenant keys) are defined on the cube but
   never exposed in a view — enforce via `securityContext` / `queryRewrite`.
 - **Servable-only when promoting.** Before moving a cube into `cube/model/`, drop measures whose upstream
@@ -44,7 +43,7 @@ cube-model/
 
 1. Build the daily (or snapshot) mart with the columns each cube's `sql:` references.
 2. Point the cube's `sql_table` at that mart; delete measures you can't yet serve.
-3. Copy the cube into `cube/model/cubes/` and its view block into `cube/model/views/`.
+3. Update the existing copy in `cube/model/`, validate it, then make its view public.
 4. Add a `pre_aggregations` rollup keyed on the mart's `computed_at` (see `commercial_revenue.yml` and
    the existing `revenue_daily.yml` for the pattern).
 
@@ -67,3 +66,6 @@ cube-model/
 Prefer **generating** both this template and `cube/model/` from a single source
 (`semantic/serving_contract.yaml` + mart schemas) instead of hand-maintaining two expressions of the
 same metrics.
+
+Merchandise average inventory is computed over the queried dates, not summed from daily averages.
+The mart must include zero-sales days and avoid stock duplication across commercial dimensions.

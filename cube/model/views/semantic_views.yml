@@ -1,3 +1,4 @@
+# Pending mart bindings: these views are private until implemented and reconciled.
 # TEMPLATE views — governed consumer surfaces (company-agnostic)
 #
 # Views = the menu the consumer (agent/MCP, BI tool) actually queries; cubes are
@@ -10,6 +11,7 @@
 # are invalid) so no one can query a 0-by-design number.
 views:
   - name: commercial
+    public: false
     description: "Commercial/revenue metrics by day, channel, market, user type."
     cubes:
       - join_path: commercial_revenue
@@ -42,6 +44,7 @@ views:
           - cac
 
   - name: marketing
+    public: false
     description: "First-party (blended) marketing efficiency by day and channel."
     cubes:
       - join_path: marketing_daily
@@ -75,6 +78,7 @@ views:
           - ev_per_spend
 
   - name: digital
+    public: false
     description: "On-site session funnel by day, channel group, device."
     cubes:
       - join_path: digital_sessions
@@ -97,6 +101,7 @@ views:
           - bounce_rate
 
   - name: customer
+    public: false
     description: "Cohort LTV, repeat and payback (mature cohorts only)."
     cubes:
       - join_path: customer_ltv
@@ -116,6 +121,7 @@ views:
           - ltv_cac_365d
 
   - name: retail
+    public: false
     description: "Store x stylist productivity by day."
     cubes:
       - join_path: retail_stylist
@@ -137,6 +143,7 @@ views:
           - nps_responses
 
   - name: returns
+    public: false
     description: "Order-cohort return economics (rr30). Filter is_matured_30d for headline."
     cubes:
       - join_path: returns_economics
@@ -152,6 +159,7 @@ views:
           - revenue_lost_30
 
   - name: merchandise
+    public: false
     description: "SKU/style performance & sell-through by day."
     cubes:
       - join_path: merch_product
@@ -181,6 +189,7 @@ views:
           - sell_through
 
   - name: operations
+    public: false
     description: "Shipment OTIF & fulfillment by day, warehouse, carrier."
     cubes:
       - join_path: operations_otif
@@ -198,6 +207,7 @@ views:
           - cost_per_shipment
 
   - name: inventory
+    public: false
     description: "Stock position. ALWAYS filter is_latest_snapshot=true (or one snapshot_date)."
     cubes:
       - join_path: inventory_snapshot
