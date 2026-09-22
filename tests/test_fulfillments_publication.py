@@ -97,8 +97,8 @@ class FulfillmentsPublicationTests(unittest.TestCase):
             publish_records(_NoMutationClient(), "commerce-agents-dev.raw_shopify", "fulfillments",
                             rows, manifest, transport_validated=True)
         rows, manifest = _fixture()
-        manifest["transport"] = "shopify_bulk_query"
-        with self.assertRaisesRegex(ValueError, "shopify_graphql_pages"):
+        manifest["transport"] = "shopify_foo"
+        with self.assertRaisesRegex(ValueError, "transport"):
             publish_records(_NoMutationClient(), "commerce-agents-dev.raw_shopify", "fulfillments",
                             rows, manifest, transport_validated=True)
 

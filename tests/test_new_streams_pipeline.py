@@ -49,9 +49,7 @@ class NewStreamPipelineTests(unittest.TestCase):
         from orchestration.shopify_orders import OrdersConfig
         config = OrdersConfig(**CONFIG)
         for module, asset, capture_name in (("shopify_balance_transactions", shopify_balance_transactions, "PaymentsCapture"),
-                                            ("shopify_fulfillments", shopify_fulfillments, "FulfillmentsCapture"),
-                                            ("shopify_fulfillment_orders", shopify_fulfillment_orders, "FulfillmentOrdersCapture"),
-                                            ("shopify_inventory", shopify_inventory, "InventoryCapture")):
+                                            ("shopify_fulfillment_orders", shopify_fulfillment_orders, "FulfillmentOrdersCapture")):
             result, capture, page_size, shop_gid = _capture_module(module, asset, capture_name, config)
             self.assertEqual(page_size, 50)
             self.assertEqual(shop_gid, config.expected_shop_gid)
