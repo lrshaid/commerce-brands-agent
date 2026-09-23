@@ -38,7 +38,11 @@ free of placeholder tables that would error at query time.
    a mart column; derived metrics are numerator/denominator over base metrics; blocked
    metrics carry a `blocked_reason`. Copy the metric shapes from the roadmap reference.
 3. Run `python scripts/generate_cube_model.py`; the cube + its public view are emitted.
-   `python scripts/generate_cube_model.py --check` fails in CI if `model/` is stale.
+   `python scripts/generate_cube_model.py --check` exits non-zero if a generated file is
+   stale. `tests/test_cube_model_generated.py` runs the same check (plus: no file in
+   `model/` that the generator doesn't emit, no blocked metric in a public view) as part
+   of `python3 -m unittest discover -s tests`. There is no CI workflow yet, so run the
+   suite before committing contract or model changes.
 4. Configure tenant/extraction scoping before exposing data beyond local development.
 
 Business math stays in dbt; the contract only routes a metric to a mart column and

@@ -18,7 +18,9 @@ Rules mirrored from the contract / cube README:
 
 Usage:
     python scripts/generate_cube_model.py            # write cube/model/
-    python scripts/generate_cube_model.py --check    # fail if output is stale (CI)
+    python scripts/generate_cube_model.py --check    # fail if output is stale
+
+tests/test_cube_model_generated.py runs the same drift check with the test suite.
 """
 from __future__ import annotations
 
@@ -195,7 +197,7 @@ def generate() -> dict[str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
-                    help="exit non-zero if cube/model/ is stale (for CI)")
+                    help="exit non-zero if cube/model/ is stale")
     args = ap.parse_args()
 
     files = generate()
