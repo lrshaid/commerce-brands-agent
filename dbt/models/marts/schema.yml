@@ -30,6 +30,9 @@ models:
         data_tests: [not_null]
       - name: rmv_tax_amount
         data_tests: [not_null]
+      - name: returned_quantity
+        description: Signed return units (<= 0); added to gross units to compute net units.
+        data_tests: [not_null]
 
   - name: metric_revenue_daily
     description: Daily revenue-core metrics. EMV is intentionally absent until a valid exchange contract exists.

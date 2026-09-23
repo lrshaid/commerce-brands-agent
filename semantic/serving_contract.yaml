@@ -105,7 +105,7 @@ metrics:
     aggregation: sum
     implementation_status: target_validated
     honesty_flags:
-      - "net_units = gross + exchange - returned; exchange units are 0 (EMV blocked); returned units are now real"
+      - "net_units = gross + stored-negative returned units; exchange units are 0 (EMV blocked); return-unit sign correction requires warehouse rebuild"
 
   traffic:
     kind: base

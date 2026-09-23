@@ -55,7 +55,7 @@ cubes:
       - name: net_units
         sql: net_units
         type: sum
-        description: "gross plus exchange minus returned units. net_units = gross + exchange - returned; exchange units are 0 (EMV blocked); returned units are now real"
+        description: "gross plus exchange minus returned units. net_units = gross + stored-negative returned units; exchange units are 0 (EMV blocked); return-unit sign correction requires warehouse rebuild"
       - name: traffic
         sql: traffic
         type: sum

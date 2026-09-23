@@ -68,7 +68,8 @@ select
     -- RMV stored negative, as required by the revenue waterfall.
     -abs(c.merchandise_subtotal_amount) as rmv_merchandise_amount,
     -abs(c.tax_amount) as rmv_tax_amount,
-    c.quantity as returned_quantity,
+    -- Return units follow the same negative sign as RMV; add them to sales units.
+    -abs(c.quantity) as returned_quantity,
     c.rmv_recognition_ts_utc,
     -- Order-level adjustments (shipping refunds + discrepancy) are applied once
     -- per order, distributed equally across lines for atomicity. They are kept
