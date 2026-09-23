@@ -57,8 +57,11 @@ def shopify_returns(context: dg.AssetExecutionContext, config: OrdersConfig):
     identity = ExtractionIdentity(shop_key, config.extraction_id, "pending", query_sha, request_sha,
                                   client.api_version, datetime.now(timezone.utc))
     bucket = storage.Client(project=project).bucket(project + "-landing")
-    operation_id = client.submit_once(bucket=bucket, extraction_id=config.extraction_id,
-                                     query_source=query_source, search_filter=search_filter)
+    # Family-scoped bulk identity: the shared daily extraction_id collides
+    # with the other families' submit receipts (orders binds first).
+    operation_id = client.submit_once(bucket=bucket,
+        extraction_id=f"returns-bulk:{config.extraction_id}",
+        query_source=query_source, search_filter=search_filter)
     context.log.info(f"Shopify returns export operation: {operation_id}")
     export = wait_for_export(client, operation_id)
     with download_export(export) as source:
