@@ -51,6 +51,7 @@ select
     cast(null as int64) as traffic,
     coalesce(g.gmv_orders, 0) as orders,
     coalesce(g.gmv_units, 0) as gross_units,
+    -- Return quantities are stored negative in fct_returns.
     coalesce(r.rmv_units, 0) as returned_units,
     coalesce(g.gmv_units, 0) + coalesce(r.rmv_units, 0) as net_units,
     current_timestamp() as computed_at

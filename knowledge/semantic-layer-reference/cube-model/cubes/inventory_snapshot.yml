@@ -1,0 +1,82 @@
+# TEMPLATE cube — Inventory (append-only snapshots) (company-agnostic)
+#
+# ⚠ SNAPSHOT SEMANTICS: the mart is append-only (one stock row per date). Quantity
+# measures are NOT additive across dates — a query MUST pin a single snapshot_date
+# (or use is_latest_snapshot=true), otherwise totals multiply by the number of days.
+# In the source semantic layer this is handled with sum_distinct_on + a composite
+# primary key; here, enforce the single-snapshot filter at the view/query layer.
+#
+# Grain: one row per (shop_key, snapshot_date, unit_bin_code, fulfillment_pool).
+cubes:
+  - name: inventory_snapshot
+    public: false
+    sql_table: analytics.metric_inventory_snapshot   # <-- placeholder
+
+    dimensions:
+      - name: shop_key
+        sql: shop_key
+        type: string
+      - name: snapshot_date
+        sql: snapshot_date
+        type: time
+      - name: is_latest_snapshot
+        sql: is_latest_snapshot
+        type: boolean
+        description: "Pin to TRUE (or a single snapshot_date) before reading quantities."
+      - name: fulfillment_pool     # primary DC | secondary DC | retail (own)
+        sql: fulfillment_pool
+        type: string
+      - name: unit_category
+        sql: unit_category_1
+        type: string
+      - name: pillar
+        sql: pillar
+        type: string
+
+    measures:
+      # --- snapshot quantities: correct ONLY on a single pinned snapshot_date ---
+      - name: quantity_on_hand
+        sql: quantity_on_hand
+        type: sum
+        description: "Sum valid only within one snapshot_date. Do not sum across dates."
+      - name: quantity_available
+        sql: quantity_available
+        type: sum
+        description: "Sum valid only within one snapshot_date."
+      - name: l12w_average_unit_quantity
+        sql: l12w_average_unit_quantity
+        type: sum
+      - name: wtd_quantity
+        sql: wtd_quantity
+        type: sum
+        description: "WTD unit sales (flow — additive within the week)."
+      - name: qoh_prior_sunday
+        sql: quantity_on_hand_prior_sunday
+        type: sum
+        description: "BOW inventory (snapshot)."
+      - name: instock_units_in_stock
+        sql: instock_l12w_units_in_stock
+        type: sum
+      - name: instock_units_total
+        sql: instock_l12w_units_total
+        type: sum
+      - name: at_risk_revenue_usd
+        sql: at_risk_revenue_usd
+        type: sum
+        format: currency
+
+      # --- derived (ratio-of-totals; keep the single-snapshot filter on) ---
+      - name: weeks_of_stock_portfolio
+        sql: "{quantity_available} / NULLIF({l12w_average_unit_quantity}, 0)"
+        type: number
+        description: "Hero KPI. Portfolio weeks of stock."
+      - name: sell_through
+        sql: "{wtd_quantity} / NULLIF({qoh_prior_sunday} + {wtd_quantity}, 0)"
+        type: number
+        format: percent
+        description: "WTD sales / (BOW inventory + WTD)."
+      - name: instock_percentage
+        sql: "{instock_units_in_stock} / NULLIF({instock_units_total}, 0)"
+        type: number
+        format: percent
+        description: "L12W-velocity weighted."

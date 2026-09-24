@@ -26,3 +26,8 @@ dbt/dbt_internal_packages/
 
 # Editor config
 **/.vscode/
+
+# Cube semantic layer service — secrets and local pre-agg store
+cube/.env
+cube/gcp-key.json
+cube/.cubestore/

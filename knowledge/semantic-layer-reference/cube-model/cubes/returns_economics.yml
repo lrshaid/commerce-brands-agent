@@ -1,0 +1,65 @@
+# TEMPLATE cube — Returns economics (rr30) (company-agnostic)
+#
+# Order-cohort return economics on a fixed 30-day window. Source of truth = dbt marts.
+# Clock = shelved_date (physical warehouse receipt), NOT return-booking date.
+# RMV stored POSITIVE here (return-cohort mart), numerators additive → ratios safe.
+# Attributed to the ORIGINAL order's completed date + selling store/channel.
+#
+# Grain: one row per (shop_key, order_cohort_date, sales_channel, market, is_matured_30d).
+cubes:
+  - name: returns_economics
+    public: false
+    sql_table: analytics.metric_return_economics_daily   # <-- placeholder
+
+    dimensions:
+      - name: shop_key
+        sql: shop_key
+        type: string
+      - name: order_cohort_date
+        sql: order_completed_date
+        type: time
+      - name: sales_channel
+        sql: sales_channel
+        type: string
+      - name: market
+        sql: market
+        type: string
+      - name: is_matured_30d
+        sql: is_matured_30d
+        type: boolean
+        description: "Filter TRUE for headline; recent cohorts understate."
+
+    measures:
+      # --- base, additive (RMV positive here) ---
+      - name: gmv
+        sql: gmv_amount
+        type: sum
+        format: currency
+        description: "GMV denominator, by original order's completed date."
+      - name: rmv_30
+        sql: rmv_30
+        type: sum
+        format: currency
+      - name: rmv_30_exchanged
+        sql: rmv_30_exchanged
+        type: sum
+        format: currency
+      - name: rmv_30_returned
+        sql: rmv_30_returned
+        type: sum
+        format: currency
+
+      # --- derived (identity: revenue_lost_30 = return_rate_30 * (1 - exchange_rate_30)) ---
+      - name: return_rate_30
+        sql: "{rmv_30} / NULLIF({gmv}, 0)"
+        type: number
+        format: percent
+      - name: exchange_rate_30
+        sql: "{rmv_30_exchanged} / NULLIF({rmv_30}, 0)"
+        type: number
+        format: percent
+        description: "Share of returned $ that were exchanges."
+      - name: revenue_lost_30
+        sql: "{rmv_30_returned} / NULLIF({gmv}, 0)"
+        type: number
+        format: percent

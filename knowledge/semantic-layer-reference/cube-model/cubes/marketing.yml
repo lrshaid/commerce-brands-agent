@@ -1,0 +1,143 @@
+# TEMPLATE cube — Marketing (company-agnostic)
+#
+# First-party (blended) marketing efficiency. Source of truth = dbt marts.
+# In-platform (pixel) ROAS lives in a SEPARATE universe (see ads_performance) and
+# must NOT be reconciled with MER. All efficiency = ratio-of-sums.
+#
+# Grain: one row per (shop_key, metric_date, channel, user_type, market).
+cubes:
+  - name: marketing_daily
+    public: false
+    sql_table: analytics.metric_marketing_daily    # <-- placeholder: wire to real mart
+
+    dimensions:
+      - name: shop_key
+        sql: shop_key
+        type: string
+      - name: metric_date
+        sql: metric_date
+        type: time
+      - name: channel
+        sql: channel
+        type: string
+      - name: channel_group      # Brand|Content|Event|Loyalty|Media|Partner|Platform|Retail
+        sql: channel_group
+        type: string
+      - name: funnel             # TOFU|MOFU|BOFU|CC|CRFU|PLAT
+        sql: funnel
+        type: string
+      - name: domain             # Growth|Creative|Brand|Retail|Retention
+        sql: domain
+        type: string
+      - name: user_type
+        sql: user_type
+        type: string
+      - name: market
+        sql: market
+        type: string
+
+    measures:
+      # --- base, additive ---
+      - name: nmv
+        sql: nmv_amount
+        type: sum
+        format: currency
+      - name: sales
+        sql: sales_amount
+        type: sum
+        format: currency
+      - name: spend
+        sql: spend_amount
+        type: sum
+        format: currency
+      - name: budget
+        sql: budget_amount
+        type: sum
+        format: currency
+      - name: new_customers
+        sql: new_customers
+        type: sum
+      - name: customer_orders
+        sql: customer_orders
+        type: sum
+        description: "Returning-customer orders (for OAC)."
+      - name: orders
+        sql: orders
+        type: sum
+      - name: sessions
+        sql: sessions
+        type: sum
+      - name: impressions
+        sql: impressions
+        type: sum
+      - name: clicks
+        sql: clicks
+        type: sum
+      - name: session_product_added
+        sql: session_product_added
+        type: sum
+      - name: engagement_value
+        sql: engagement_value
+        type: sum
+        format: currency
+      - name: target_nmv
+        sql: target_nmv
+        type: sum
+        format: currency
+
+      # --- derived ratios ---
+      - name: mer
+        sql: "{nmv} / NULLIF({spend}, 0)"
+        type: number
+        description: "Marketing Efficiency Ratio (headline blended)."
+      - name: target_mer
+        sql: "{target_nmv} / NULLIF({budget}, 0)"
+        type: number
+      - name: roas
+        sql: "{sales} / NULLIF({spend}, 0)"
+        type: number
+        description: "First-party attribution, NOT platform pixel."
+      - name: cac
+        sql: "{spend} / NULLIF({new_customers}, 0)"
+        type: number
+        format: currency
+      - name: oac
+        sql: "{spend} / NULLIF({customer_orders}, 0)"
+        type: number
+        format: currency
+        description: "Order acquisition cost (returning)."
+      - name: cpo
+        sql: "{spend} / NULLIF({orders}, 0)"
+        type: number
+        format: currency
+      - name: cps
+        sql: "{spend} / NULLIF({sessions}, 0)"
+        type: number
+        format: currency
+      - name: cpm
+        sql: "{spend} / NULLIF({impressions}, 0) * 1000"
+        type: number
+        format: currency
+      - name: aov
+        sql: "{sales} / NULLIF({orders}, 0)"
+        type: number
+        format: currency
+      - name: cvr
+        sql: "{orders} / NULLIF({sessions}, 0)"
+        type: number
+        format: percent
+      - name: spv
+        sql: "{sales} / NULLIF({sessions}, 0)"
+        type: number
+        format: currency
+      - name: ctr
+        sql: "{clicks} / NULLIF({impressions}, 0)"
+        type: number
+        format: percent
+      - name: atc_rate
+        sql: "{session_product_added} / NULLIF({sessions}, 0)"
+        type: number
+        format: percent
+      - name: ev_per_spend
+        sql: "{engagement_value} / NULLIF({spend}, 0)"
+        type: number
