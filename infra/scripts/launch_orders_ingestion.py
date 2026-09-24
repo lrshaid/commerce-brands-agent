@@ -37,6 +37,10 @@ def main():
     parser.add_argument("--metric", action="append", default=[], metavar="METRIC_ID[=EVENT_TYPE]",
                         help="Ordered priority metric (repeatable; first is the send denominator); required for klaviyo_events_ingestion")
     parser.add_argument("--replay-completed-run", help="Explicitly replay this successful run's extraction")
+    parser.add_argument("--force-recapture", action="store_true",
+        help="Force a fresh Shopify export: mint a new extraction identity from --extraction-id "
+             "(suffix -re<UTC timestamp>) so submit_once submits a new bulk operation instead of "
+             "resuming the original export; use when a window must be re-walked from zero")
     parser.add_argument("--retry-failed-run", help="Retry this terminal failed run after verifying its remote worker stopped")
     args = parser.parse_args()
     windowed_jobs = ("shopify_order_transactions_ingestion", "shopify_orders_ingestion", "shopify_refunds_capture", "shopify_refunds_ingestion",
@@ -47,6 +51,11 @@ def main():
         parser.error(f"{args.job} requires --window-start and --window-end")
     if args.job in windowed_jobs and args.job != "klaviyo_events_ingestion" and not args.expected_shop_gid:
         parser.error(f"{args.job} requires --expected-shop-gid")
+    if args.force_recapture:
+        if args.replay_completed_run or args.retry_failed_run:
+            parser.error("--force-recapture cannot be combined with replay/retry: it mints a NEW identity")
+        from datetime import datetime, timezone
+        args.extraction_id = f"{args.extraction_id}-re{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
     tag = {"key": "commerce/extraction_id", "value": args.extraction_id}
     response = requests.post(URL, json={"query": LOOKUP, "variables": {
         "filter": {"pipelineName": args.job, "tags": [tag]}}}, timeout=30)
