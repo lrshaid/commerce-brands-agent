@@ -1,6 +1,6 @@
 # Validación CRM en BigQuery — 2026-09-24
 
-Código probado: `87abd9b`, PR #4. Proyecto `commerce-agents-dev`, dataset
+Validación inicial: `87abd9b`; revalidación con cruce por email sin condición de tienda, PR #4. Proyecto `commerce-agents-dev`, dataset
 `analytics`, región `us-central1`. No se ejecutó ingesta ni backfill.
 
 ## Ejecución
@@ -32,25 +32,36 @@ Código probado: `87abd9b`, PR #4. Proyecto `commerce-agents-dev`, dataset
 | Eventos de apertura / clic asociados a entregas | 4.947 / 1.276 |
 | Eventos de apertura / clic en activity | 6.530 / 1.295 |
 | Órdenes en la semana por regla de atribución | 276 |
-| Órdenes atribuidas por regla | 0 |
-| Identidades CRM del snapshot | 11.132 Prospect + 3 Unresolved |
+| Órdenes atribuidas por entrega / clic | 6 / 4 (reglas alternativas) |
+| Valor atribuido por entrega / clic | USD 1.279,10 / USD 632,10 |
+| Identidades CRM del snapshot | 4.731 Customer + 6.401 Prospect + 3 Unresolved |
 
 El mart de campañas coincide con los contadores recalculados desde la tabla de
 engagement. Activity cuenta eventos por fecha del evento; engagement sólo asocia
 interacciones a una entrega precedente disponible. No deben igualarse a la fuerza:
 la captura parcial puede omitir entregas anteriores.
 
-## Bloqueo funcional de atribución e identificación de clientes
+## Cruce entre CRM y Shopify
 
-La fuente CRM usa `shop_key = klaviyo-main`; Shopify usa
-`shop_key = gid://shopify/Shop/12345794`. No hay identidades que coincidan en
-**tienda e identidad**. Por eso las órdenes quedan `no_eligible_touch` y las
-identidades resueltas aparecen como Prospect. Estos resultados NO validan que
-el negocio tenga cero conversiones ni que esas personas nunca hayan comprado.
-Se requiere confirmar la relación cuenta Klaviyo–tienda Shopify y configurar
-una clave canónica antes de validar conversiones positivas con datos reales.
-No se eliminó el filtro por tienda ni se asumió esa relación automáticamente.
-Los fixtures locales cubren atribuciones positivas y límites temporales.
+La primera ejecución no encontró compras porque CRM usa `klaviyo-main` y Shopify
+`gid://shopify/Shop/12345794`. Por instrucción del usuario se eliminó la igualdad
+de tienda de los cruces entre proveedores. Se conserva el email normalizado e
+inequívoco; las compras/refunds se agregan por identidad antes del join para evitar
+multiplicar filas. Los joins internos entre órdenes y refunds conservan su tienda.
+
+La revalidación encuentra 6 órdenes / USD 1.279,10 bajo `delivery_6h`, y 4 órdenes /
+USD 632,10 bajo `click_6h`; no se suman. Cada regla conserva las 276 órdenes de
+la semana. No hay importes incompletos entre las atribuidas. El snapshot reconoce
+4.731 identidades con 8.590 órdenes históricas. La atribución positiva quedó
+verificada con datos reales, además de los límites temporales de los fixtures.
+
+Revalidación de BigQuery: 4 vistas reconstruidas y 14 tests de los modelos
+modificados y descendientes. Las pruebas locales también verifican coincidencias
+entre tiendas distintas y una sola fila por identidad CRM al agregar compras.
+
+Jobs de revalidación semántica:
+- Atribución: `2c33d158-cd34-44c2-835f-896624c9d8a3`.
+- Clientes: `4ccf30eb-92ff-4db4-bcba-6a8f05534fa6`.
 
 ## Alcance de Cube
 

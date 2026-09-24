@@ -25,22 +25,22 @@ with engagement as (
     from {{ ref('fct_crm_event') }}
     group by shop_key, crm_person_key
 ), orders as (
-    select shop_key, customer_identity_id, count(*) as order_count,
+    select customer_identity_id, count(*) as order_count,
         min(order_ts) as first_purchase_ts, max(order_ts) as last_purchase_ts,
         count(distinct currency_code) as currency_count,
         countif(not value_is_complete) as incomplete_value_orders,
         min(currency_code) as currency_code, sum(order_value) as gross_spend
     from {{ ref('int_crm__order_value') }}
     where customer_identity_id is not null
-    group by shop_key, customer_identity_id
+    group by customer_identity_id
 ), refunds as (
-    select o.shop_key, o.customer_identity_id,
+    select o.customer_identity_id,
         sum(r.rmv_merchandise_amount) as recognized_rmv
     from {{ ref('fct_returns') }} r
     join {{ ref('int_crm__order_value') }} o
         on r.shop_key = o.shop_key and r.order_gid = o.order_gid
     where r.rmv_recognition_ts_utc is not null and o.customer_identity_id is not null
-    group by o.shop_key, o.customer_identity_id
+    group by o.customer_identity_id
 ), combined as (
     select e.*, coalesce(o.order_count, 0) as order_count,
         o.first_purchase_ts, o.last_purchase_ts,
@@ -50,8 +50,8 @@ with engagement as (
         case when e.customer_identity_id is null then 'Unresolved'
              when o.order_count > 0 then 'Customer' else 'Prospect' end as customer_status
     from engagement e
-    left join orders o on e.shop_key = o.shop_key and e.customer_identity_id = o.customer_identity_id
-    left join refunds r on e.shop_key = r.shop_key and e.customer_identity_id = r.customer_identity_id
+    left join orders o on e.customer_identity_id = o.customer_identity_id
+    left join refunds r on e.customer_identity_id = r.customer_identity_id
 )
 select *, gross_spend + recognized_rmv as observed_net_value,
     timestamp_diff(current_timestamp(), last_email_click_ts, day) as days_since_email_click

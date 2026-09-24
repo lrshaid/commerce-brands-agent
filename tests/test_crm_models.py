@@ -113,9 +113,12 @@ class CrmModelsTest(unittest.TestCase):
         self.assertEqual(rows['first'],'attributed')
         self.assertEqual(rows['second'],'attributed')
         self.assertEqual(rows['edge'],'attributed')
-        for k in ('early','late','other-shop'): self.assertEqual(rows[k],'no_eligible_touch')
+        for k in ('early','late'): self.assertEqual(rows[k],'no_eligible_touch')
+        self.assertEqual(rows['other-shop'], 'attributed')
         self.assertNotIn('cancelled',rows)
-        self.assertEqual(self.db.execute("SELECT sum(attributed_value) FROM fct_crm_order_attribution WHERE attribution_model='delivery_6h'").fetchone()[0],300)
+        self.assertEqual(self.db.execute('SELECT count(*) FROM dim_customer_crm').fetchone()[0], 1)
+        self.assertEqual(self.db.execute('SELECT order_count FROM dim_customer_crm').fetchone()[0], 6)
+        self.assertEqual(self.db.execute("SELECT sum(attributed_value) FROM fct_crm_order_attribution WHERE attribution_model='delivery_6h'").fetchone()[0],400)
         self.assertEqual(self.db.execute('SELECT count(*) FROM fct_crm_order_attribution').fetchone()[0],12)
 
     def test_ambiguous_identity_prospects_unknown_types_and_currency(self):

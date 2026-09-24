@@ -19,7 +19,7 @@ with rules as (
         ) as touch_rank
     from order_rules o
     left join {{ ref('fct_crm_event') }} e
-        on o.shop_key = e.shop_key and o.customer_identity_id = e.customer_identity_id
+        on o.customer_identity_id = e.customer_identity_id
         and e.event_type = o.eligible_event_type
         and e.event_ts >= timestamp_sub(o.order_ts, interval o.max_seconds second)
         and e.event_ts <= timestamp_sub(o.order_ts, interval o.min_seconds second)

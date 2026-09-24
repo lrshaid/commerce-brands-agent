@@ -10,7 +10,7 @@ Esta implementación conserva **sin cambios** `stg_klaviyo__events` y el staging
 | `fct_crm_message_engagement` | Una entrega de email con sus aperturas y clics asociados. |
 | `metric_crm_campaign_performance` | Entregas, aperturas, clics y tasas por día de entrega, campaña, flow y mensaje. |
 | `metric_crm_activity_daily` | Eventos por día en que ocurrieron, incluidos los que no pudieron vincularse a una entrega. |
-| `dim_customer_crm` | Perfil actual de interacción CRM, incluidos prospectos, unido a compras por email normalizado dentro de la tienda. |
+| `dim_customer_crm` | Perfil actual de interacción CRM, incluidos prospectos, unido a compras por email normalizado sin exigir la misma tienda. |
 | `metric_crm_customer_engagement` | Resumen de clientes, prospectos y perfiles sin identidad resuelta, separado por moneda. |
 | `fct_crm_order_attribution` | Una fila por orden y regla: entrega a seis horas o clic a seis horas, también para órdenes sin atribución. |
 | `metric_crm_attribution_daily` | Órdenes e importe atribuido por fecha de compra, regla, campaña y moneda. |
@@ -49,7 +49,7 @@ flowchart TD
 
 ### Identidad y customer
 
-No se promueve email sin hash a marts. Se utiliza SHA256 del email normalizado, siempre dentro de tienda. Cuando un perfil tiene más de un email distinto en sus eventos deduplicados, se marca como ambiguo y no se atribuyen sus compras. Cuando varios perfiles tienen el mismo email inequívoco, comparten identidad CRM.
+No se promueve email sin hash a marts. Se utiliza SHA256 del email normalizado, sin exigir igualdad de tienda en el cruce Klaviyo–Shopify. Cuando un perfil tiene más de un email distinto en sus eventos deduplicados, se marca como ambiguo y no se atribuyen sus compras. Cuando varios perfiles tienen el mismo email inequívoco, comparten identidad CRM.
 
 `dim_customer_crm` incluye todos los perfiles observados, también prospectos. Los perfiles sin email o ambiguos quedan como `Unresolved`; no se clasifican como prospectos por falta de match. La base no es un export completo de todos los perfiles de Klaviyo ni de todos los compradores Shopify.
 
@@ -144,7 +144,7 @@ Tests de dbt: claves únicas, cobertura de órdenes en ambas reglas, ventanas de
 
 Son vistas sobre todo el historial publicado, así que un evento tardío se refleja sin perder una partición antigua. No se aplicó una ventana de siete días que pudiera dejar fuera un backfill. El costo de consultar toda la historia debe medirse antes de materializar en producción; una futura estrategia incremental debe usar fecha de publicación y actualizar entregas/órdenes afectadas.
 
-Se ejecutaron las 12 vistas y 26 tests en BigQuery el 2026-09-24. Ver [resultados y limitación de identidad entre tiendas](KLAVIYO_CRM_BIGQUERY_VALIDATION.md). Los bindings de Cube incluyen CRM; su runtime HTTP sigue pendiente.
+Se ejecutaron las 12 vistas y 26 tests en BigQuery el 2026-09-24. Ver [resultados y cruce por email entre proveedores](KLAVIYO_CRM_BIGQUERY_VALIDATION.md). Los bindings de Cube incluyen CRM; su runtime HTTP sigue pendiente.
 
 ## Lo que no se implementa todavía
 
@@ -153,3 +153,5 @@ Se ejecutaron las 12 vistas y 26 tests en BigQuery el 2026-09-24. Ver [resultado
 - Metadata completa de flows/perfiles, consentimiento actual y segmentos históricos.
 - Targets, engagement value con pesos monetarios y reparto estimado de bajas.
 - SMS a seis horas: sus eventos quedan en actividad general, pero las reglas y performance de entrega actuales son explícitamente de email.
+
+Los cruces Klaviyo–Shopify usan sólo identidad de email. Las compras y refunds se agregan por identidad antes de unirlos al perfil CRM, evitando multiplicar filas por tienda. Los joins internos Shopify (orden/refund) y Klaviyo (perfil/mensaje) conservan su tienda. Atribución conserva la tienda de la orden; engagement conserva la cuenta CRM.

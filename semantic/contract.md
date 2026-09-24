@@ -45,10 +45,12 @@ The Option B revenue resolver does not expose these subject views; use Cube.
 The 12 CRM dbt views were created in `commerce-agents-dev.analytics`; all 26
 CRM data tests passed in BigQuery. The four semantic aggregate expressions also
 executed successfully. This does not validate the Cube HTTP runtime.
-Current Klaviyo and Shopify `shop_key` values differ, so customer matching and
-attribution have no cross-source matches. Do not interpret zero attributed
-orders or `Prospect` status as verified business outcomes until account-to-shop
-mapping is confirmed. Loaded Klaviyo coverage is only September 8–10, 2026.
+Klaviyo–Shopify matching uses unambiguous normalized email identity without a
+shop-key equality condition. Attribution keeps the Shopify shop key; customer
+engagement keeps the CRM shop key. Purchases across Shopify shops aggregate by
+email before joining CRM to avoid fanout. CRM populations from different accounts
+may overlap; do not treat summed account identities as unique humans.
+Loaded Klaviyo coverage is only September 8–10, 2026.
 See [execution evidence](../docs/KLAVIYO_CRM_BIGQUERY_VALIDATION.md).
 
 ## Klaviyo CRM public fields
@@ -156,7 +158,7 @@ For attribution, always filter `attribution_model` to exactly one of `click_6h`
 (last click 0–21,600 seconds before purchase) or `delivery_6h` (last received
 email 180–21,600 seconds before purchase), inclusive. Each order appears once
 per model, including unmatched orders: never add the two models. Matching uses
-shop and unambiguous normalized email identity. This is our rule, not Klaviyo's
+unambiguous normalized email identity, without requiring equal shop keys. This is our rule, not Klaviyo's
 reported attribution or proof of causality. Use `attribution_status` to distinguish
 `attributed`, `missing_order_email`, and `no_eligible_touch`. Monetary sums require
 one known currency; no FX conversion. `missing_value_orders` guards the whole
