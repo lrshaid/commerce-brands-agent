@@ -115,7 +115,7 @@ def build_cube(mart_name: str, mart: dict, contract: dict, catalog: dict) -> tup
     lines.append("    measures:")
     lines.append("      # --- base (additive), from the mart ---")
     for name, m in base:
-        blocked = m.get("implementation_status") == "blocked"
+        blocked = m.get("implementation_status") not in SERVABLE
         lines.append(f"      - name: {name}")
         lines.append(f"        sql: {m['value_column']}")
         lines.append(f"        type: {m.get('aggregation', 'sum')}")
@@ -132,17 +132,21 @@ def build_cube(mart_name: str, mart: dict, contract: dict, catalog: dict) -> tup
         lines.append("      # --- derived (ratio-of-sums; computed, not stored) ---")
     for name, m in derived:
         num, den = m["numerator"], m["denominator"]
+        available = (m.get("implementation_status") in SERVABLE
+                     and all(metrics[r].get("implementation_status") in SERVABLE for r in (num, den)))
         num_cur = currency.get(num, False)
         den_cur = currency.get(den, False)
         lines.append(f"      - name: {name}")
         lines.append(f'        sql: "{{{num}}} / NULLIF({{{den}}}, 0)"')
         lines.append("        type: number")
+        if not available:
+            lines.append("        public: false")
         if num_cur and not den_cur:
             lines.append("        format: currency")
         desc = describe(name, m, catalog)
         if desc:
             lines.append(f"        description: {yq(desc)}")
-        if m.get("implementation_status") in SERVABLE:
+        if available:
             servable_measures.append(name)
 
     # ---- pre-aggregation (only for validated marts) ----
@@ -183,6 +187,39 @@ def build_view(view_name: str, cube_name: str, mart: dict, servable: list[str]) 
     return "\n".join(lines) + "\n"
 
 
+def build_subject(name: str, spec: dict) -> tuple[str, str]:
+    """Compile topic bindings at their own grain; never join incompatible facts."""
+    cube_name = f"subject_{name}"
+    dimensions = []
+    for hidden, entries in ((True, spec.get("hidden_dimensions", {})),
+                            (False, spec["dimensions"])):
+        for field, config in entries.items():
+            dimensions.append(dict(name=field, sql=field, type=config["type"], public=not hidden))
+    measures = []
+    for field, config in spec["measures"].items():
+        if "numerator" in config:
+            num, den = config["numerator"], config["denominator"]
+            for ref in (num, den):
+                if ref not in spec["measures"] or "column" not in spec["measures"][ref]:
+                    raise ValueError(f"{name}.{field}: ratio must reference local base measures")
+            sql, kind = f"{{{num}}} / NULLIF({{{den}}}, 0)", "number"
+        else:
+            sql = config["column"]
+            kind = {"count_distinct": "count_distinct", "sum": "sum", "avg": "avg"}[config["aggregation"]]
+        measure = dict(name=field, sql=sql, type=kind, description=config["description"])
+        if "format" in config:
+            measure["format"] = config["format"]
+        measures.append(measure)
+    cube = dict(name=cube_name, public=False,
+                sql_table=f"{spec['dataset']}.{spec['source_mart']}",
+                description=spec["description"], dimensions=dimensions, measures=measures)
+    view = dict(name=name, public=True, description=spec["description"],
+                cubes=[dict(join_path=cube_name,
+                            includes=list(spec["dimensions"]) + list(spec["measures"]))])
+    return (HEADER + yaml.safe_dump({"cubes": [cube]}, sort_keys=False),
+            HEADER + yaml.safe_dump({"views": [view]}, sort_keys=False))
+
+
 def generate() -> dict[str, str]:
     contract = yaml.safe_load(CONTRACT.read_text())
     catalog = (yaml.safe_load(CATALOG.read_text()) or {}).get("metrics", {})
@@ -191,6 +228,12 @@ def generate() -> dict[str, str]:
         cube_name, view_name, cube_yaml, servable = build_cube(mart_name, mart, contract, catalog)
         files[str(OUT_CUBES / f"{cube_name}.yml")] = cube_yaml
         files[str(OUT_VIEWS / f"{view_name}.yml")] = build_view(view_name, cube_name, mart, servable)
+    for name, spec in contract.get("subject_views", {}).items():
+        if not spec.get("enabled", True):
+            continue
+        cube, view = build_subject(name, spec)
+        files[str(OUT_CUBES / f"subject_{name}.yml")] = cube
+        files[str(OUT_VIEWS / f"{name}.yml")] = view
     return files
 
 
@@ -201,9 +244,13 @@ def main() -> int:
     args = ap.parse_args()
 
     files = generate()
+    existing = {p for directory in (OUT_CUBES, OUT_VIEWS)
+                for pattern in ("*.yml", "*.yaml") for p in directory.rglob(pattern)}
+    obsolete = sorted(existing - {Path(p) for p in files})
     if args.check:
         stale = [p for p, c in files.items()
                  if not Path(p).exists() or Path(p).read_text() != c]
+        stale += [str(p) for p in obsolete]
         if stale:
             print("STALE (re-run scripts/generate_cube_model.py):")
             for p in stale:
@@ -212,6 +259,15 @@ def main() -> int:
         print("cube/model/ is up to date with the serving contract.")
         return 0
 
+    unmanaged = [p for p in obsolete if not p.read_text().startswith(HEADER)]
+    if unmanaged:
+        print("Unexpected unmanaged model files; review before removing:")
+        for p in unmanaged:
+            print("  ", p.relative_to(REPO))
+        return 1
+    for p in obsolete:
+        p.unlink()
+        print("removed", p.relative_to(REPO))
     OUT_CUBES.mkdir(parents=True, exist_ok=True)
     OUT_VIEWS.mkdir(parents=True, exist_ok=True)
     for p, c in files.items():

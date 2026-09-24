@@ -11,8 +11,8 @@ services:
   cube:
     image: cubejs/cube:latest
     ports:
-      - "4000:4000"    # REST + GraphQL + Playground + MCP
-      - "15432:15432"  # SQL API (connect BI tools as if Postgres)
+      - "127.0.0.1:4000:4000"    # REST + GraphQL + Playground + MCP
+      - "127.0.0.1:15432:15432"  # SQL API (connect BI tools as if Postgres)
     env_file: .env
     volumes:
       # The semantic layer lives here (see ./model). Mounted read-only into the

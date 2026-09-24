@@ -137,3 +137,230 @@ metrics:
     numerator: gmv
     denominator: gross_units
     implementation_status: sql_template
+
+# Topic views over existing marts. sql_template bindings; live validation pending.
+# Independent grains: no joins between topics are declared.
+subject_views:
+  customers:
+    source_mart: dim_customer_rfm
+    dataset: analytics
+    description: Current customer snapshot, single-shop source. Time filters select customers by first/last purchase;
+      measures remain lifetime totals, not period activity. Identity-resolved purchasers only. RFM uses current
+      date and available purchase history.
+    dimensions:
+      rfm_group:
+        type: string
+      rfm_combo:
+        type: string
+      r_score:
+        type: number
+      f_score:
+        type: number
+      m_score:
+        type: number
+      first_purchase_ts:
+        type: time
+      last_purchase_ts:
+        type: time
+    measures:
+      customer_count:
+        column: customer_identity_id
+        aggregation: count_distinct
+        description: Distinct resolved purchasing identities.
+      orders:
+        column: order_count
+        aggregation: sum
+        description: Lifetime non-cancelled orders for the selected customers.
+      gross_spend:
+        column: gross_spend
+        aggregation: sum
+        description: Lifetime post-discount spend, before refunds, shop currency.
+      net_contribution:
+        column: net_contribution
+        aggregation: sum
+        description: Lifetime gross spend plus negative recognized refunds; no exchange valuation.
+      average_recency_days:
+        column: days_since_last_purchase
+        aggregation: avg
+        description: Average days since last purchase at query time.
+      orders_per_customer:
+        numerator: orders
+        denominator: customer_count
+        description: Lifetime orders per selected customer.
+      aov:
+        numerator: gross_spend
+        denominator: orders
+        description: Ratio of lifetime spend to orders, not average of customer AOVs.
+  customer_ltv:
+    source_mart: dim_customer_rfm
+    dataset: analytics
+    description: Observed historical customer value, single-shop source. Not predicted LTV, margin, or maturity-adjusted
+      90/365-day LTV. First-purchase filters select cohorts; values span all available history.
+    dimensions:
+      first_purchase_ts:
+        type: time
+      rfm_group:
+        type: string
+    measures:
+      customers:
+        column: customer_identity_id
+        aggregation: count_distinct
+        description: Distinct resolved purchasing identities.
+      gross_spend:
+        column: gross_spend
+        aggregation: sum
+        description: Accumulated spend before refunds, shop currency.
+      recognized_rmv:
+        column: recognized_rmv
+        aggregation: sum
+        description: Accumulated recognized merchandise refunds, stored negative.
+      net_contribution:
+        column: net_contribution
+        aggregation: sum
+        description: Accumulated spend plus stored-negative recognized refunds.
+      observed_ltv:
+        numerator: net_contribution
+        denominator: customers
+        description: Observed net value per customer across available history. No age normalization.
+      gross_value_per_customer:
+        numerator: gross_spend
+        denominator: customers
+        description: Observed gross spend per customer across available history.
+  customer_cohorts:
+    source_mart: fct_customer_cohorts
+    dataset: analytics
+    description: Single-shop acquisition/activity monthly cells. Only active cells exist; missing cells are not
+      supplied as zero. No maturity-adjusted retention denominator. Spend excludes cancellations but does not net
+      refunds.
+    dimensions:
+      cohort_month:
+        type: time
+      activity_month:
+        type: time
+      months_since_first_purchase:
+        type: number
+    measures:
+      active_customer_months:
+        column: customers
+        aggregation: sum
+        description: Distinct customers within each acquisition/activity cell; summed across months this is customer-months,
+          NOT unique customers.
+      orders:
+        column: orders
+        aggregation: sum
+        description: Orders in the selected activity cells.
+      spend:
+        column: spend
+        aggregation: sum
+        description: Post-discount spend before refunds, shop currency.
+      aov:
+        numerator: spend
+        denominator: orders
+        description: Aggregate spend per order for selected activity cells.
+  returns:
+    source_mart: fct_returns
+    dataset: analytics
+    description: Refund/return reconciliation at original order-line grain. Refund values take precedence. Includes
+      cancellations; not the same exclusion scope as revenue RMV. Recognition is latest refund timestamp per line,
+      not individual refund event history. Pending return-only rows have null recognition dates.
+    dimensions:
+      match_status:
+        type: string
+      rmv_recognition_ts_utc:
+        type: time
+    measures:
+      line_count:
+        column: order_line_item_id
+        aggregation: count_distinct
+        description: Distinct original order lines in the selected shop.
+      rmv:
+        column: rmv_merchandise_amount
+        aggregation: sum
+        description: Stored-negative merchandise value; cancellations are not excluded in this fact.
+      return_units:
+        column: returned_quantity
+        aggregation: sum
+        description: Stored-negative quantities. Includes pending returns unless recognition date is filtered.
+      refund_tax:
+        column: rmv_tax_amount
+        aggregation: sum
+        description: Stored-negative tax amounts.
+      allocated_adjustments:
+        column: allocated_adjustment_amount
+        aggregation: sum
+        description: Order adjustments allocated across lines; may be attributed across recognition dates.
+    hidden_dimensions:
+      shop_key:
+        type: string
+  merchandise:
+    source_mart: fct_order_sale_line
+    dataset: analytics
+    description: Product sales line analysis. Cancelled orders and gift cards are included unless explicitly filtered
+      out; apply both false filters for non-cancelled merchandise. Post-discount values; refunds are not netted.
+    dimensions:
+      metric_date:
+        type: time
+      sku:
+        type: string
+      title:
+        type: string
+      product_gid:
+        type: string
+      variant_gid:
+        type: string
+      is_cancelled_order:
+        type: boolean
+      is_gift_card:
+        type: boolean
+    measures:
+      orders:
+        column: order_gid
+        aggregation: count_distinct
+        description: Distinct orders in the selected group; do not sum across products.
+      units:
+        column: quantity
+        aggregation: sum
+        description: Sold line quantities before returns.
+      original_value:
+        column: original_total_shop_amount
+        aggregation: sum
+        description: Pre-discount line amount in shop currency.
+      discounted_value:
+        column: discounted_total_shop_amount
+        aggregation: sum
+        description: Post-discount line amount in shop currency.
+      value_per_unit:
+        numerator: discounted_value
+        denominator: units
+        description: Post-discount value per unit.
+    hidden_dimensions:
+      shop_key:
+        type: string
+  digital_funnel:
+    source_mart: metric_ga4__funnel_daily
+    dataset: analytics
+    description: Opt-in GA4 custom 30-minute sessions. Enable only after GA4 is configured and the mart built. Date
+      is property-local; no Shopify revenue linkage. Counts of sessions reaching purchase, not transaction counts.
+    dimensions:
+      metric_date:
+        type: time
+      channel_group:
+        type: string
+      property_id:
+        type: string
+      stream_id:
+        type: string
+    measures:
+      sessions:
+        column: sessions
+        aggregation: sum
+        description: Custom 30-minute sessions.
+      purchase_sessions:
+        column: purchase_sessions
+        aggregation: sum
+        description: Sessions with a purchase event.
+      purchase_session_rate:
+        numerator: purchase_sessions
+        denominator: sessions
+        description: Share of sessions reaching purchase; not orders/session CVR.
+    enabled: false

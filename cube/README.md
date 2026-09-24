@@ -12,29 +12,37 @@ metric is defined once, in the contract; the generator routes it to a cube measu
 a public view. Do **not** edit `model/*.yml` by hand — edit the contract and re-run the
 generator. Docker mounts this directory at `/cube/conf/model`.
 
-The contract currently binds one mart, so the runtime model is:
+The contract generates the following runtime views (new topics require live validation):
 
 | View (public) | Cube | Binding |
 |---|---|---|
 | `revenue` | `commercial_revenue` | `analytics.metric_revenue_daily` (reconciled) |
+| `customers` | `subject_customers` | `analytics.dim_customer_rfm` |
+| `customer_ltv` | `subject_customer_ltv` | `analytics.dim_customer_rfm` |
+| `customer_cohorts` | `subject_customer_cohorts` | `analytics.fct_customer_cohorts` |
+| `returns` | `subject_returns` | `analytics.fct_returns` |
+| `merchandise` | `subject_merchandise` | `analytics.fct_order_sale_line` |
 
 `emv` and `traffic` are `blocked` in the contract, so the generator emits them as
 `public: false` measures (kept for reconcile) and leaves them out of the view — no one
 can query a 0/NULL-by-design number. Tenant/extraction keys are `public: false`;
 scoping is server-side (see Multi-tenancy).
 
-The broader nine-vertical semantics (marketing, digital, customer, retail, returns,
-merch, operations, inventory + the extended commercial measures) are the **roadmap**,
-kept as an anonymized reference in
-[`knowledge/semantic-layer-reference/cube-model`](../knowledge/semantic-layer-reference/cube-model/README.md).
-They are **not** in the runtime model until their mart exists — that keeps `model/`
-free of placeholder tables that would error at query time.
+Customer/RFM, observed LTV, cohort activity, returns and merchandise now bind
+existing marts through `subject_views` in the same contract. These cubes are private;
+the views expose explicit member lists. They have no cross-topic joins or rollups.
+Customer sources are single-shop snapshots; first/last purchase filters select
+customers, not period purchases. Read `semantic/contract.md` for exact semantics.
+
+`digital_funnel` is defined but disabled until GA4 is configured and built.
+Marketing spend, inventory, retail productivity and OTIF remain roadmap templates
+in `knowledge/semantic-layer-reference/cube-model` until source marts exist.
 
 ## Adding a vertical (single-source flow)
 
 1. Build and reconcile the mart at the documented grain (a `metric_*` model under
    `dbt/models/marts/`).
-2. Add the mart + its metrics to `semantic/serving_contract.yaml` — base metrics map to
+2. For the revenue/Option B path, add the mart + its metrics to `semantic/serving_contract.yaml` — base metrics map to
    a mart column; derived metrics are numerator/denominator over base metrics; blocked
    metrics carry a `blocked_reason`. Copy the metric shapes from the roadmap reference.
 3. Run `python scripts/generate_cube_model.py`; the cube + its public view are emitted.
@@ -90,3 +98,12 @@ Add that config file before any non-local deployment.
 Whether Cube OSS (APIs + caching + multitenancy, ~free, self-hosted) beats
 hand-building the Option B compiler for our case. Compare against
 `docs/SEMANTIC_API_PLAN.md`.
+
+## Adding a topic binding
+
+Use `subject_views` for existing facts/snapshots with their own dimensions and grain.
+Declare `source_mart`, `dataset`, `description`, typed `dimensions`, and `measures`
+(column plus sum/avg/count_distinct, or numerator/denominator over local base measures).
+Use `hidden_dimensions` only for columns physically present. Set `enabled: false`
+for dependencies that are not provisioned. Regenerate and update `semantic/contract.md`.
+This section is consumed by Cube; the Option B resolver does not consume topic views.
