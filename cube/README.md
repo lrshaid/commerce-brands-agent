@@ -22,6 +22,10 @@ The contract generates the following runtime views (new topics require live vali
 | `customer_cohorts` | `subject_customer_cohorts` | `analytics.fct_customer_cohorts` |
 | `returns` | `subject_returns` | `analytics.fct_returns` |
 | `merchandise` | `subject_merchandise` | `analytics.fct_order_sale_line` |
+| `crm_campaigns` | `subject_crm_campaigns` | `analytics.metric_crm_campaign_performance` |
+| `crm_activity` | `subject_crm_activity` | `analytics.metric_crm_activity_daily` |
+| `crm_attribution` | `subject_crm_attribution` | `analytics.metric_crm_attribution_daily` |
+| `customer_engagement` | `subject_customer_engagement` | `analytics.metric_crm_customer_engagement` |
 
 `emv` and `traffic` are `blocked` in the contract, so the generator emits them as
 `public: false` measures (kept for reconcile) and leaves them out of the view — no one

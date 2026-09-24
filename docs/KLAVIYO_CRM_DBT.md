@@ -1,6 +1,6 @@
 # CRM de Klaviyo en dbt
 
-Esta implementación conserva **sin cambios** `stg_klaviyo__events` y el staging de campañas existente. Agrega vistas de dbt sobre las observaciones publicadas. No agrega ingesta, no publica perfiles a Klaviyo y no incorpora todavía vistas de Cube.
+Esta implementación conserva **sin cambios** `stg_klaviyo__events` y el staging de campañas existente. Agrega vistas de dbt sobre las observaciones publicadas. No agrega ingesta, no publica perfiles a Klaviyo y agrega cuatro vistas semánticas de Cube: `crm_campaigns`, `crm_activity`, `crm_attribution` y `customer_engagement`. Ver [contrato para la LLM](../semantic/contract.md).
 
 ## Qué entrega
 
@@ -144,7 +144,7 @@ Tests de dbt: claves únicas, cobertura de órdenes en ambas reglas, ventanas de
 
 Son vistas sobre todo el historial publicado, así que un evento tardío se refleja sin perder una partición antigua. No se aplicó una ventana de siete días que pudiera dejar fuera un backfill. El costo de consultar toda la historia debe medirse antes de materializar en producción; una futura estrategia incremental debe usar fecha de publicación y actualizar entregas/órdenes afectadas.
 
-No se ejecutó `dbt run/build` ni se consultó BigQuery. Los resultados dependen de tener pobladas las fuentes. Las vistas de Cube y el contrato de serving no se ampliaron en este cambio: esta entrega corresponde al modelado dbt solicitado.
+No se ejecutó `dbt run/build` ni se consultó BigQuery. Los resultados dependen de tener pobladas las fuentes. Los bindings de Cube y el contrato para la LLM incluyen CRM; la validación en runtime de Cube y BigQuery sigue pendiente.
 
 ## Lo que no se implementa todavía
 

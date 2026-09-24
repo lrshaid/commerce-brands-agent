@@ -66,3 +66,34 @@ class SubjectViewsTest(unittest.TestCase):
         spec['measures'] = {'bad': {'numerator': 'revenue.gmv', 'denominator': 'orders'}}
         with self.assertRaises(ValueError):
             self.generator['build_subject']('bad', spec)
+
+    def test_crm_guards_apply_to_whole_aggregate(self):
+        db = sqlite3.connect(':memory:')
+        self.addCleanup(db.close)
+        for topic, metric, columns, rows, expected in [
+            ('crm_campaigns', 'open_rate', 'opened_messages REAL, delivered_messages REAL, unlinked_messages INTEGER', [(2, 10, 0), (8, 10, 0)], 0.5),
+            ('crm_attribution', 'attributed_value', 'attributed_value REAL, missing_value_orders INTEGER', [(100, 0), (50, 0)], 150),
+        ]:
+            cube, view = self.generator['build_subject'](topic, self.contract['subject_views'][topic])
+            measures = {m['name']: m for m in yaml.safe_load(cube)['cubes'][0]['measures']}
+            sql = measures[metric]['sql']
+            for name, m in measures.items():
+                if m['type'] == 'sum':
+                    sql = sql.replace('{'+name+'}', 'SUM('+m['sql']+')')
+            db.execute('CREATE TABLE samples ('+columns+')')
+            placeholders = ','.join('?' for _ in rows[0])
+            db.executemany('INSERT INTO samples VALUES ('+placeholders+')', rows)
+            self.assertEqual(db.execute('SELECT '+sql+' FROM samples').fetchone()[0], expected)
+            guard = 'unlinked_messages' if topic == 'crm_campaigns' else 'missing_value_orders'
+            db.execute('UPDATE samples SET '+guard+' = 1 WHERE rowid = 2')
+            self.assertIsNone(db.execute('SELECT '+sql+' FROM samples').fetchone()[0])
+            db.execute('DROP TABLE samples')
+            includes = yaml.safe_load(view)['views'][0]['cubes'][0]['includes']
+            self.assertNotIn('attributed_value_raw', includes)
+
+    def test_invalid_guard_is_rejected(self):
+        import copy
+        spec = copy.deepcopy(self.contract['subject_views']['crm_campaigns'])
+        spec['measures']['open_rate']['null_if_nonzero'] = 'other.missing'
+        with self.assertRaises(ValueError):
+            self.generator['build_subject']('bad', spec)

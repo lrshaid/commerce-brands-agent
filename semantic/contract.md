@@ -1,7 +1,6 @@
 # Cube query contract for LLMs
 
-Reviewed against repository commit `7f64239953857f083c1ba02848673f3b3db3d9c3` on 2026-09-23.
-Includes the local return-unit sign correction made after that commit.
+Updated on 2026-09-24 with the Klaviyo CRM dbt and Cube bindings in PR #4.
 This is a consolidated documentation snapshot, not an automatically synchronized artifact.
 It describes the implemented query surface, not live data availability or a deployed endpoint.
 
@@ -17,6 +16,160 @@ relevant limitations with results. An empty result is not proof of zero activity
 The caller must supply the endpoint and a verified shop scope. The current local
 spike does not implement server-side tenant filtering. Hidden dimensions do not
 enforce row-level isolation. Do not describe an unscoped result as one shop's data.
+
+## Architecture: dbt, Cube and the querying model
+
+```mermaid
+flowchart LR
+  K[Klaviyo staging] --> D[dbt CRM marts in BigQuery]
+  S[Shopify orders and refunds] --> D
+  D --> C[Cube semantic cubes]
+  C --> V[Public topic views]
+  L[LLM reads contract.md] --> Q[JSON query]
+  Q --> V
+  V --> R[JSON results]
+```
+
+`semantic/serving_contract.yaml` defines the bindings and aggregate formulas.
+`scripts/generate_cube_model.py` generates `cube/model/cubes/` and
+`cube/model/views/`. Cube translates JSON measures, dimensions and filters into
+SQL against dbt marts. dbt owns event normalization, identity, delivery matching
+and attribution; Cube sums components and computes ratios at the requested grain.
+Each topic has its own source and grain; there are no cross-topic joins.
+The base Cube layer came from PR #3; PR #4 adds the four CRM topics below.
+These are generated semantic definitions, not evidence of a deployed service.
+The Option B revenue resolver does not expose these subject views; use Cube.
+
+## Klaviyo CRM public fields
+
+All CRM dates are UTC. All listed base measures use SUM. Rates are fractions,
+not percentages multiplied by 100. Do not average rates.
+
+### `crm_campaigns`
+
+Source: `analytics.metric_crm_campaign_performance`. Email performance by delivery date. Last preceding delivery links opens/clicks; counts are messages, not unique people.
+
+| Public dimension | Type |
+| --- | --- |
+| `crm_campaigns.delivery_date` | time |
+| `crm_campaigns.campaign_id` | string |
+| `crm_campaigns.flow_id` | string |
+| `crm_campaigns.message_id` | string |
+| `crm_campaigns.message_category` | string |
+
+| Public measure | Definition |
+| --- | --- |
+| `crm_campaigns.delivered_messages` | SUM(delivered_messages) |
+| `crm_campaigns.linkable_messages` | SUM(linkable_messages) |
+| `crm_campaigns.unlinked_messages` | SUM(unlinked_messages) |
+| `crm_campaigns.opened_messages` | SUM(opened_messages) |
+| `crm_campaigns.clicked_messages` | SUM(clicked_messages) |
+| `crm_campaigns.open_events` | SUM(open_events) |
+| `crm_campaigns.click_events` | SUM(click_events) |
+| `crm_campaigns.open_rate` | Ratio of aggregate delivery counts; NULL if any delivery cannot link interactions or denominator is zero. |
+| `crm_campaigns.click_through_rate` | Ratio of aggregate delivery counts; NULL if any delivery cannot link interactions or denominator is zero. |
+| `crm_campaigns.click_to_open_rate` | Ratio of aggregate delivery counts; NULL if any delivery cannot link interactions or denominator is zero. |
+
+### `crm_activity`
+
+Source: `analytics.metric_crm_activity_daily`. Event activity and data quality by event date; includes unknown and unresolved events.
+
+| Public dimension | Type |
+| --- | --- |
+| `crm_activity.event_date` | time |
+| `crm_activity.event_channel` | string |
+| `crm_activity.event_type` | string |
+| `crm_activity.campaign_id` | string |
+| `crm_activity.flow_id` | string |
+| `crm_activity.message_id` | string |
+| `crm_activity.message_category` | string |
+
+| Public measure | Definition |
+| --- | --- |
+| `crm_activity.event_count` | SUM(event_count) |
+| `crm_activity.unresolved_identity_events` | SUM(unresolved_identity_events) |
+| `crm_activity.unknown_type_events` | SUM(unknown_type_events) |
+| `crm_activity.missing_provider_id_events` | SUM(missing_provider_id_events) |
+| `crm_activity.campaign_mapping_conflicts` | SUM(campaign_mapping_conflicts) |
+
+### `crm_attribution`
+
+Source: `analytics.metric_crm_attribution_daily`. Alternative six-hour attribution models; always select exactly one model and currency for values.
+
+| Public dimension | Type |
+| --- | --- |
+| `crm_attribution.order_date` | time |
+| `crm_attribution.attribution_model` | string |
+| `crm_attribution.currency_code` | string |
+| `crm_attribution.campaign_id` | string |
+| `crm_attribution.flow_id` | string |
+| `crm_attribution.message_id` | string |
+| `crm_attribution.attribution_status` | string |
+
+| Public measure | Definition |
+| --- | --- |
+| `crm_attribution.orders` | SUM(orders) |
+| `crm_attribution.attributed_orders` | SUM(attributed_orders) |
+| `crm_attribution.missing_value_orders` | SUM(missing_value_orders) |
+| `crm_attribution.attributed_value` | Post-discount Shopify order value assigned to a touch; NULL if any attributed order has incomplete value. Select one attribution model and one currency. |
+
+### `customer_engagement`
+
+Source: `analytics.metric_crm_customer_engagement`. Current snapshot of observed CRM identities, not all customers or consent state. Rolling click windows are relative to execution time.
+
+| Public dimension | Type |
+| --- | --- |
+| `customer_engagement.customer_status` | string |
+| `customer_engagement.currency_code` | string |
+
+| Public measure | Definition |
+| --- | --- |
+| `customer_engagement.crm_identities` | SUM(crm_identities) |
+| `customer_engagement.delivered_messages` | SUM(delivered_messages) |
+| `customer_engagement.open_events` | SUM(open_events) |
+| `customer_engagement.click_events` | SUM(click_events) |
+| `customer_engagement.click_events_30d` | SUM(click_events_30d) |
+| `customer_engagement.click_events_90d` | SUM(click_events_90d) |
+| `customer_engagement.identities_clicked_30d` | SUM(identities_clicked_30d) |
+| `customer_engagement.orders` | SUM(orders) |
+
+Campaign rates use opened/clicked **deliveries**, not distinct profiles:
+open_rate = opened_messages / delivered_messages; click_through_rate =
+clicked_messages / delivered_messages; click_to_open_rate = clicked_messages /
+opened_messages. All three return NULL when any selected delivery is unlinked.
+Machine opens and bot clicks are not filtered. Bounces/unsubscribes belong to
+`crm_activity` on event date, not to the delivery-date denominator. Do not sum
+per-cell distinct people; that measure is intentionally not exposed.
+
+For attribution, always filter `attribution_model` to exactly one of `click_6h`
+(last click 0–21,600 seconds before purchase) or `delivery_6h` (last received
+email 180–21,600 seconds before purchase), inclusive. Each order appears once
+per model, including unmatched orders: never add the two models. Matching uses
+shop and unambiguous normalized email identity. This is our rule, not Klaviyo's
+reported attribution or proof of causality. Use `attribution_status` to distinguish
+`attributed`, `missing_order_email`, and `no_eligible_touch`. Monetary sums require
+one known currency; no FX conversion. `missing_value_orders` guards the whole
+requested aggregate so incomplete values cannot silently become partial totals.
+
+Customer engagement is a **current snapshot**, with statuses `Customer`,
+`Prospect`, `Unresolved`. Identities are conservative email/profile/event keys,
+not a guaranteed unique-human count. Rolling 30/90-day windows are relative to
+execution time; there is no historical snapshot date. Monetary customer values
+are not exposed here; use the existing LTV topic for its documented population.
+This view does not describe consent, list membership or all Klaviyo profiles.
+
+Example: campaign performance by delivery day.
+
+```json
+{"measures":["crm_campaigns.delivered_messages","crm_campaigns.open_rate","crm_campaigns.click_through_rate","crm_campaigns.unlinked_messages"],"dimensions":["crm_campaigns.campaign_id"],"timeDimensions":[{"dimension":"crm_campaigns.delivery_date","dateRange":["2026-09-01","2026-09-07"],"granularity":"day"}]}
+```
+
+Example: attributed order value under one rule and currency (replace USD with
+verified shop currency; shop isolation must be supplied by the deployment).
+
+```json
+{"measures":["crm_attribution.attributed_orders","crm_attribution.attributed_value","crm_attribution.missing_value_orders"],"dimensions":["crm_attribution.campaign_id"],"filters":[{"member":"crm_attribution.attribution_model","operator":"equals","values":["click_6h"]},{"member":"crm_attribution.currency_code","operator":"equals","values":["USD"]}],"timeDimensions":[{"dimension":"crm_attribution.order_date","dateRange":["2026-09-01","2026-09-07"]}]}
+```
 
 ## Available surface
 
@@ -294,8 +447,8 @@ This document consolidates the following repository sources:
 
 1. `semantic/serving_contract.yaml`: routing, status, aliases, aggregation,
    numerator/denominator and honesty flags. This remains the executable serving contract.
-2. `cube/model/views/revenue.yml`: exact public field allowlist.
-3. `cube/model/cubes/commercial_revenue.yml`: generated types, SQL expressions,
+2. `cube/model/views/*.yml`: exact public field allowlists, including CRM.
+3. `cube/model/cubes/*.yml`: generated types, SQL expressions,
    visibility and rollup configuration.
 4. `semantic/metrics.yaml`: business vocabulary only. Its historical
    `implemented` flags are not the current serving allowlist.
@@ -305,6 +458,8 @@ This document consolidates the following repository sources:
    `dbt/models/intermediate/int_shopify__order_line_items.sql`: actual calculation,
    event clocks, scope and sign behavior.
 6. `cube/README.md`: runtime/deployment limitations.
+7. `dbt/models/marts/crm/`, `dbt/models/intermediate/crm/` and
+   `docs/KLAVIYO_CRM_DBT.md`: implemented CRM grains, matching and attribution rules.
 
 Where intended definitions and SQL disagree, the discrepancy is explicitly
 recorded above; do not assume the intended formula is what the service executes.
