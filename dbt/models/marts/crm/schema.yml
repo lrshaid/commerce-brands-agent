@@ -1,0 +1,139 @@
+version: 2
+models:
+- name: fct_crm_event
+  description: Atomic CRM event, no raw email. Profile ID / email hashes stay internal.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - crm_event_key
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+  - name: crm_event_key
+    data_tests:
+    - not_null
+- name: fct_crm_message_engagement
+  description: "One row per observed email delivery. Without a delivery token in the source,\n associate interactions\
+    \ to the latest preceding delivery of the SAME profile\n and message, stopping at the next delivery. This is\
+    \ an explicit heuristic."
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - delivery_key
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+  - name: delivery_key
+    data_tests:
+    - not_null
+- name: metric_crm_campaign_performance
+  description: "Delivery-cohort date, not interaction date. Unique metrics count deliveries,\n not distinct people\
+    \ across multiple messages. All-history observed engagement."
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - delivery_date
+        - campaign_id
+        - flow_id
+        - message_id
+        - message_category
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+- name: metric_crm_activity_daily
+  description: "Event-date activity, including orphan interactions and non-email events.\n Distinct people are exact\
+    \ within this cell only; never sum as period uniques."
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - event_date
+        - event_channel
+        - event_type
+        - campaign_id
+        - flow_id
+        - message_id
+        - message_category
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+- name: fct_crm_order_attribution
+  description: "One order per rule, including unmatched orders. One touch can win for\n multiple orders; never deduplicate\
+    \ the joined candidates by event ID."
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - order_gid
+        - attribution_model
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+  - name: order_gid
+    data_tests:
+    - not_null
+  - name: attribution_model
+    data_tests:
+    - not_null
+- name: metric_crm_attribution_daily
+  description: Purchase-date reporting. Never sum attribution models or currencies.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - order_date
+        - attribution_model
+        - currency_code
+        - campaign_id
+        - flow_id
+        - message_id
+        - attribution_status
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+  - name: attribution_model
+    data_tests:
+    - not_null
+- name: dim_customer_crm
+  description: "One CRM identity within a shop, including prospects. Hash identities may\n combine multiple profiles\
+    \ only when their observed email mapping is unambiguous.\n No consent claim: unsubscribe counts describe events,\
+    \ not current permission."
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - crm_person_key
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
+  - name: crm_person_key
+    data_tests:
+    - not_null
+- name: metric_crm_customer_engagement
+  description: Current CRM population summary. No raw email or per-profile export.
+  data_tests:
+  - unique_combination_of_columns:
+      arguments:
+        combination_of_columns:
+        - shop_key
+        - customer_status
+        - currency_code
+  columns:
+  - name: shop_key
+    data_tests:
+    - not_null
