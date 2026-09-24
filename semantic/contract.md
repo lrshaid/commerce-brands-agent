@@ -40,6 +40,17 @@ The base Cube layer came from PR #3; PR #4 adds the four CRM topics below.
 These are generated semantic definitions, not evidence of a deployed service.
 The Option B revenue resolver does not expose these subject views; use Cube.
 
+## CRM live validation status (2026-09-24)
+
+The 12 CRM dbt views were created in `commerce-agents-dev.analytics`; all 26
+CRM data tests passed in BigQuery. The four semantic aggregate expressions also
+executed successfully. This does not validate the Cube HTTP runtime.
+Current Klaviyo and Shopify `shop_key` values differ, so customer matching and
+attribution have no cross-source matches. Do not interpret zero attributed
+orders or `Prospect` status as verified business outcomes until account-to-shop
+mapping is confirmed. Loaded Klaviyo coverage is only September 8–10, 2026.
+See [execution evidence](../docs/KLAVIYO_CRM_BIGQUERY_VALIDATION.md).
+
 ## Klaviyo CRM public fields
 
 All CRM dates are UTC. All listed base measures use SUM. Rates are fractions,

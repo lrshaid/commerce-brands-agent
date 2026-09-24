@@ -144,7 +144,7 @@ Tests de dbt: claves únicas, cobertura de órdenes en ambas reglas, ventanas de
 
 Son vistas sobre todo el historial publicado, así que un evento tardío se refleja sin perder una partición antigua. No se aplicó una ventana de siete días que pudiera dejar fuera un backfill. El costo de consultar toda la historia debe medirse antes de materializar en producción; una futura estrategia incremental debe usar fecha de publicación y actualizar entregas/órdenes afectadas.
 
-No se ejecutó `dbt run/build` ni se consultó BigQuery. Los resultados dependen de tener pobladas las fuentes. Los bindings de Cube y el contrato para la LLM incluyen CRM; la validación en runtime de Cube y BigQuery sigue pendiente.
+Se ejecutaron las 12 vistas y 26 tests en BigQuery el 2026-09-24. Ver [resultados y limitación de identidad entre tiendas](KLAVIYO_CRM_BIGQUERY_VALIDATION.md). Los bindings de Cube incluyen CRM; su runtime HTTP sigue pendiente.
 
 ## Lo que no se implementa todavía
 
