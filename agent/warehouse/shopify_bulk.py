@@ -175,7 +175,7 @@ class BulkClient:
             "request_sha256": hashlib.sha256(document.encode()).hexdigest(),
         }
         key = hashlib.sha256(json.dumps([self.shop_domain, extraction_id]).encode()).hexdigest()
-        receipt = bucket.blob(f"control/shopify/orders/{key}.json")
+        receipt = bucket.blob(f"control/shopify/bulk/{key}.json")
         try:
             receipt.upload_from_string(json.dumps({"binding": binding, "state": "submitting"}),
                                        content_type="application/json", if_generation_match=0)

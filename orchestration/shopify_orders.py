@@ -61,8 +61,9 @@ def shopify_orders(context: dg.AssetExecutionContext, config: OrdersConfig):
     identity = ExtractionIdentity(shop_key, config.extraction_id, "pending", query_sha, request_sha,
                                   client.api_version, datetime.now(timezone.utc))
     bucket = storage.Client(project=project).bucket(project + "-landing")
-    operation_id = client.submit_once(bucket=bucket, extraction_id=config.extraction_id,
-                                     query_source=query_source, search_filter=search_filter)
+    operation_id = client.submit_once(bucket=bucket,
+        extraction_id=f"orders-bulk:{config.extraction_id}",
+        query_source=query_source, search_filter=search_filter)
     context.log.info(f"Shopify orders export operation: {operation_id}")
     export = wait_for_export(client, operation_id)
     with download_export(export) as source:
