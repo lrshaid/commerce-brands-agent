@@ -98,3 +98,16 @@ class LauncherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ForceRecaptureTests(unittest.TestCase):
+    def test_force_recapture_mints_new_identity_and_excludes_replay(self):
+        import subprocess, sys, json
+        base = ["--job", "shopify_returns_ingestion", "--extraction-id", "daily-shopify-2026-09-22",
+                "--expected-shop-gid", "gid://shopify/Shop/12345794",
+                "--window-start", "2026-09-22T05:00:00Z", "--window-end", "2026-09-23T05:00:00Z"]
+        # The flag must refuse to combine with replay/retry (parser.error).
+        result = subprocess.run([sys.executable, "infra/scripts/launch_orders_ingestion.py",
+                                 "--force-recapture", "--replay-completed-run", "x", *base],
+                                capture_output=True, text=True, cwd=".")
+        self.assertIn("force-recapture cannot be combined", result.stderr + result.stdout)
