@@ -1,5 +1,20 @@
 # Project operating rules
 
+## New contract or query files must be shipped in the runtime image
+
+- The Dockerfile (`infra/runtime/Dockerfile`) copies `warehouse/contracts/`
+  and `queries/` files one by one, with explicit `COPY` lines. When you add a
+  new contract or query file, add its matching `COPY` line in the same change.
+- A missed `COPY` does not fail the build: the image assembles fine and the
+  failure surfaces later, at code-load time on the VM — the code server dies
+  with `FileNotFoundError` on the missing path and Dagster reports an empty
+  repository (`PipelineNotFoundError` at launch). This has happened twice
+  (`shopify_entities_v1.yaml`, `klaviyo_events_v1.yaml`).
+- Symptom → diagnosis: launch fails with `PipelineNotFoundError` and
+  `repositoriesOrError` returns an empty node list → `docker logs
+  commerce_code-location_1` for the missing path → add the `COPY`, rebuild,
+  redeploy.
+
 ## Live pipeline testing
 
 - Start every live Shopify pipeline test with a seven-day, half-open
