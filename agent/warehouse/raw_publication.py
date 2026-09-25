@@ -856,10 +856,13 @@ def publication_rows_sql(dataset, stream, stage):
         f"PARSE_JSON(s.{k}, wide_number_mode=>'round')" if t == 'JSON' else f's.{k}'
         for k, t in raw.items())
     if stream == 'events':
-        cast = {'JSON': "PARSE_JSON(s.{})",
-                'TIMESTAMP': "CAST(s.{} AS TIMESTAMP)",
-                'INT64': "CAST(s.{} AS INT64)"}
-        values = ', '.join((cast[t].format(k) if t in cast else f's.{k}') for k, t in raw.items())
+        # Every USING expression needs an explicit alias: unnamed CAST/PARSE_JSON
+        # columns get BigQuery auto-names (f0_, f1_...) and the VALUES clause
+        # references them as S.<column>.
+        cast = {'JSON': "PARSE_JSON(s.{0}) AS {0}",
+                'TIMESTAMP': "CAST(s.{0} AS TIMESTAMP) AS {0}",
+                'INT64': "CAST(s.{0} AS INT64) AS {0}"}
+        values = ', '.join((cast[t].format(k) if t in cast else f's.{k} AS {k}') for k, t in raw.items())
         return f'''
 MERGE `{dataset}.{stream}` T
 USING (SELECT {values} FROM `{dataset}.{stage}` s
