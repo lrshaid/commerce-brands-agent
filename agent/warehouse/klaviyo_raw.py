@@ -1,27 +1,35 @@
-"""Turn a sealed Klaviyo events capture into the stream-scoped raw envelope.
+"""Turn a sealed Klaviyo events capture into the contract-flattened raw stream.
 
 This adapter is read-only: it replays the capture seal and exact GCS bodies but
-does not publish, mutate GCS, or call Klaviyo.  The envelope fields reuse the
-repo's existing raw contract verbatim (shop_key/extraction_id/file_id/
-record_index plus the identity hashes); Klaviyo is account-scoped, so shop_key
-is the configured account_key and the account itself is pinned by
-api_key_sha256 in the capture binding.  One raw row per exact HTTP response
-page, including per-metric sub-stream pages inside the single ``events``
-stream.
+does not publish, mutate GCS, or call Klaviyo.  Klaviyo is account-scoped, so
+shop_key is the configured account_key and the account itself is pinned by
+api_key_sha256 in the capture binding.
+
+The raw ``events`` stream is EVENT grain, flattened at the pipeline into typed
+columns by the executable contract (klaviyo_events_v1.yaml) — the same pattern
+as the Shopify entity contracts. One raw row per unique provider event, merged
+on (shop_key, event_gid) by the publication: events are immutable, so
+re-captures of overlapping windows never accumulate duplicate rows.  The exact
+HTTP response pages stay the audit surface in GCS (generation+checksum pinned;
+the ingestion_runs manifest references them), and original_payload carries the
+verbatim event object so flattening is lossless by construction.
 """
 from datetime import datetime
 
 from .klaviyo_capture import KlaviyoCapture
+from .klaviyo_events_contract import EventContract, flatten_event
 from .klaviyo_queries import compile_klaviyo_event_plans
 from .refund_capture import CaptureError, decode, digest, encoded
 
 STREAM = "events"
+CONTRACT = EventContract()
 
 
 def prepare_klaviyo_raw(*, bucket, token, account_key, extraction_id, metrics,
-                        window_start, window_end, ingested_at, page_size=200):
-    if ingested_at.utcoffset() is None:
-        raise ValueError("Timezone-aware ingestion timestamp required")
+                        window_start, window_end, ingested_at, published_at,
+                        page_size=200):
+    if ingested_at.utcoffset() is None or published_at.utcoffset() is None:
+        raise ValueError("Timezone-aware ingestion and publication timestamps required")
     plans = compile_klaviyo_event_plans(metrics, window_start, window_end, page_size)
     capture = KlaviyoCapture(
         bucket=bucket, token=token, account_key=account_key,
@@ -69,22 +77,20 @@ def prepare_klaviyo_raw(*, bucket, token, account_key, extraction_id, metrics,
             body = blob.download_as_bytes(if_generation_match=int(page["generation"]))
             if digest(body) != page["sha256"]:
                 raise CaptureError("Captured Klaviyo page checksum changed")
-            decode(body)
-            text = body.decode("utf-8")
-            yield dict(
-                shop_key=account_key, extraction_id=extraction_id,
-                file_id=str(page["generation"]), record_index=1,
-                query_sha256=plan_sha, request_sha256=request_sha, api_version=revision,
-                ingested_at=ingested_at.isoformat(), record_sha256=page["sha256"],
-                record_text=text, payload=text, object_gid=None, parent_gid=None,
-            )
+            payload = decode(body)
+            context = {"shop_key": account_key, "extraction_id": extraction_id,
+                       "ingested_at": ingested_at.isoformat(), "published_at": published_at.isoformat()}
+            for event, profiles in capture._page_events(page["operation"], payload):
+                profile_id = (event.get("relationships", {}).get("profile", {}).get("data") or {}) \
+                    .get("id")
+                yield flatten_event(event, profiles.get(profile_id), context, CONTRACT)
 
     return {
         "streams": {
             STREAM: {
                 "records": records(),
                 "files": files,
-                "raw_record_count": len(pages),
+                "raw_record_count": sum(seal.get("counts", {}).values()),
                 "counts": dict(seal.get("counts", {})),
                 "query_sha256": plan_sha,
                 "request_sha256": request_sha,
@@ -93,6 +99,6 @@ def prepare_klaviyo_raw(*, bucket, token, account_key, extraction_id, metrics,
             },
         },
         "counts": dict(seal.get("counts", {})),
-        "raw_record_count": len(pages),
+        "raw_record_count": sum(seal.get("counts", {}).values()),
         "completion_seal": seal_file,
     }

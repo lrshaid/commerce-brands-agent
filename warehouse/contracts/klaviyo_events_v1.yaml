@@ -1,0 +1,49 @@
+version: 1
+status: design
+dataset_role: raw_klaviyo
+dbt_source_name: klaviyo_api
+api_revision: '2025-07-15'
+
+# The Klaviyo events stream is EVENT grain, flattened at the pipeline like the
+# Shopify entity contracts. One raw row per unique provider event, merged on
+# (shop_key, event_gid): events are immutable, so publication is
+# insert-if-absent and re-captures of overlapping windows never accumulate
+# duplicate rows. The exact captured HTTP response pages remain the audit
+# surface in GCS (generation+checksum pinned, referenced by the
+# ingestion_runs manifest). original_payload is the REQUIRED verbatim event
+# object: anything the contract does not flatten is still stored, so a new
+# provider property is recoverable as a column without re-capture.
+
+publication:
+  mode: event_append_merge
+  absent_source: do_nothing
+  matched: do_nothing
+
+entity:
+  name: events
+  key: [shop_key, event_gid]
+  partition_by: ingested_at
+  cluster_by: [shop_key, event_gid]
+  columns:
+    shop_key: {type: STRING, required: true, source: $context.shop_key}
+    event_gid: {type: STRING, required: true, source: $.id}
+    uuid: {type: STRING, source: $.attributes.uuid}
+    metric_id: {type: STRING, required: true, source: $.relationships.metric.data.id}
+    profile_gid: {type: STRING, source: $.relationships.profile.data.id}
+    email: {type: STRING, source: $profile.attributes.email}
+    event_datetime: {type: TIMESTAMP, source: $.attributes.datetime}
+    event_timestamp: {type: INT64, source: $.attributes.timestamp}
+    flow_id: {type: STRING, source: $.attributes.event_properties.$flow}
+    message: {type: STRING, source: $.attributes.event_properties.$message}
+    subject: {type: STRING, source: $.attributes.event_properties.$subject}
+    campaign: {type: STRING, source: $.attributes.event_properties.$campaign}
+    campaign_name: {type: STRING, source: $.attributes.event_properties.$campaign_name}
+    message_name: {type: STRING, source: $.attributes.event_properties.$message_name}
+    method: {type: STRING, source: $.attributes.event_properties.$method}
+    channel: {type: STRING, source: $.attributes.event_properties.$channel}
+    variant: {type: STRING, source: $.attributes.event_properties.$variant}
+    list_ids: {type: JSON, source: $.attributes.event_properties.$list_ids}
+    original_payload: {type: JSON, required: true, source: $event}
+    source_extraction_id: {type: STRING, required: true, source: $context.extraction_id}
+    source_published_at: {type: TIMESTAMP, required: true, source: $context.published_at}
+    ingested_at: {type: TIMESTAMP, required: true, source: $context.ingested_at}

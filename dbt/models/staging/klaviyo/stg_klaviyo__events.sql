@@ -1,58 +1,65 @@
 {{ config(tags=['klaviyo_staging']) }}
--- One observation row per Klaviyo event extracted from the exact captured
--- HTTP response pages.  event_type comes only from the klaviyo_metric_map var;
--- an unknown metric_id keeps event_type NULL and sets unknown_metric_id, it is
--- never guessed.  email is a staging projection from the included profile and
+-- One row per provider event per shop, read from the contract-flattened
+-- event-grain raw stream. The publication merges on (shop_key, event_gid), so
+-- re-captures of overlapping windows never accumulate duplicate raw rows; the
+-- exact HTTP response pages stay the audit surface in GCS and every flattened
+-- column stays recoverable from original_payload. The collapse below is a
+-- safety net: the dedup key mirrors the source identifiers (event_id when
+-- present, uuid fallback, observation key only when neither exists) and the
+-- newest capture wins; observation_count preserves how many observations the
+-- winner absorbed. event_type comes only from the klaviyo_metric_map var; an
+-- unknown metric_id keeps event_type NULL and sets unknown_metric_id, it is
+-- never guessed. email is a staging projection from the captured profile and
 -- must never be promoted into marts.
-with pages as (
-    select
-        to_hex(sha256(to_json_string(struct(r.shop_key, r.extraction_id, r.file_id, r.record_index)))) as page_key,
-        r.shop_key, r.extraction_id, r.file_id, r.record_index, r.record_sha256,
-        r.ingested_at, m.published_at, r.payload
+with source as (
+    select r.*, m.published_at
     from {{ source('klaviyo_api', 'events') }} r
     join {{ source('klaviyo_api', 'ingestion_runs') }} m
       on r.shop_key = m.shop_key and r.extraction_id = m.extraction_id
      and m.stream = 'events' and m.status = 'published'
      and m.transport = 'klaviyo_jsonapi_pages'
-    cross join unnest(json_query_array(m.files)) f
-    where json_value(f, '$.role') = 'response_page'
-      and json_value(f, '$.generation') = r.file_id
-      and json_value(f, '$.sha256') = r.record_sha256
 ),
-profiles as (
+classified as (
     select
-        p.shop_key, p.extraction_id,
-        json_value(i, '$.id') as profile_id,
-        json_value(i, '$.attributes.email') as email
-    from pages p
-    cross join unnest(json_query_array(p.payload, '$.included')) i
-    where json_value(i, '$.type') = 'profile'
-    -- A profile appears in the included[] of every page carrying one of its
-    -- events; without deduplication the join below fans each event out by the
-    -- number of pages the profile appeared in. Deterministic winner: latest
-    -- ingested page, then page_key, then email.
-    qualify row_number() over (
-        partition by p.shop_key, p.extraction_id, json_value(i, '$.id')
-        order by p.ingested_at desc, p.page_key desc, json_value(i, '$.attributes.email') desc
-    ) = 1
+        to_hex(sha256(to_json_string(struct(r.shop_key, r.event_gid)))) as event_key,
+        r.shop_key,
+        r.source_extraction_id as extraction_id,
+        r.event_gid as event_id,
+        r.uuid,
+        {{ klaviyo_metric_event_type("r.metric_id") }} as event_type,
+        r.metric_id,
+        r.profile_gid as profile_id,
+        r.email,
+        r.event_datetime as datetime,
+        r.event_timestamp as timestamp,
+        {{ klaviyo_unknown_metric("r.metric_id") }} as unknown_metric_id,
+        to_hex(sha256(to_json_string(struct(r.source_extraction_id, r.event_gid)))) as page_key,
+        r.ingested_at,
+        m.published_at as published_at,
+        r.flow_id, r.message, r.subject, r.campaign, r.campaign_name,
+        r.message_name, r.method, r.channel, r.variant,
+        cast(r.list_ids as string) as list_ids
+    from source r
+),
+identified as (
+    select
+        *,
+        case when nullif(trim(event_id), '') is not null then 'event_id'
+             when nullif(trim(uuid), '') is not null then 'uuid'
+             else 'observation' end as event_id_basis,
+        coalesce(nullif(trim(event_id), ''), nullif(trim(uuid), ''), event_key) as provider_event_id
+    from classified
+),
+ranked as (
+    select
+        *,
+        count(*) over (partition by shop_key, event_id_basis, provider_event_id) as observation_count,
+        row_number() over (
+            partition by shop_key, event_id_basis, provider_event_id
+            order by published_at desc, ingested_at desc, event_key desc
+        ) as observation_rank
+    from identified
 )
-select
-    to_hex(sha256(to_json_string(struct(p.shop_key, p.extraction_id, p.file_id, p.record_index, event_offset)))) as event_key,
-    p.shop_key, p.extraction_id,
-    json_value(e, '$.id') as event_id,
-    {{ klaviyo_metric_event_type("json_value(e, '$.relationships.metric.data.id')") }} as event_type,
-    json_value(e, '$.relationships.metric.data.id') as metric_id,
-    json_value(e, '$.relationships.profile.data.id') as profile_id,
-    pr.email,
-    cast(json_value(e, '$.attributes.datetime') as timestamp) as datetime,
-    cast(json_value(e, '$.attributes.timestamp') as int64) as timestamp,
-    json_value(e, '$.attributes.uuid') as uuid,
-    {{ klaviyo_unknown_metric("json_value(e, '$.relationships.metric.data.id')") }} as unknown_metric_id,
-    to_hex(sha256(to_json_string(struct(p.page_key, event_offset)))) as page_key,
-    p.ingested_at, p.published_at
-    {{ klaviyo_event_properties("json_query(e, '$.attributes.event_properties')") }}
-from pages p
-cross join unnest(json_query_array(p.payload, '$.data')) e with offset event_offset
-left join profiles pr
-  on p.shop_key = pr.shop_key and p.extraction_id = pr.extraction_id
- and pr.profile_id = json_value(e, '$.relationships.profile.data.id')
+select * except (observation_rank)
+from ranked
+where observation_rank = 1
