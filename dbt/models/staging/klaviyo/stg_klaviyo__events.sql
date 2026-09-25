@@ -15,7 +15,7 @@ with source as (
     select r.*, m.published_at
     from {{ source('klaviyo_api', 'events') }} r
     join {{ source('klaviyo_api', 'ingestion_runs') }} m
-      on r.shop_key = m.shop_key and r.extraction_id = m.extraction_id
+      on r.shop_key = m.shop_key and r.source_extraction_id = m.extraction_id
      and m.stream = 'events' and m.status = 'published'
      and m.transport = 'klaviyo_jsonapi_pages'
 ),
