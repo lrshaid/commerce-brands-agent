@@ -27,6 +27,7 @@ COPY queries/shopify/metafield_products_bulk.graphql /app/queries/shopify/metafi
 COPY queries/shopify/metafield_product_variants_bulk.graphql /app/queries/shopify/metafield_product_variants_bulk.graphql
 COPY warehouse/contracts/shopify_raw_v1.yaml /app/warehouse/contracts/shopify_raw_v1.yaml
 COPY warehouse/contracts/shopify_entities_v1.yaml /app/warehouse/contracts/shopify_entities_v1.yaml
+COPY warehouse/contracts/klaviyo_events_v1.yaml /app/warehouse/contracts/klaviyo_events_v1.yaml
 COPY warehouse/contracts/returns_pages_v1.yaml /app/warehouse/contracts/returns_pages_v1.yaml
 COPY infra/runtime/dagster.yaml /opt/dagster/home/dagster.yaml
 COPY infra/runtime/workspace.yaml /opt/dagster/home/workspace.yaml
