@@ -364,3 +364,207 @@ subject_views:
         denominator: sessions
         description: Share of sessions reaching purchase; not orders/session CVR.
     enabled: false
+
+  crm_campaigns:
+    source_mart: metric_crm_campaign_performance
+    dataset: analytics
+    description: Email performance by delivery date. Last preceding delivery links opens/clicks;
+      counts are messages, not unique people.
+    hidden_dimensions:
+      shop_key:
+        type: string
+    dimensions:
+      delivery_date:
+        type: time
+      campaign_id:
+        type: string
+      flow_id:
+        type: string
+      message_id:
+        type: string
+      message_category:
+        type: string
+    measures:
+      delivered_messages:
+        column: delivered_messages
+        aggregation: sum
+        description: delivered messages
+      linkable_messages:
+        column: linkable_messages
+        aggregation: sum
+        description: linkable messages
+      unlinked_messages:
+        column: unlinked_messages
+        aggregation: sum
+        description: unlinked messages
+      opened_messages:
+        column: opened_messages
+        aggregation: sum
+        description: opened messages
+      clicked_messages:
+        column: clicked_messages
+        aggregation: sum
+        description: clicked messages
+      open_events:
+        column: open_events
+        aggregation: sum
+        description: open events
+      click_events:
+        column: click_events
+        aggregation: sum
+        description: click events
+      open_rate:
+        numerator: opened_messages
+        denominator: delivered_messages
+        null_if_nonzero: unlinked_messages
+        description: Ratio of aggregate delivery counts; NULL if any delivery cannot
+          link interactions or denominator is zero.
+      click_through_rate:
+        numerator: clicked_messages
+        denominator: delivered_messages
+        null_if_nonzero: unlinked_messages
+        description: Ratio of aggregate delivery counts; NULL if any delivery cannot
+          link interactions or denominator is zero.
+      click_to_open_rate:
+        numerator: clicked_messages
+        denominator: opened_messages
+        null_if_nonzero: unlinked_messages
+        description: Ratio of aggregate delivery counts; NULL if any delivery cannot
+          link interactions or denominator is zero.
+  crm_activity:
+    source_mart: metric_crm_activity_daily
+    dataset: analytics
+    description: Event activity and data quality by event date; includes unknown and
+      unresolved events.
+    hidden_dimensions:
+      shop_key:
+        type: string
+    dimensions:
+      event_date:
+        type: time
+      event_channel:
+        type: string
+      event_type:
+        type: string
+      campaign_id:
+        type: string
+      flow_id:
+        type: string
+      message_id:
+        type: string
+      message_category:
+        type: string
+    measures:
+      event_count:
+        column: event_count
+        aggregation: sum
+        description: event count
+      unresolved_identity_events:
+        column: unresolved_identity_events
+        aggregation: sum
+        description: unresolved identity events
+      unknown_type_events:
+        column: unknown_type_events
+        aggregation: sum
+        description: unknown type events
+      missing_provider_id_events:
+        column: missing_provider_id_events
+        aggregation: sum
+        description: missing provider id events
+      campaign_mapping_conflicts:
+        column: campaign_mapping_conflicts
+        aggregation: sum
+        description: campaign mapping conflicts
+  crm_attribution:
+    source_mart: metric_crm_attribution_daily
+    dataset: analytics
+    description: Alternative six-hour attribution models; always select exactly one
+      model and currency for values.
+    hidden_dimensions:
+      shop_key:
+        type: string
+    dimensions:
+      order_date:
+        type: time
+      attribution_model:
+        type: string
+      currency_code:
+        type: string
+      campaign_id:
+        type: string
+      flow_id:
+        type: string
+      message_id:
+        type: string
+      attribution_status:
+        type: string
+    measures:
+      orders:
+        column: orders
+        aggregation: sum
+        description: orders
+      attributed_orders:
+        column: attributed_orders
+        aggregation: sum
+        description: attributed orders
+      missing_value_orders:
+        column: missing_value_orders
+        aggregation: sum
+        description: missing value orders
+      attributed_value_raw:
+        column: attributed_value
+        aggregation: sum
+        description: attributed value
+        public: false
+      attributed_value:
+        value_measure: attributed_value_raw
+        null_if_nonzero: missing_value_orders
+        description: Post-discount Shopify order value assigned to a touch; NULL if
+          any attributed order has incomplete value. Select one attribution model and
+          one currency.
+  customer_engagement:
+    source_mart: metric_crm_customer_engagement
+    dataset: analytics
+    description: Current snapshot of observed CRM identities, not all customers or consent
+      state. Rolling click windows are relative to execution time.
+    hidden_dimensions:
+      shop_key:
+        type: string
+    dimensions:
+      customer_status:
+        type: string
+      currency_code:
+        type: string
+    measures:
+      crm_identities:
+        column: crm_identities
+        aggregation: sum
+        description: crm identities
+      delivered_messages:
+        column: delivered_messages
+        aggregation: sum
+        description: delivered messages
+      open_events:
+        column: open_events
+        aggregation: sum
+        description: open events
+      click_events:
+        column: click_events
+        aggregation: sum
+        description: click events
+      click_events_30d:
+        column: click_events_30d
+        aggregation: sum
+        description: click events 30d
+      click_events_90d:
+        column: click_events_90d
+        aggregation: sum
+        description: click events 90d
+      identities_clicked_30d:
+        column: identities_clicked_30d
+        aggregation: sum
+        description: identities clicked 30d
+      orders:
+        column: orders
+        aggregation: sum
+        description: orders

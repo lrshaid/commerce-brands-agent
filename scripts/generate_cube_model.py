@@ -203,10 +203,22 @@ def build_subject(name: str, spec: dict) -> tuple[str, str]:
                 if ref not in spec["measures"] or "column" not in spec["measures"][ref]:
                     raise ValueError(f"{name}.{field}: ratio must reference local base measures")
             sql, kind = f"{{{num}}} / NULLIF({{{den}}}, 0)", "number"
+        elif "value_measure" in config:
+            ref = config["value_measure"]
+            if ref not in spec["measures"] or "column" not in spec["measures"][ref]:
+                raise ValueError(f"{name}.{field}: value must reference a local base measure")
+            sql, kind = f"{{{ref}}}", "number"
         else:
             sql = config["column"]
             kind = {"count_distinct": "count_distinct", "sum": "sum", "avg": "avg"}[config["aggregation"]]
+        if "null_if_nonzero" in config:
+            guard = config["null_if_nonzero"]
+            if kind != "number" or guard not in spec["measures"] or spec["measures"][guard].get("aggregation") != "sum":
+                raise ValueError(f"{name}.{field}: guard requires a local summed measure and derived value")
+            sql = f"CASE WHEN {{{guard}}} = 0 THEN {sql} END"
         measure = dict(name=field, sql=sql, type=kind, description=config["description"])
+        if not config.get("public", True):
+            measure["public"] = False
         if "format" in config:
             measure["format"] = config["format"]
         measures.append(measure)
@@ -215,7 +227,7 @@ def build_subject(name: str, spec: dict) -> tuple[str, str]:
                 description=spec["description"], dimensions=dimensions, measures=measures)
     view = dict(name=name, public=True, description=spec["description"],
                 cubes=[dict(join_path=cube_name,
-                            includes=list(spec["dimensions"]) + list(spec["measures"]))])
+                            includes=list(spec["dimensions"]) + [m for m, c in spec["measures"].items() if c.get("public", True)])])
     return (HEADER + yaml.safe_dump({"cubes": [cube]}, sort_keys=False),
             HEADER + yaml.safe_dump({"views": [view]}, sort_keys=False))
 
