@@ -25,16 +25,18 @@ class KlaviyoStagingContractTests(unittest.TestCase):
         self.assertIn("- name: events", text)
         self.assertIn("- name: ingestion_runs", text)
 
-    def test_model_projects_events_from_exact_published_pages(self):
+    def test_model_projects_events_from_the_flattened_raw_stream(self):
         sql = MODEL.read_text()
         self.assertIn("tags=['klaviyo_staging']", sql)
         self.assertIn("m.stream = 'events'", sql)
         self.assertIn("m.transport = 'klaviyo_jsonapi_pages'", sql)
-        self.assertIn("$.data", sql)
-        self.assertIn("$.included", sql)
+        # Event grain read from typed raw columns: no JSON parsing in staging.
+        self.assertIn("r.event_gid", sql)
+        self.assertIn("r.metric_id", sql)
+        self.assertNotIn("json_value(", sql)
+        self.assertNotIn("json_query(", sql)
         self.assertIn("unknown_metric_id", sql)
         self.assertIn("email", sql)
-        self.assertIn("event_properties", sql)
         for field in ("event_id", "event_type", "metric_id", "profile_id", "datetime", "timestamp", "uuid"):
             self.assertIn(re.search(rf"\b{re.escape(field)}\b", sql).group(0), sql)
 
@@ -47,11 +49,9 @@ class KlaviyoStagingContractTests(unittest.TestCase):
         self.assertIn("klaviyo_metric_event_type", model)
         self.assertIn("klaviyo_unknown_metric", model)
 
-    def test_email_is_a_staging_projection_from_the_included_profile(self):
+    def test_email_is_a_staging_projection_from_the_captured_profile(self):
         sql = MODEL.read_text()
-        self.assertIn("$.attributes.email", sql)
-        self.assertIn("$.type') = 'profile'", sql)
-        self.assertIn("left join profiles pr", sql)
+        self.assertIn("r.email", sql)
 
     def test_metric_map_entries_fail_closed_in_the_compiler(self):
         macro = MACRO_FILE.read_text()

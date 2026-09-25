@@ -14,6 +14,10 @@ import uuid
 from google.cloud import bigquery
 import yaml
 
+from .klaviyo_events_contract import EventContract
+
+_KLAVIYO_EVENT_CONTRACT = EventContract()
+
 
 _REFUND_OPERATIONS = {'orders', 'refundLineItems', 'transactions', 'orderAdjustments'}
 _RETURN_OPERATIONS = {'orders', 'returns', 'returnLineItems', 'refunds'}
@@ -361,7 +365,12 @@ def _checked_page_row_grain(rows, response_pages, envelope):
 
 
 def _validate_klaviyo_events_page_publication(rows, files, stream=None):
-    """Validate the Klaviyo events page grain (JSON:API, one page per row)."""
+    """Validate the Klaviyo events EVENT grain (one row per unique provider event).
+
+    Raw pages remain the durable audit surface in GCS; the raw stream rows are
+    event grain merged on (shop_key, object_gid) by the publication SQL, so the
+    validator enforces event identity and provenance instead of page mapping.
+    """
     if stream is not None and stream != 'events':
         raise ValueError('Unknown Klaviyo stream')
     response_pages, seals, generations = {}, [], set()
@@ -417,56 +426,39 @@ def _validate_klaviyo_events_page_publication(rows, files, stream=None):
         if not isinstance(counts, dict) or any(value != 0 for value in counts.values()):
             raise ValueError('Empty Klaviyo events stream requires a sealed zero count')
 
-    rows_by_generation = {}
+    rows_by_operation = {}
+    seen_event_ids = set()
+    columns = {column.name: column for column in _KLAVIYO_EVENT_CONTRACT.columns}
     for row in rows:
-        if (not isinstance(row, dict) or set(row) != set(contract_columns()[0])
-                or not isinstance(row.get('file_id'), str) or row.get('record_index') != 1):
-            raise ValueError('Klaviyo response pages require envelope columns and record_index=1')
-        generation = row['file_id']
-        if generation not in response_pages or generation in rows_by_generation:
-            raise ValueError('Klaviyo raw rows must map one-to-one to response pages')
-        text = row.get('record_text')
-        if not isinstance(text, str) or row.get('payload') != text:
-            raise ValueError('Klaviyo raw row must preserve original JSON text')
-        digest_value = hashlib.sha256(text.encode('utf-8')).hexdigest()
-        if row.get('record_sha256') != digest_value or response_pages[generation].get('sha256') != digest_value:
-            raise ValueError('Klaviyo raw row or response page checksum mismatch')
+        if not isinstance(row, dict) or set(row) != set(columns):
+            raise ValueError('Klaviyo event rows must match the event contract columns')
+        for name, column in columns.items():
+            value = row[name]
+            if value is None:
+                if column.required:
+                    raise ValueError(f'Klaviyo event row is missing required column {name}')
+                continue
+            if not isinstance(value, str):
+                raise ValueError(f'Klaviyo event row column {name} must be a stage string')
         try:
-            payload = json.loads(text)
+            event = json.loads(row['original_payload'])
         except (TypeError, ValueError, UnicodeError, RecursionError):
-            raise ValueError('Klaviyo response page is not valid JSON') from None
-        if not isinstance(payload, dict) or payload.get('errors') or not isinstance(payload.get('data'), list):
-            raise ValueError('Klaviyo response page is incomplete or has errors')
-        rows_by_generation[generation] = payload
-    if set(rows_by_generation) != set(response_pages):
-        raise ValueError('Klaviyo raw rows omit a response page')
-    for generation, payload in rows_by_generation.items():
-        source = response_pages[generation]
-        included = payload.get('included', [])
-        if not isinstance(included, list):
-            raise ValueError('Klaviyo response page included collection is invalid')
-        profiles = set()
-        for item in included:
-            if not isinstance(item, dict) or item.get('type') != 'profile':
-                raise ValueError('Klaviyo response page contains an unexpected included resource')
-            if not isinstance(item.get('id'), str) or not item['id']:
-                raise ValueError('Klaviyo included profile is missing its identity')
-            profiles.add(item['id'])
-        for event in payload['data']:
-            if not isinstance(event, dict) or not isinstance(event.get('id'), str) or not event['id']:
-                raise ValueError('Klaviyo response page contains an unidentified event')
-            relationships = event.get('relationships')
-            if not isinstance(relationships, dict):
-                raise ValueError('Klaviyo response page event is missing its relationships')
-            metric = relationships.get('metric')
-            metric_data = metric.get('data') if isinstance(metric, dict) else None
-            if not isinstance(metric_data, dict) or metric_data.get('id') != source['operation']:
-                raise ValueError('Klaviyo response page contains an event outside its filtered metric')
-            profile = relationships.get('profile')
-            profile_data = profile.get('data') if isinstance(profile, dict) else None
-            if (isinstance(profile_data, dict) and profile_data.get('id') is not None
-                    and profile_data.get('id') not in profiles):
-                raise ValueError('Klaviyo event profile relationship is missing from included profiles')
+            raise ValueError('Klaviyo event row original_payload is not valid JSON') from None
+        if (not isinstance(event, dict) or not isinstance(event.get('id'), str) or not event['id']
+                or row['event_gid'] != event['id']):
+            raise ValueError('Klaviyo event row payload does not match its event identity')
+        if row['event_gid'] in seen_event_ids:
+            raise ValueError('Klaviyo event rows must be unique per event identity within one extraction')
+        seen_event_ids.add(row['event_gid'])
+        metric = (event.get('relationships', {}).get('metric', {}).get('data') or {}).get('id')
+        if not metric or metric != row['metric_id'] or metric not in {s['operation'] for s in response_pages.values()}:
+            raise ValueError('Klaviyo event row references a page of another metric')
+        rows_by_operation[metric] = rows_by_operation.get(metric, 0) + 1
+    counts = seals[0].get('klaviyo_counts') if seals else None
+    if isinstance(counts, dict):
+        for metric_id, expected in counts.items():
+            if rows_by_operation.get(metric_id, 0) != expected:
+                raise ValueError('Klaviyo raw rows omit events of a sealed metric count')
 
 
 _KLAVIYO_CAMPAIGN_INCLUDED_TYPES = ('campaign', 'campaign-audience', 'campaign-message',
@@ -787,17 +779,74 @@ def _publication_contract(dataset, stream):
                       'inventory_items', 'inventory_levels', 'events', 'campaigns', 'acceptance',
                       'metafield_orders', 'metafield_products', 'metafield_product_variants'):
         raise ValueError('Stream has no publication contract')
+    if stream == 'events':
+        # Event grain: the Klaviyo events stream leaves the shared page envelope
+        # and follows the executable event contract.
+        raw = {column.name: column.type for column in _KLAVIYO_EVENT_CONTRACT.columns}
+        return raw, contract_columns()[1]
     return contract_columns()
 
 
+def _publish_klaviyo_event_rows(client, dataset, manifest, rows):
+    """Event-grain Klaviyo publication: all-string stage load, identity MERGE, manifest transaction.
+
+    The stage loads every column as STRING (canonical strings produced by the
+    flatten); the MERGE casts explicitly. The MERGE is atomic and its result is
+    awaited before the manifest transaction, so a failed rows phase leaves no
+    manifest and the rows stay invisible to consumers; a replay re-MERGEs
+    nothing (events are immutable) and re-publishes an identical manifest.
+    """
+    stage = '_load_' + uuid.uuid4().hex
+    _, fields = contract_columns()
+    table = bigquery.Table(f'{dataset}.{stage}', schema=_KLAVIYO_EVENT_CONTRACT.stage_fields())
+    table.expires = datetime.now(timezone.utc) + timedelta(hours=24)
+    client.create_table(table)
+    load = None
+    if rows:
+        with tempfile.SpooledTemporaryFile(max_size=4*1024*1024, mode='r+b') as data:
+            count = 0
+            for row in rows:
+                data.write((json.dumps(row, ensure_ascii=False) + '\n').encode())
+                count += 1
+            if count != manifest['raw_record_count']:
+                raise ValueError('Parsed event count does not match validated manifest')
+            data.seek(0)
+            load = client.load_table_from_file(data, table.reference,
+                job_config=bigquery.LoadJobConfig(source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+                                                 schema=table.schema, write_disposition='WRITE_EMPTY'))
+            print(json.dumps({'event': 'raw_load_submitted', 'job_id': load.job_id, 'stage': stage}), flush=True)
+            load.result(timeout=300)
+    params = [bigquery.ScalarQueryParameter('m_' + k, 'STRING' if t == 'JSON' else t,
+               json.dumps(manifest[k]) if t == 'JSON' else manifest[k]) for k, t in fields.items()]
+    if rows:
+        rows_sql = publication_rows_sql(dataset, 'events', stage)
+        rows_params = [p for p in params if p.name in ('m_shop_key', 'm_extraction_id')]
+        rows_job = client.query(rows_sql, job_config=bigquery.QueryJobConfig(
+            query_parameters=rows_params, maximum_bytes_billed=1073741824,
+            labels={'purpose': 'raw_publication'}))
+        print(json.dumps({'event': 'raw_rows_submitted', 'job_id': rows_job.job_id}), flush=True)
+        rows_job.result(timeout=300)
+    job = client.query(publication_sql(dataset, 'events', stage), job_config=bigquery.QueryJobConfig(
+        query_parameters=params, maximum_bytes_billed=1073741824,
+        labels={'purpose': 'raw_publication'}))
+    print(json.dumps({'event': 'raw_publication_submitted', 'job_id': job.job_id}), flush=True)
+    job.result(timeout=300)
+    return {'load_job_id': load.job_id if load else None, 'publication_job_id': job.job_id,
+            'stage_table': f'{dataset}.{stage}', 'published': True}
+
+
 def publication_rows_sql(dataset, stream, stage):
-    """Standalone bulk row INSERT; runs outside the publication transaction.
+    """Idempotent row publication; runs outside the publication transaction.
 
     A DML statement inside a multi-statement transaction is subject to a ~16 MiB
     per-statement bytes-billed cap, while an INSERT bills the full size of the
     partitions it modifies. Raw consumers only see rows after the manifest is
     published by publication_sql, so this phase is invisible on its own and
     idempotent on replay.
+
+    The events stream is event grain: rows merge on the provider event identity
+    (shop_key, object_gid), so re-captures of overlapping windows insert nothing
+    instead of accumulating duplicate observations.
     """
     raw, _ = _publication_contract(dataset, stream)
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
@@ -806,6 +855,18 @@ def publication_rows_sql(dataset, stream, stage):
     select = ', '.join(
         f"PARSE_JSON(s.{k}, wide_number_mode=>'round')" if t == 'JSON' else f's.{k}'
         for k, t in raw.items())
+    if stream == 'events':
+        cast = {'JSON': "PARSE_JSON(s.{})",
+                'TIMESTAMP': "CAST(s.{} AS TIMESTAMP)",
+                'INT64': "CAST(s.{} AS INT64)"}
+        values = ', '.join((cast[t].format(k) if t in cast else f's.{k}') for k, t in raw.items())
+        return f'''
+MERGE `{dataset}.{stream}` T
+USING (SELECT {values} FROM `{dataset}.{stage}` s
+WHERE s.shop_key = @m_shop_key AND s.source_extraction_id = @m_extraction_id) S
+ON T.shop_key = S.shop_key AND T.event_gid = S.event_gid
+WHEN NOT MATCHED BY TARGET THEN INSERT ({fields})
+VALUES ({', '.join('S.' + k for k in raw)});'''
     return f'''
 INSERT INTO `{dataset}.{stream}` ({fields})
 SELECT {select} FROM `{dataset}.{stage}` s
@@ -820,6 +881,8 @@ def publication_sql(dataset, stream, stage):
     raw, manifest = _publication_contract(dataset, stream)
     if not re.fullmatch('_load_[0-9a-f]{32}', stage):
         raise ValueError('Invalid staging identifier')
+    if stream == 'events':
+        return _events_publication_sql(dataset, stage, raw, manifest)
     raw_fields = ', '.join(raw)
     # wide_number_mode='round': provider JSON may carry decimal literals that exceed
     # float64 round-trip precision (e.g. geolocation -117.12157500000001). The parsed
@@ -889,23 +952,79 @@ COMMIT TRANSACTION;
 '''
 
 
+def _events_publication_sql(dataset, stage, raw, manifest):
+    """Event-grain Klaviyo manifest transaction.
+
+    The rows MERGE already ran as its own awaited job: it is atomic, so a
+    failed rows phase never reaches this transaction and a replay re-MERGEs
+    nothing. Consumers only see rows once the manifest is published here, so
+    the pre-merge visibility invariant holds without a target-coverage assert
+    (the unprunable probe form is what overran the bytes cap on Shopify raw).
+    """
+    raw_fields = ', '.join(raw)
+    small = ', '.join(k for k in raw if k != 'original_payload')
+    manifest_values = ', '.join(f'PARSE_JSON(@m_{k})' if t == 'JSON' else f'@m_{k}' for k, t in manifest.items())
+    return f'''
+BEGIN TRANSACTION;
+-- A real write to the pre-existing singleton forces concurrent publishers to
+-- conflict/abort instead of both inserting an absent key under snapshot isolation.
+UPDATE `{dataset}._publication_guard` SET epoch = epoch + 1 WHERE TRUE;
+ASSERT @@row_count = 1 AS 'Publication guard must contain exactly one row';
+CREATE TEMP TABLE candidate AS SELECT {small} FROM `{dataset}.{stage}`;
+ASSERT (SELECT COUNT(*) FROM candidate) = @m_raw_record_count AS 'Raw count mismatch';
+ASSERT NOT EXISTS(SELECT 1 FROM candidate WHERE shop_key != @m_shop_key
+  OR source_extraction_id != @m_extraction_id)
+  AS 'Record/manifest identity mismatch';
+ASSERT NOT EXISTS(SELECT 1 FROM candidate GROUP BY shop_key, event_gid HAVING COUNT(*) > 1)
+  AS 'Duplicate candidate key';
+ASSERT (SELECT COUNT(*) FROM `{dataset}.ingestion_runs` WHERE shop_key = @m_shop_key
+  AND stream = @m_stream AND extraction_id = @m_extraction_id) <= 1 AS 'Duplicate manifest key';
+ASSERT NOT EXISTS(SELECT 1 FROM `{dataset}.ingestion_runs`
+  WHERE shop_key = @m_shop_key AND stream = @m_stream AND extraction_id = @m_extraction_id
+    AND (status != 'published' OR query_sha256 IS DISTINCT FROM @m_query_sha256
+      OR request_sha256 IS DISTINCT FROM @m_request_sha256
+      OR actual_api_version IS DISTINCT FROM @m_actual_api_version
+      OR raw_record_count IS DISTINCT FROM @m_raw_record_count
+      OR TO_JSON_STRING(files) != TO_JSON_STRING(PARSE_JSON(@m_files))))
+  AS 'Conflicting replay manifest';
+INSERT INTO `{dataset}.ingestion_runs` ({', '.join(manifest)})
+SELECT {manifest_values} FROM UNNEST([1]) WHERE NOT EXISTS(SELECT 1 FROM `{dataset}.ingestion_runs`
+  WHERE shop_key = @m_shop_key AND stream = @m_stream AND extraction_id = @m_extraction_id);
+COMMIT TRANSACTION;
+'''
+
+
 def initialize_tables(client, dataset, stream):
     dataset_id(dataset)
     # Validate stream through the same whitelist as the transaction.
     publication_sql(dataset, stream, '_load_' + '0'*32)
-    raw, manifest = contract_columns()
-    for name, fields, partition in ((stream, raw, 'ingested_at'),
-                                     ('ingestion_runs', manifest, 'published_at')):
-        table = bigquery.Table(f'{dataset}.{name}', schema=[
-            bigquery.SchemaField(k, t, mode='REQUIRED' if name == stream and k not in ('object_gid', 'parent_gid') else 'NULLABLE')
-            for k, t in fields.items()])
-        table.time_partitioning = bigquery.TimePartitioning(field=partition)
-        table.clustering_fields = ['shop_key', 'extraction_id']
-        client.create_table(table, exists_ok=True)
-        actual = client.get_table(table.reference)
-        aliases = {'INTEGER': 'INT64'}
-        if {f.name: aliases.get(f.field_type, f.field_type) for f in actual.schema} != fields:
-            raise ValueError(f'Existing table schema does not match contract: {name}')
+    _, manifest = contract_columns()
+    if stream == 'events':
+        contract = _KLAVIYO_EVENT_CONTRACT
+        fields = {column.name: column.type for column in contract.columns}
+        schema = contract.bigquery_fields()
+        cluster = list(contract.cluster_by)
+    else:
+        raw, _ = contract_columns()
+        fields = raw
+        schema = [bigquery.SchemaField(k, t, mode='REQUIRED' if k not in ('object_gid', 'parent_gid') else 'NULLABLE')
+                  for k, t in raw.items()]
+        cluster = ['shop_key', 'extraction_id']
+    table = bigquery.Table(f'{dataset}.{stream}', schema=schema)
+    table.time_partitioning = bigquery.TimePartitioning(field='ingested_at')
+    table.clustering_fields = cluster
+    client.create_table(table, exists_ok=True)
+    actual = client.get_table(table.reference)
+    aliases = {'INTEGER': 'INT64'}
+    if {f.name: aliases.get(f.field_type, f.field_type) for f in actual.schema} != fields:
+        raise ValueError(f'Existing table schema does not match contract: {stream}')
+    manifest_table = bigquery.Table(f'{dataset}.ingestion_runs', schema=[
+        bigquery.SchemaField(k, t, mode='NULLABLE') for k, t in manifest.items()])
+    manifest_table.time_partitioning = bigquery.TimePartitioning(field='published_at')
+    client.create_table(manifest_table, exists_ok=True)
+    actual = client.get_table(manifest_table.reference)
+    if {f.name: aliases.get(f.field_type, f.field_type) for f in actual.schema} != manifest:
+        raise ValueError('Existing table schema does not match contract: ingestion_runs')
     client.query(f'CREATE TABLE IF NOT EXISTS `{dataset}._publication_guard` AS SELECT 0 AS epoch',
                  job_config=bigquery.QueryJobConfig(maximum_bytes_billed=10485760)).result(timeout=120)
 
@@ -1042,15 +1161,9 @@ def publish_records(client, dataset, stream, records, manifest, *, transport_val
     if stream == 'events':
         if manifest['transport'] != 'klaviyo_jsonapi_pages':
             raise ValueError('Klaviyo events publication requires klaviyo_jsonapi_pages transport')
-        event_rows = []
-        for row in records:
-            if not isinstance(row, dict) or set(row) != set(raw):
-                raise ValueError('Raw row must match envelope columns')
-            if row['file_id'] not in file_ids or row['payload'] != row['record_text']:
-                raise ValueError('Raw row must preserve its referenced file and original JSON')
-            event_rows.append(row)
+        event_rows = list(records)
         _validate_klaviyo_events_page_publication(event_rows, files, stream)
-        records = event_rows
+        return _publish_klaviyo_event_rows(client, dataset, manifest, event_rows)
     if stream == 'campaigns':
         if manifest['transport'] != 'klaviyo_jsonapi_pages':
             raise ValueError('Klaviyo campaigns publication requires klaviyo_jsonapi_pages transport')

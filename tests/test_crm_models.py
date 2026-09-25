@@ -39,12 +39,14 @@ class CrmModelsTest(unittest.TestCase):
         self.db = duckdb.connect()
         self.addCleanup(self.db.close)
         self.db.execute('''CREATE TABLE stg_klaviyo__events (
-            shop_key VARCHAR, event_id VARCHAR, uuid VARCHAR, event_key VARCHAR,
-            extraction_id VARCHAR, profile_id VARCHAR, email VARCHAR, datetime TIMESTAMP,
-            event_type VARCHAR, metric_id VARCHAR, unknown_metric_id BOOLEAN,
-            message VARCHAR, campaign VARCHAR, flow_id VARCHAR, campaign_name VARCHAR,
-            message_name VARCHAR, subject VARCHAR, variant VARCHAR, method VARCHAR,
-            ingested_at TIMESTAMP, published_at TIMESTAMP)''')
+            event_key VARCHAR, shop_key VARCHAR, extraction_id VARCHAR, event_id VARCHAR,
+            uuid VARCHAR, event_type VARCHAR, metric_id VARCHAR, profile_id VARCHAR,
+            email VARCHAR, datetime TIMESTAMP, timestamp BIGINT, unknown_metric_id BOOLEAN,
+            page_key VARCHAR, ingested_at TIMESTAMP, published_at TIMESTAMP,
+            flow_id VARCHAR, message VARCHAR, subject VARCHAR, campaign VARCHAR,
+            campaign_name VARCHAR, message_name VARCHAR, method VARCHAR, channel VARCHAR,
+            variant VARCHAR, list_ids VARCHAR, event_id_basis VARCHAR, provider_event_id VARCHAR,
+            observation_count BIGINT)''')
         self.db.execute('''CREATE TABLE stg_klaviyo__campaign_messages (
             shop_key VARCHAR, message_id VARCHAR, campaign_id VARCHAR, name VARCHAR,
             updated_at TIMESTAMP, published_at TIMESTAMP, ingested_at TIMESTAMP, message_key VARCHAR)''')
@@ -63,9 +65,13 @@ class CrmModelsTest(unittest.TestCase):
 
     def event(self, eid, kind, ts, shop='a', profile='p', email='buyer@example.test',
               message='m', campaign='c', observed='2025-02-01', event_id=True):
-        vals = [shop, eid if event_id else None, None, eid + observed, observed,
-                profile, email, ts, kind, 'metric', kind is None, message, campaign,
-                None, 'Campaign', 'Message', 'Subject', None, None, observed, observed]
+        basis = 'event_id' if event_id else 'observation'
+        provider = eid if event_id else eid + observed
+        vals = [eid + observed, shop, observed, eid if event_id else None, None,
+                kind, 'metric', profile, email, ts, None, kind is None,
+                eid + observed, observed, observed,
+                None, message, 'Subject', campaign, 'Campaign', 'Message',
+                None, None, None, None, basis, provider, 1]
         self.db.execute('INSERT INTO stg_klaviyo__events VALUES ('+','.join('?' for _ in vals)+')', vals)
 
     def order(self, oid, ts, shop='a', email='buyer@example.test', cancelled=False, amount=100, currency='USD'):
@@ -78,13 +84,16 @@ class CrmModelsTest(unittest.TestCase):
         for name in MODELS:
             self.db.execute('CREATE OR REPLACE TABLE '+name+' AS '+render(name))
         for path in (ROOT / 'dbt/tests/crm').glob('*.sql'):
-            sql = jinja2.Environment().from_string(path.read_text()).render(ref=lambda name: name)
+            sql = jinja2.Environment().from_string(path.read_text()).render(
+                config=lambda **kw: '', ref=lambda name: name)
             translated = sqlglot.transpile(sql, read='bigquery', write='duckdb')[0]
             self.assertEqual(self.db.execute(translated).fetchall(), [], path.name)
 
     def test_replay_shop_isolation_repeat_deliveries_and_orphans(self):
+        # Duplicate observations of the same provider event no longer reach
+        # staging: the raw stream merges on event identity and the stg collapse
+        # is the safety net, so the fixture keeps one row per stg contract key.
         self.event('send', 'received-email', '2025-01-01 23:50:00')
-        self.event('send', 'received-email', '2025-01-01 23:50:00', observed='2025-02-02')
         self.event('send', 'received-email', '2025-01-01 23:50:00', shop='b')
         self.event('open1', 'opened-email', '2025-01-02 00:00:00')
         self.event('open2', 'opened-email', '2025-01-02 00:01:00')
