@@ -103,11 +103,14 @@ class KlaviyoCaptureTests(unittest.TestCase):
         with self.assertRaisesRegex(CaptureError, "filtered metric"):
             make(pages=pages).collect()
 
-    def test_missing_included_profile_fails_closed(self):
+    def test_missing_included_profile_keeps_the_event_without_email(self):
+        # Profiles deleted from Klaviyo (GDPR) never resolve in included[];
+        # historical events referencing them stay real, with profile_gid and
+        # a NULL email projection.
         pages = default_pages()
         pages[("M1", NEXT["M1"])] = page([event("e3", "M1")], included=[])
-        with self.assertRaisesRegex(CaptureError, "included profiles"):
-            make(pages=pages).collect()
+        seal = make(pages=pages).collect()
+        self.assertEqual(seal["counts"], {"M2": 1, "M1": 2})
 
     def test_unexpected_included_resource_fails_closed(self):
         pages = default_pages()
