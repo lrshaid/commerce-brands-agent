@@ -35,10 +35,10 @@ classified as (
         {{ klaviyo_unknown_metric("r.metric_id") }} as unknown_metric_id,
         to_hex(sha256(to_json_string(struct(r.source_extraction_id, r.event_gid)))) as page_key,
         r.ingested_at,
-        m.published_at as published_at,
+        r.published_at,
         r.flow_id, r.message, r.subject, r.campaign, r.campaign_name,
         r.message_name, r.method, r.channel, r.variant,
-        cast(r.list_ids as string) as list_ids
+        to_json_string(r.list_ids) as list_ids
     from source r
 ),
 identified as (
