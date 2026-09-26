@@ -83,7 +83,13 @@ def prepare_klaviyo_raw(*, bucket, token, account_key, extraction_id, metrics,
             for event, profiles in capture._page_events(page["operation"], payload):
                 profile_id = (event.get("relationships", {}).get("profile", {}).get("data") or {}) \
                     .get("id")
-                yield flatten_event(event, profiles.get(profile_id), context, CONTRACT)
+                try:
+                    yield flatten_event(event, profiles.get(profile_id), context, CONTRACT)
+                except CaptureError as exc:
+                    # Fail-closed stays: a mismatched type aborts the extraction.
+                    # The event identity makes the offending event findable
+                    # without re-processing the window.
+                    raise CaptureError(f"event {event['id']}: {exc}") from None
 
     return {
         "streams": {

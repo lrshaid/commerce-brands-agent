@@ -4,6 +4,7 @@ import hashlib
 import json
 
 from agent.warehouse.klaviyo_raw import CONTRACT, prepare_klaviyo_raw
+from agent.warehouse.refund_capture import CaptureError
 from agent.warehouse.raw_publication import _validate_klaviyo_events_page_publication
 from tests.test_catalog_capture import Blob, Bucket
 from tests.test_klaviyo_capture import METRICS, NEXT, Harness, event, page, profile
@@ -95,6 +96,15 @@ class KlaviyoRawTests(unittest.TestCase):
         self.assertEqual(payload["attributes"]["event_properties"]["Click Rate"], 0.5)
         self.assertEqual(payload["attributes"]["event_properties"]["Position"], 2)
         _validate_klaviyo_events_page_publication([row], prepared["streams"]["events"]["files"], "events")
+
+    def test_type_mismatch_fails_closed_naming_the_event(self):
+        numeric_variant = event("e9", "M1", properties={"$variant": 5})
+        _, _, prepared = capture_and_prepare(pages={
+            ("M2", None): page([], included=[]),
+            ("M1", None): page([numeric_variant], included=[profile("P1")]),
+        })
+        with self.assertRaisesRegex(CaptureError, r"event e9: Column variant expects a string"):
+            list(prepared["streams"]["events"]["records"])
 
     def test_zero_pages_require_the_zero_seal_for_publication(self):
         prepared = {
