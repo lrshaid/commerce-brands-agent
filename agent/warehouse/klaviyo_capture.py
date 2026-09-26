@@ -35,7 +35,7 @@ class KlaviyoCapture:
             raise CaptureError("Invalid Klaviyo account identity")
         if not extraction_id or (not read_only and not token.strip()):
             raise CaptureError("Explicit extraction identity and credential are required")
-        if (not 1 <= page_size <= 200 or not 1 <= timeout_seconds <= 7200
+        if (not 1 <= page_size <= 1000 or not 1 <= timeout_seconds <= 7200
                 or not 1 <= max_pages <= 100000 or not 1 <= max_attempts <= 10
                 or not 64 * 1024 <= max_page_bytes <= 32 * 1024 * 1024
                 or not 1 <= max_bytes <= 2 * 1024 ** 3):

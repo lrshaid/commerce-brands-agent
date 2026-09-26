@@ -26,7 +26,7 @@ def klaviyo_events_raw(context: dg.AssetExecutionContext, config: KlaviyoConfig)
         window_start=config.window_start, window_end=config.window_end,
         ingested_at=now, published_at=now,
         timeout_seconds=config.timeout_seconds, max_bytes=config.max_bytes,
-        max_pages=config.max_pages)
+        max_pages=config.max_pages, page_size=config.page_size)
     _, fields = contract_columns()
     bq = bigquery.Client(project=project, location=os.environ.get("GOOGLE_CLOUD_REGION", "us-central1"))
     result = prepared["streams"][STREAM]

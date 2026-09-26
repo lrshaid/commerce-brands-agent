@@ -71,8 +71,8 @@ def compile_klaviyo_event_plan(metric_id, event_type, window_start, window_end, 
     if _FILTER_DELIMITERS.search(metric_id):
         raise KlaviyoRequestError("Klaviyo metric_id must not contain filter delimiters")
     if (not isinstance(page_size, int) or isinstance(page_size, bool)
-            or not 1 <= page_size <= 200):
-        raise KlaviyoRequestError("Klaviyo page size must be between 1 and 200")
+            or not 1 <= page_size <= 1000):
+        raise KlaviyoRequestError("Klaviyo page size must be between 1 and 1000")
     if event_type is not None and (not isinstance(event_type, str) or not event_type.strip()):
         raise KlaviyoRequestError("Klaviyo event_type must be a non-empty string or absent")
     start, end = validate_klaviyo_window(window_start, window_end)

@@ -30,6 +30,7 @@ class KlaviyoConfig(dg.Config):
     timeout_seconds: int = 900
     max_bytes: int = 256 * 1024 * 1024
     max_pages: int = 2000
+    page_size: int = 200
 
     def metric_entries(self):
         return [{"metric_id": metric.metric_id,
@@ -45,7 +46,7 @@ def klaviyo_events(context: dg.AssetExecutionContext, config: KlaviyoConfig):
         extraction_id=config.extraction_id, metrics=config.metric_entries(),
         window_start=config.window_start, window_end=config.window_end,
         timeout_seconds=config.timeout_seconds, max_bytes=config.max_bytes,
-        max_pages=config.max_pages,
+        max_pages=config.max_pages, page_size=config.page_size,
     )
     seal = capture.collect()
     return dg.MaterializeResult(metadata={**seal["counts"], "pages": len(seal["pages"]),
