@@ -1,1 +1,1 @@
-runtime_image = "us-central1-docker.pkg.dev/commerce-agents-dev/commerce/runtime@sha256:bcc3526ade07e089a45d2f8e8faa03cfe3f5477b5a8f42af490dcdfc17e46fe6"
+runtime_image = "us-central1-docker.pkg.dev/commerce-agents-dev/commerce/runtime@sha256:4b6a6d1d14de59d4f9f3870dbd5ef0e860a62cb6fd66fa6d058def846a2659ab"
