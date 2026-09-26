@@ -13,11 +13,13 @@ Type checks fail closed at flatten time: a value that does not match its
 declared type aborts the preparation instead of landing a bad row.
 """
 from datetime import datetime
+from decimal import Decimal
+import json
 from pathlib import Path
 
 from google.cloud import bigquery
 
-from .refund_capture import CaptureError, encoded
+from .refund_capture import CaptureError
 
 CONTRACT = Path(__file__).resolve().parents[2] / 'warehouse/contracts/klaviyo_events_v1.yaml'
 
@@ -88,6 +90,16 @@ def _navigate(document, path):
     return value
 
 
+def canonical_json(value):
+    """Canonical JSON text for JSON columns.
+
+    The capture decoder parses float literals as Decimal; re-serializing the
+    verbatim event must emit them back as numbers, not raise.
+    """
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                      default=lambda d: float(d) if isinstance(d, Decimal) else str(d))
+
+
 def flatten_event(event, profile, context, contract):
     """Flatten one verbatim event into contract-ordered string values for the stage load.
 
@@ -124,7 +136,7 @@ def flatten_event(event, profile, context, contract):
                 raise CaptureError(f'Column {column.name} is not a timezone-aware timestamp') from None
             row[column.name] = value
         elif column.type in _JSON_TYPES:
-            row[column.name] = encoded(value).decode('utf-8')
+            row[column.name] = canonical_json(value)
     return row
 
 
