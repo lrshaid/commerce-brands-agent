@@ -39,7 +39,7 @@ class KlaviyoQueryTests(unittest.TestCase):
         with self.assertRaises(KlaviyoRequestError):
             compile_klaviyo_event_plan("M1", None, START, START)
         with self.assertRaises(KlaviyoRequestError):
-            compile_klaviyo_event_plan("M1", None, START, END, 201)
+            compile_klaviyo_event_plan("M1", None, START, END, 1001)
         with self.assertRaises(KlaviyoRequestError):
             compile_klaviyo_event_plan("M1", None, START, END, True)
 

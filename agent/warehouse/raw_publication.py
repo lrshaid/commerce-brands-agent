@@ -404,7 +404,7 @@ def _validate_klaviyo_events_page_publication(rows, files, stream=None):
                 raise ValueError('Klaviyo response page cursor metadata is invalid')
         elif (set(variables) == {'page[size]', 'sort', 'include', 'filter'}
                 and isinstance(page_size, int) and not isinstance(page_size, bool)
-                and 1 <= page_size <= 200
+                and 1 <= page_size <= 1000
                 and variables.get('sort') == '-datetime'
                 and variables.get('include') == 'profile'
                 and isinstance(variables.get('filter'), str)

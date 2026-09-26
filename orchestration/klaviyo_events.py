@@ -24,6 +24,13 @@ class KlaviyoConfig(dg.Config):
     window_start: str
     window_end: str
     metrics: list[KlaviyoMetric]
+    # Capture bounds: defaults fit the daily incremental windows; historical
+    # backfills override them through the launcher. Hard caps are validated in
+    # KlaviyoCapture.
+    timeout_seconds: int = 900
+    max_bytes: int = 256 * 1024 * 1024
+    max_pages: int = 2000
+    page_size: int = 200
 
     def metric_entries(self):
         return [{"metric_id": metric.metric_id,
@@ -38,6 +45,8 @@ def klaviyo_events(context: dg.AssetExecutionContext, config: KlaviyoConfig):
         bucket=bucket, token=os.environ["KLAVIYO_API_KEY"], account_key=config.account_key,
         extraction_id=config.extraction_id, metrics=config.metric_entries(),
         window_start=config.window_start, window_end=config.window_end,
+        timeout_seconds=config.timeout_seconds, max_bytes=config.max_bytes,
+        max_pages=config.max_pages, page_size=config.page_size,
     )
     seal = capture.collect()
     return dg.MaterializeResult(metadata={**seal["counts"], "pages": len(seal["pages"]),
