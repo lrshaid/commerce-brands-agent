@@ -39,6 +39,12 @@ def main():
     parser.add_argument("--metric-map", action="store_true",
                         help="klaviyo_events_ingestion only: capture every metric documented in the "
                              "dbt klaviyo_metric_map var (dbt/dbt_project.yml) in map order")
+    parser.add_argument("--capture-timeout-seconds", type=int, default=None,
+                        help="klaviyo_events_ingestion only: capture deadline override (default 900, max 7200)")
+    parser.add_argument("--capture-max-bytes", type=int, default=None,
+                        help="klaviyo_events_ingestion only: total capture bytes override (default 256MiB, max 2GiB)")
+    parser.add_argument("--capture-max-pages", type=int, default=None,
+                        help="klaviyo_events_ingestion only: per-metric page cap override (default 2000, max 100000)")
     parser.add_argument("--replay-completed-run", help="Explicitly replay this successful run's extraction")
     parser.add_argument("--force-recapture", action="store_true",
         help="Force a fresh Shopify export: mint a new extraction identity from --extraction-id "
@@ -208,6 +214,11 @@ def launch_extraction(args, window_start, window_end, extraction_id):
             dict(zip(("metric_id", "event_type"), (entry, ""))) if "=" not in entry
             else {"metric_id": entry.split("=", 1)[0], "event_type": entry.split("=", 1)[1]}
             for entry in args.metric]
+        for bound, arg in (("timeout_seconds", "capture_timeout_seconds"),
+                           ("max_bytes", "capture_max_bytes"),
+                           ("max_pages", "capture_max_pages")):
+            if getattr(args, arg) is not None:
+                klaviyo_config[bound] = getattr(args, arg)
         operations = {"klaviyo_capture__event_pages": {"config": klaviyo_config},
                       "klaviyo_events_raw": {"config": klaviyo_config}}
     if args.job == "klaviyo_campaigns_ingestion":

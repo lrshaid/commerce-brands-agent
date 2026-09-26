@@ -27,7 +27,8 @@ CONTRACT = EventContract()
 
 def prepare_klaviyo_raw(*, bucket, token, account_key, extraction_id, metrics,
                         window_start, window_end, ingested_at, published_at,
-                        page_size=200):
+                        page_size=200, timeout_seconds=900, max_bytes=256 * 1024 * 1024,
+                        max_pages=2000):
     if ingested_at.utcoffset() is None or published_at.utcoffset() is None:
         raise ValueError("Timezone-aware ingestion and publication timestamps required")
     plans = compile_klaviyo_event_plans(metrics, window_start, window_end, page_size)
@@ -35,6 +36,7 @@ def prepare_klaviyo_raw(*, bucket, token, account_key, extraction_id, metrics,
         bucket=bucket, token=token, account_key=account_key,
         extraction_id=extraction_id, metrics=metrics,
         window_start=window_start, window_end=window_end, page_size=page_size,
+        timeout_seconds=timeout_seconds, max_bytes=max_bytes, max_pages=max_pages,
         read_only=True,
     )
     if capture.binding["metrics"] != [{"metric_id": plan.metric_id, "event_type": plan.event_type}

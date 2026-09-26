@@ -38,7 +38,7 @@ class KlaviyoCapture:
         if (not 1 <= page_size <= 200 or not 1 <= timeout_seconds <= 7200
                 or not 1 <= max_pages <= 100000 or not 1 <= max_attempts <= 10
                 or not 64 * 1024 <= max_page_bytes <= 32 * 1024 * 1024
-                or not 1 <= max_bytes <= 256 * 1024 * 1024):
+                or not 1 <= max_bytes <= 2 * 1024 ** 3):
             raise CaptureError("Invalid capture bounds")
         plans = compile_klaviyo_event_plans(metrics, window_start, window_end, page_size)
         self.bucket, self._token = bucket, token.strip()
