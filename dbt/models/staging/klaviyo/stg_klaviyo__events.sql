@@ -38,7 +38,7 @@ classified as (
         r.published_at,
         r.flow_id, r.message, r.subject, r.campaign, r.campaign_name,
         r.message_name, r.method, r.channel, r.variant,
-        to_json_string(r.list_ids) as list_ids
+        r.list_ids
     from source r
 ),
 identified as (
