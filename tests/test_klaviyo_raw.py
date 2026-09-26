@@ -83,6 +83,19 @@ class KlaviyoRawTests(unittest.TestCase):
         self.assertEqual(events["counts"], {"M2": 0, "M1": 0})
         _validate_klaviyo_events_page_publication(list(events["records"]), events["files"], "events")
 
+    def test_float_properties_serialize_back_as_numbers(self):
+        float_event = event("e3", "M1", properties={"Click Rate": 0.5, "Position": 2})
+        _, seal, prepared = capture_and_prepare(pages={
+            ("M2", None): page([], included=[]),
+            ("M1", None): page([float_event], included=[profile("P1")]),
+        })
+        row = next(prepared["streams"]["events"]["records"])
+        self.assertEqual(row["event_gid"], "e3")
+        payload = json.loads(row["original_payload"])
+        self.assertEqual(payload["attributes"]["event_properties"]["Click Rate"], 0.5)
+        self.assertEqual(payload["attributes"]["event_properties"]["Position"], 2)
+        _validate_klaviyo_events_page_publication([row], prepared["streams"]["events"]["files"], "events")
+
     def test_zero_pages_require_the_zero_seal_for_publication(self):
         prepared = {
             "streams": {"events": {"records": iter([]),
