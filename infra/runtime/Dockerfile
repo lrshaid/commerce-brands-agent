@@ -33,7 +33,6 @@ COPY infra/runtime/dagster.yaml /opt/dagster/home/dagster.yaml
 COPY infra/runtime/workspace.yaml /opt/dagster/home/workspace.yaml
 COPY infra/runtime/entrypoint.sh /app/entrypoint.sh
 COPY infra/runtime/wait_for_postgres.py /app/wait_for_postgres.py
-COPY infra/scripts/klaviyo_volume_probe.py /app/infra/scripts/klaviyo_volume_probe.py
 RUN chmod +x /app/entrypoint.sh && dbt parse --project-dir /app/dbt --profiles-dir /app/dbt
 ARG CODE_VERSION=unknown
 ENV CODE_VERSION=$CODE_VERSION
