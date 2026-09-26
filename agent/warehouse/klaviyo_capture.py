@@ -236,9 +236,14 @@ class KlaviyoCapture:
                 raise CaptureError("Klaviyo page contains an event outside its filtered metric")
             profile = relationships.get("profile")
             profile_data = profile.get("data") if isinstance(profile, dict) else None
-            if isinstance(profile_data, dict) and profile_data.get("id") is not None:
-                if not isinstance(profile_data.get("id"), str) or profile_data["id"] not in profiles:
-                    raise CaptureError("Klaviyo event profile relationship is missing from included profiles")
+            # Historical events may reference profiles deleted from Klaviyo
+            # (GDPR deletions): the relationship id survives but the included
+            # profile never resolves. The event is real; keep it with its
+            # profile_gid and let the email projection be NULL instead of
+            # losing the event or aborting historical backfills.
+            if (isinstance(profile_data, dict) and profile_data.get("id") is not None
+                    and not isinstance(profile_data.get("id"), str)):
+                raise CaptureError("Klaviyo event profile identity is invalid")
             if not isinstance(event.get("attributes"), dict):
                 raise CaptureError("Klaviyo event is missing its attributes")
             yield event, profiles
